@@ -7,8 +7,12 @@
 server:
   replicas: 1
 
-  # Run in insecure mode: ArgoCD serves HTTP, TLS terminated at nginx ingress.
-  insecure: true
+  # server.insecure: true is a no-op in ArgoCD Helm chart 7.x.
+  # Use extraArgs to directly inject --insecure into the server process args.
+  # Without this flag, argocd-server redirects all HTTP traffic to HTTPS internally,
+  # causing a redirect loop when TLS is terminated at the nginx ingress.
+  extraArgs:
+    - --insecure
 
   # Ingress disabled here — managed as a plain manifest in root-app/templates/argocd-ingress.yaml.
   ingress:
@@ -21,11 +25,14 @@ server:
 
 ## ArgoCD Configs
 configs:
+  params:
+    # Belt-and-suspenders: also set via argocd-cmd-params-cm ConfigMap.
+    server.insecure: "true"
+
   cm:
     # External URL used by ArgoCD for links in notifications and UI.
     url: "http://argo.in.alybadawy.com"
     server.disable.auth: "false"
-    server.insecure: "true"
     application.instanceLabelKey: "argocd.argoproj.io/instance"
 
   rbac:
