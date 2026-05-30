@@ -50,6 +50,15 @@ if ! load_ssh_config "$CONFIG_FILE"; then
 fi
 log_output "${GREEN}✓ SSH configuration loaded${NC}\n"
 
+# Load Git + Domain configuration
+log_output "${YELLOW}Loading Git and Domain configuration...${NC}"
+if ! load_git_config "$CONFIG_FILE"; then
+  log_output "${RED}✗ Failed to load Git/Domain configuration${NC}"
+  exit 1
+fi
+log_output "${GREEN}✓ Git repo: $GIT_REPO${NC}"
+log_output "${GREEN}✓ Domain:   $DOMAIN${NC}\n"
+
 # ─────────────────────────────────────────────────────────────────
 # Step 1: Install Nginx Ingress Controller (prerequisite)
 # ─────────────────────────────────────────────────────────────────
@@ -227,7 +236,10 @@ fi
 # ─────────────────────────────────────────────────────────────────
 log_output "${YELLOW}Step 4: Creating bootstrap Application${NC}\n"
 
-BOOTSTRAP_MANIFEST=$(cat <<'EOF'
+# Note: uses $GIT_REPO and $DOMAIN loaded from config/secrets.yaml above.
+# These are injected as helm.parameters so root-app/values.yaml stays free
+# of instance-specific hardcoded values.
+BOOTSTRAP_MANIFEST=$(cat <<EOF
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -238,9 +250,15 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: https://github.com/AlyBadawy/hl-beta
+    repoURL: $GIT_REPO
     targetRevision: main
     path: git-ops/root-app
+    helm:
+      parameters:
+        - name: domain
+          value: "$DOMAIN"
+        - name: git.repoUrl
+          value: "$GIT_REPO"
   destination:
     server: https://kubernetes.default.svc
     namespace: default
@@ -303,10 +321,6 @@ done
 # Done
 # ─────────────────────────────────────────────────────────────────
 log_output "${GREEN}=== ✓ GitOps Bootstrap Complete ===${NC}\n"
-
-# Read domain from config
-DOMAIN=$(grep "^domain:" "$CONFIG_FILE" 2>/dev/null | awk '{print $2}' | tr -d "\"'" || echo "in.alybadawy.com")
-[ -z "$DOMAIN" ] && DOMAIN="in.alybadawy.com"
 
 log_output "${YELLOW}Access ArgoCD (port-forward — use this until root-app syncs):${NC}"
 log_output "  kubectl port-forward -n argocd svc/argocd-server 8080:80"

@@ -9,7 +9,3 @@ keywords:
   - argocd
   - gitops
   - app-of-apps
-
-maintainers:
-  - name: Homelab
-    email: admin@in.alybadawy.com

@@ -30,18 +30,18 @@ configs:
     server.insecure: "true"
 
   cm:
-    # External URL used by ArgoCD for links in notifications and UI.
-    url: "http://argo.in.alybadawy.com"
+    # configs.cm.url is NOT set here — it is injected as a helm.parameters override
+    # in root-app/templates/argocd-app.yaml using {{ .Values.domain }}, so the domain
+    # stays in one place (root-app/values.yaml) and is never hardcoded in this file.
     server.disable.auth: "false"
     application.instanceLabelKey: "argocd.argoproj.io/instance"
 
   rbac:
     policy.default: 'role:readonly'
 
-  repositories:
-    - url: https://github.com/AlyBadawy/hl-beta
-      type: git
-      name: hl-beta
+  # repositories is NOT set here — injected via helm.parameters in
+  # root-app/templates/argocd-app.yaml using {{ .Values.git.repoUrl }},
+  # so the repo URL stays in one place (root-app/values.yaml).
 
 ## Persistence (disabled until Longhorn is available)
 persistence:

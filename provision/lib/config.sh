@@ -69,6 +69,30 @@ load_smtp_config() {
   fi
 }
 
+# Load Git configuration from secrets
+# Sets GIT_REPO, DOMAIN
+load_git_config() {
+  local config_file=$1
+
+  if [ ! -f "$config_file" ]; then
+    echo "ERROR: Config file not found: $config_file" >&2
+    return 1
+  fi
+
+  GIT_REPO=$(get_config_value "$config_file" "git" "repo")
+  DOMAIN=$(get_config_value "$config_file" "domain" "base")
+
+  if [ -z "$GIT_REPO" ]; then
+    echo "ERROR: git.repo not found in $config_file" >&2
+    return 1
+  fi
+
+  if [ -z "$DOMAIN" ]; then
+    echo "ERROR: domain.base not found in $config_file" >&2
+    return 1
+  fi
+}
+
 # Load NAS configuration from secrets
 # Sets NAS_IP, NAS_BASE_SHARE, NAS_BASE_MOUNT
 load_nas_config() {

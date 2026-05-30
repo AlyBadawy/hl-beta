@@ -1,11 +1,18 @@
 # Root App - App of Apps Values
+#
+# Instance-specific values (domain, git.repoUrl) are NOT hardcoded here.
+# They are injected as helm.parameters by provision/scripts/bootstrap-gitops,
+# reading from config/secrets.yaml (which is git-ignored).
+# Keeping them out of this file means the repo is portable across different
+# homelabs without any git-ops edits.
 
-# Cluster domain configuration
-domain: "in.alybadawy.com"  # Base domain; services use format: service.{domain}
+# Cluster domain — injected by bootstrap via helm.parameters.
+domain: ""
 
 # Git repository configuration
 git:
-  repoUrl: "https://github.com/AlyBadawy/hl-beta"
+  # repoUrl — injected by bootstrap via helm.parameters.
+  repoUrl: ""
   targetRevision: "main"
   path: "git-ops"
 

@@ -1,4 +1,4 @@
-{{- if .Values.argocd.enabled }}
+# {{- if .Values.argocd.enabled }}
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -19,6 +19,18 @@ spec:
       helm:
         valueFiles:
           - $values/git-ops/argocd/values.yaml
+        # Domain-specific values are injected here from root-app/values.yaml so
+        # they never need to be hardcoded inside git-ops/argocd/values.yaml.
+        # Parameters are applied after valueFiles and take precedence.
+        parameters:
+          - name: configs.cm.url
+            value: "http://argo.{{ .Values.domain }}"
+          - name: "configs.repositories[0].url"
+            value: "{{ .Values.git.repoUrl }}"
+          - name: "configs.repositories[0].type"
+            value: git
+          - name: "configs.repositories[0].name"
+            value: hl-beta
     - repoURL: "{{ .Values.git.repoUrl }}"
       targetRevision: "{{ .Values.git.targetRevision }}"
       ref: values
@@ -27,8 +39,8 @@ spec:
     namespace: "{{ .Values.argocd.namespace }}"
   syncPolicy:
     automated:
-      prune: {{ .Values.syncPolicy.automated.prune }}
-      selfHeal: {{ .Values.syncPolicy.automated.selfHeal }}
+      prune: true
+      selfHeal: true
     syncOptions:
       - CreateNamespace=true
     retry:
@@ -37,4 +49,4 @@ spec:
         duration: 5s
         factor: 2
         maxDuration: 3m
-{{- end }}
+# {{- end }}
