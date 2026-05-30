@@ -1,8 +1,11 @@
 # ArgoCD Helm Chart Values
 
 ## Global
+## NOTE: When using this file directly (not via root-app), replace {DOMAIN} with your base domain
+## Example: argo.in.alybadawy.com, argo.example.com, etc.
+## When deployed via root-app, the domain is set dynamically from root-app/values.yaml
 global:
-  domain: argo.in.alybadawy.com
+  domain: "{DOMAIN}"  # Replaced by root-app to: in.alybadawy.com
 
 ## ArgoCD Server
 server:
@@ -20,7 +23,7 @@ server:
       # No SSL redirect yet
       nginx.ingress.kubernetes.io/force-ssl-redirect: "false"
     hosts:
-      - argo.in.alybadawy.com
+      - "argo.{DOMAIN}"  # Replaced by root-app to: argo.in.alybadawy.com
     paths:
       - path: /
         pathType: Prefix
@@ -43,7 +46,7 @@ server:
 configs:
   # General configuration
   general:
-    url: http://argo.in.alybadawy.com
+    url: "http://argo.{DOMAIN}"  # Replaced by root-app to: http://argo.in.alybadawy.com
 
   # RBAC configuration
   rbac:
