@@ -86,15 +86,10 @@ if [ ! -f "$CONFIG_FILE" ]; then
 fi
 
 # Load SSH configuration
-log_output "${YELLOW}Loading SSH configuration...${NC}"
 if ! load_ssh_config "$CONFIG_FILE"; then
   log_output "${RED}✗ Failed to load SSH configuration${NC}"
   exit 1
 fi
-
-log_output "${GREEN}✓ Configuration loaded${NC}"
-log_output "  Server IP: ${BLUE}$SERVER_IP${NC}"
-log_output "  SSH User:  ${BLUE}$SSH_USER${NC}\n"
 
 # Ask user if they want to proceed
 read -p "$(echo -e ${YELLOW}Update system and install dependencies?${NC}) [Y/n]: " proceed

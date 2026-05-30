@@ -80,6 +80,34 @@ Updates the system and installs essential packages for k3s provisioning.
 **Log Output:**
 All steps are logged to `provision.log` for future reference and debugging.
 
+### Step 4: `mount-nas`
+
+Sets up NFS mounts for the NAS storage on the server.
+
+**What it does:**
+1. Tests NAS connectivity (verifies NAS IP is reachable)
+2. Creates mount directories: `/mnt/nas/homelab`, `/mnt/nas/backups`, `/mnt/nas/immich`, `/mnt/nas/nextcloud`
+3. Adds NFS entries to `/etc/fstab` (checks for duplicates, won't re-add existing entries)
+4. Backs up `/etc/fstab` before modifications
+5. Mounts all NFS filesystems immediately
+6. Displays current mount status and disk usage
+
+**Features:**
+- Checks for duplicate fstab entries (safe to run multiple times)
+- Creates /etc/fstab.backup with timestamp before changes
+- Verifies mounts succeeded
+- NFS mount options optimized for kubernetes (automount, nofail, etc.)
+- Logs all output to `provision.log`
+- Remote execution via SSH
+
+**NFS Mount Options:**
+```
+defaults,_netdev,nofail,x-systemd.automount,x-systemd.mount-timeout=10
+```
+- `_netdev`: network filesystem (waits for network before mounting)
+- `nofail`: don't block boot if mount fails
+- `x-systemd.automount`: auto-mount on access
+
 ## Configuration
 
 All configuration is stored in `config/secrets.yaml` (gitignored). See `config/secrets.example.yaml` for the structure.

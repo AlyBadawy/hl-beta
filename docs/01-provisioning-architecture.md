@@ -60,9 +60,9 @@ User Input
 **Phase 2: Server Bootstrap** - In Progress
 - ✓ SSH connectivity validation (Step 2: check-ssh-connection)
 - ✓ System updates and dependencies (Step 3: update-dependencies)
+- ✓ NAS mount setup (Step 4: mount-nas)
 - ✓ Configuration loader (config.sh library)
-- ⏳ Network and storage configuration (planned)
-- ⏳ NAS mount setup (planned)
+- ⏳ Any additional network configuration (planned)
 
 ### Completed: SSH Connectivity Check (Step 2)
 
@@ -83,6 +83,19 @@ Prepares the Ubuntu server with essential packages and configuration:
 5. Logs all output to `provision.log` for debugging
 
 User can skip this step if already installed.
+
+### Completed: NAS Mount Setup (Step 4)
+
+Configures NFS mounts for persistent storage:
+1. Tests NAS connectivity (verifies NAS is reachable)
+2. Creates mount directories (`/mnt/nas/homelab`, `/mnt/nas/backups`, `/mnt/nas/immich`, `/mnt/nas/nextcloud`)
+3. Adds NFS entries to `/etc/fstab` (checks for duplicates to avoid re-adding on re-run)
+4. Backs up `/etc/fstab` before modifications (with timestamp)
+5. Mounts all NFS filesystems immediately
+6. Displays mount status and disk usage
+7. Logs all output to `provision.log`
+
+Mount points are safe for kubernetes deployments with optimized NFS options (automount, nofail, network timeout).
 
 ## Future Phases
 

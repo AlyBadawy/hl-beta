@@ -41,17 +41,17 @@ hl-beta/
 
 ### Phase 2: Server Bootstrap (In Progress)
 **What:** Prepare the target Ubuntu server  
-**Scripts:** Step 2, Step 3, (TBD for remaining tasks)
+**Scripts:** Step 2, Step 3, Step 4, (TBD for remaining tasks)
 
 **Completed Responsibilities:**
 - ✓ SSH connectivity verification (Step 2: checks SSH access and NOPASSWD sudo)
 - ✓ System updates and package installation (Step 3: apt update/upgrade + 23 essential packages)
 - ✓ SWAP disabled (required for k3s)
 - ✓ System information displayed and logged
+- ✓ NAS mount setup (Step 4: mounts 4 NFS shares for homelab, backups, immich, nextcloud)
 
 **Remaining Responsibilities:**
-- Network and storage configuration
-- NAS mount setup
+- Any additional network/storage configuration
 
 ### Phase 3: K3s Installation (Planned)
 **What:** Install and configure k3s cluster  

@@ -77,6 +77,20 @@ fi
 chmod +x "$SCRIPT_DIR/scripts/update-dependencies"
 "$SCRIPT_DIR/scripts/update-dependencies"
 
+echo -e "${YELLOW}========================================${NC}"
+echo -e "${YELLOW}Step 4: Mount NAS Storage${NC}"
+echo -e "${YELLOW}========================================${NC}\n"
+
+# Check if mount-nas script exists
+if [ ! -f "$SCRIPT_DIR/scripts/mount-nas" ]; then
+  echo -e "${RED}Error: mount-nas script not found${NC}"
+  exit 1
+fi
+
+# Make script executable and run it
+chmod +x "$SCRIPT_DIR/scripts/mount-nas"
+"$SCRIPT_DIR/scripts/mount-nas"
+
 echo -e "\n${GREEN}=== ✓ Provisioning Complete ===${NC}"
 echo -e "${YELLOW}Next steps:${NC}"
 echo "  - Review logs: cat provision.log"
