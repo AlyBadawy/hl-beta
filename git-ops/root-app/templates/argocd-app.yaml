@@ -20,7 +20,8 @@ spec:
           cm:
             # Server configuration
             server.disable.auth: "false"
-            server.insecure: "true"  # No SSL yet
+            # No SSL yet
+            server.insecure: "true"
 
           # RBAC configuration
           rbac:
@@ -36,8 +37,8 @@ spec:
             hosts:
               - "argo.{{ .Values.domain }}"
             paths:
-              - /
-            pathType: Prefix
+              - path: /
+                pathType: Prefix
             # No TLS for now
             tls: []
 
