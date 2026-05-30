@@ -146,8 +146,19 @@ else
   fi
 fi
 
-# Step 5: Display system information
-log_output "${YELLOW}Step 5: System Information${NC}\n"
+# Step 5: Install Helm (for GitOps phase 7)
+log_output "${YELLOW}Step 5: Installing Helm${NC}\n"
+
+helm_install_cmd="curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash"
+
+if run_remote_command "sudo bash -c '$helm_install_cmd'" "  Installing Helm via official script..."; then
+  log_output "${GREEN}✓ Helm installed${NC}\n"
+else
+  log_output "${YELLOW}⚠ Helm installation may have failed (check logs)${NC}\n"
+fi
+
+# Step 6: Display system information
+log_output "${YELLOW}Step 6: System Information${NC}\n"
 
 # OS Information
 log_output "${BLUE}Operating System:${NC}"

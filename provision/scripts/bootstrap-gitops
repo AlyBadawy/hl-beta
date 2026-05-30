@@ -13,7 +13,14 @@ NC='\033[0m' # No Color
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 GIT_OPS_DIR="$PROJECT_DIR/git-ops"
+CONFIG_FILE="$PROJECT_DIR/config/secrets.yaml"
 LOG_FILE="$PROJECT_DIR/provision.log"
+
+# Source config loader
+source "$(dirname "$SCRIPT_DIR")/lib/config.sh"
+
+# SSH timeout
+SSH_TIMEOUT=5
 
 # Helper function to log output
 log_output() {
@@ -35,36 +42,63 @@ if [ ! -d "$GIT_OPS_DIR/root-app" ]; then
   exit 1
 fi
 
+# Load SSH configuration
+log_output "${YELLOW}Loading SSH configuration...${NC}"
+if ! load_ssh_config "$CONFIG_FILE"; then
+  log_output "${RED}✗ Failed to load SSH configuration${NC}"
+  exit 1
+fi
+log_output "${GREEN}✓ SSH configuration loaded${NC}\n"
+
 # Step 1: Install Nginx Ingress Controller (prerequisite)
 log_output "${YELLOW}Step 1: Installing Nginx Ingress Controller${NC}\n"
 
 NGINX_REPO="https://kubernetes.github.io/ingress-nginx"
 NGINX_CHART_VERSION="4.11.0"
 
-# Add Helm repository
+# Create temporary file with nginx values on remote server
+NGINX_VALUES_LOCAL="$GIT_OPS_DIR/nginx-ingress/values.yaml"
+
+# Add Helm repository (on remote server)
 log_output "  Adding nginx helm repository..."
-if helm repo add ingress-nginx "$NGINX_REPO" 2>&1 | grep -q "already exists"; then
-  log_output "  Repository already exists, updating..."
-  helm repo update ingress-nginx >> "$LOG_FILE" 2>&1
+if ssh \
+  -o ConnectTimeout=$SSH_TIMEOUT \
+  -o StrictHostKeyChecking=no \
+  -o UserKnownHostsFile=/dev/null \
+  -o LogLevel=QUIET \
+  "$SSH_USER@$SERVER_IP" \
+  "helm repo add ingress-nginx $NGINX_REPO && helm repo update" >> "$LOG_FILE" 2>&1; then
+  log_output "${GREEN}✓ Repository added and updated${NC}"
 else
-  log_output "  Repository added"
+  log_output "${YELLOW}⚠ Repository may already exist (continuing)${NC}"
 fi
 
 # Create ingress-nginx namespace
 log_output "  Creating ingress-nginx namespace..."
 kubectl create namespace ingress-nginx --dry-run=client -o yaml | kubectl apply -f - >> "$LOG_FILE" 2>&1
 
-# Install or upgrade nginx-ingress using helm
+# Get nginx values file content
+log_output "  Preparing nginx-ingress values..."
+NGINX_VALUES=$(cat "$NGINX_VALUES_LOCAL" | sed 's/"/\\"/g')
+
+# Install or upgrade nginx-ingress using helm (on remote server)
 log_output "  Installing nginx-ingress via helm..."
-if helm upgrade --install nginx-ingress ingress-nginx/ingress-nginx \
-  --namespace ingress-nginx \
-  --values "$GIT_OPS_DIR/nginx-ingress/values.yaml" \
-  --chart-version "$NGINX_CHART_VERSION" \
-  --wait \
-  --timeout 5m >> "$LOG_FILE" 2>&1; then
+if ssh \
+  -o ConnectTimeout=$SSH_TIMEOUT \
+  -o StrictHostKeyChecking=no \
+  -o UserKnownHostsFile=/dev/null \
+  -o LogLevel=QUIET \
+  "$SSH_USER@$SERVER_IP" \
+  "export KUBECONFIG=~/.kube/config && helm upgrade --install nginx-ingress ingress-nginx/ingress-nginx \
+    --namespace ingress-nginx \
+    --version $NGINX_CHART_VERSION \
+    --values - \
+    --wait \
+    --timeout 5m" <<< "$(cat $NGINX_VALUES_LOCAL)" >> "$LOG_FILE" 2>&1; then
   log_output "${GREEN}✓ Nginx Ingress Controller installed${NC}\n"
 else
   log_output "${RED}✗ Failed to install Nginx Ingress Controller${NC}"
+  log_output "${RED}Check logs: tail -50 provision.log${NC}"
   exit 1
 fi
 
@@ -78,7 +112,51 @@ else
   exit 1
 fi
 
-# Step 3: Create bootstrap Application manifest
+# Step 3: Install ArgoCD via Helm (prerequisite for bootstrap app)
+log_output "${YELLOW}Step 3: Installing ArgoCD via Helm${NC}\n"
+
+ARGOCD_REPO="https://argoproj.github.io/argo-helm"
+ARGOCD_CHART_VERSION="7.6.0"
+ARGOCD_VALUES_LOCAL="$GIT_OPS_DIR/argocd/values.yaml"
+
+# Add ArgoCD helm repository (on remote server)
+log_output "  Adding ArgoCD helm repository..."
+if ssh \
+  -o ConnectTimeout=$SSH_TIMEOUT \
+  -o StrictHostKeyChecking=no \
+  -o UserKnownHostsFile=/dev/null \
+  -o LogLevel=QUIET \
+  "$SSH_USER@$SERVER_IP" \
+  "helm repo add argo $ARGOCD_REPO && helm repo update" >> "$LOG_FILE" 2>&1; then
+  log_output "${GREEN}✓ Repository added and updated${NC}"
+else
+  log_output "${YELLOW}⚠ Repository may already exist (continuing)${NC}"
+fi
+
+log_output ""
+
+# Install ArgoCD using helm (on remote server)
+log_output "  Installing ArgoCD via helm..."
+if ssh \
+  -o ConnectTimeout=$SSH_TIMEOUT \
+  -o StrictHostKeyChecking=no \
+  -o UserKnownHostsFile=/dev/null \
+  -o LogLevel=QUIET \
+  "$SSH_USER@$SERVER_IP" \
+  "export KUBECONFIG=~/.kube/config && helm upgrade --install argocd argo/argo-cd \
+    --namespace argocd \
+    --version $ARGOCD_CHART_VERSION \
+    --values - \
+    --wait \
+    --timeout 5m" <<< "$(cat $ARGOCD_VALUES_LOCAL)" >> "$LOG_FILE" 2>&1; then
+  log_output "${GREEN}✓ ArgoCD installed${NC}\n"
+else
+  log_output "${RED}✗ Failed to install ArgoCD${NC}"
+  log_output "${RED}Check logs: tail -50 provision.log${NC}"
+  exit 1
+fi
+
+# Step 4: Create bootstrap Application manifest
 log_output "${YELLOW}Step 3: Creating bootstrap Application${NC}\n"
 
 BOOTSTRAP_MANIFEST=$(cat <<'EOF'
@@ -119,8 +197,8 @@ echo "$BOOTSTRAP_MANIFEST" | kubectl apply -f - >> "$LOG_FILE" 2>&1
 
 log_output "${GREEN}✓ Bootstrap Application created${NC}\n"
 
-# Step 4: Wait for ArgoCD to be ready
-log_output "${YELLOW}Step 4: Waiting for ArgoCD to become ready${NC}\n"
+# Step 5: Wait for ArgoCD to be ready
+log_output "${YELLOW}Step 5: Waiting for ArgoCD to become ready${NC}\n"
 
 # Wait for argocd-server deployment
 log_output "  Waiting for ArgoCD server deployment (up to 3 minutes)..."
@@ -130,8 +208,8 @@ else
   log_output "${YELLOW}⚠ ArgoCD server did not start in time (continuing)${NC}\n"
 fi
 
-# Step 5: Get ArgoCD initial admin password
-log_output "${YELLOW}Step 5: Retrieving ArgoCD admin credentials${NC}\n"
+# Step 6: Get ArgoCD initial admin password
+log_output "${YELLOW}Step 6: Retrieving ArgoCD admin credentials${NC}\n"
 
 ADMIN_PASSWORD=""
 for i in {1..30}; do
@@ -151,7 +229,7 @@ for i in {1..30}; do
   sleep 2
 done
 
-# Step 6: Display access information
+# Step 7: Display access information
 log_output "${GREEN}=== ✓ GitOps Bootstrap Complete ===${NC}\n"
 
 log_output "${YELLOW}Access ArgoCD:${NC}\n"

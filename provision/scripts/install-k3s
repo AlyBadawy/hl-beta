@@ -249,16 +249,27 @@ log_output "  Creating ~/.kube directory..."
 mkdir -p "$KUBE_DIR"
 
 log_output "  Copying kubeconfig from server..."
-if scp -o ConnectTimeout=$SSH_TIMEOUT \
+if ssh -o ConnectTimeout=$SSH_TIMEOUT \
        -o StrictHostKeyChecking=no \
        -o UserKnownHostsFile=/dev/null \
        -o LogLevel=QUIET \
-       "$SSH_USER@$SERVER_IP:/etc/rancher/k3s/k3s.yaml" \
-       "$KUBE_CONFIG" 2>&1; then
+       "$SSH_USER@$SERVER_IP" \
+       "sudo cat /etc/rancher/k3s/k3s.yaml" > "$KUBE_CONFIG" 2>&1; then
 
   # Set appropriate permissions
   chmod 600 "$KUBE_CONFIG"
   log_output "${GREEN}✓ Kubeconfig copied to $KUBE_CONFIG${NC}\n"
+
+  # Update server address from localhost to actual server IP
+  log_output "  Updating kubeconfig server address to $SERVER_IP..."
+  if [[ "$OSTYPE" == "darwin"* ]]; then
+    # macOS requires -i '' syntax
+    sed -i '' "s|server: https://127.0.0.1:6443|server: https://$SERVER_IP:6443|g" "$KUBE_CONFIG" 2>&1 || true
+  else
+    # Linux
+    sed -i "s|server: https://127.0.0.1:6443|server: https://$SERVER_IP:6443|g" "$KUBE_CONFIG" 2>&1 || true
+  fi
+  log_output "${GREEN}✓ Server address updated to $SERVER_IP:6443${NC}\n"
 
   # Check if we need to update shell profiles
   log_output "  Updating shell profiles with KUBECONFIG export...\n"
@@ -295,7 +306,34 @@ if scp -o ConnectTimeout=$SSH_TIMEOUT \
 
 else
   log_output "${YELLOW}⚠ Failed to copy kubeconfig locally${NC}"
-  log_output "  Manual copy: scp $SSH_USER@$SERVER_IP:/etc/rancher/k3s/k3s.yaml $KUBE_CONFIG\n"
+  log_output "  Manual copy: ssh $SSH_USER@$SERVER_IP \"sudo cat /etc/rancher/k3s/k3s.yaml\" > $KUBE_CONFIG"
+  log_output "  Then update server address: kubectl config set-cluster default --server=https://$SERVER_IP:6443\n"
+fi
+
+# Step 7: Copy kubeconfig to remote SSH user home
+log_output "${YELLOW}Step 7: Setting Up Remote Kubeconfig Access${NC}\n"
+
+log_output "  Creating ~/.kube directory on remote server..."
+if ssh -o ConnectTimeout=$SSH_TIMEOUT \
+       -o StrictHostKeyChecking=no \
+       -o UserKnownHostsFile=/dev/null \
+       -o LogLevel=QUIET \
+       "$SSH_USER@$SERVER_IP" \
+       "mkdir -p ~/.kube" >> "$LOG_FILE" 2>&1; then
+
+  log_output "  Copying kubeconfig to remote SSH user..."
+  if ssh -o ConnectTimeout=$SSH_TIMEOUT \
+         -o StrictHostKeyChecking=no \
+         -o UserKnownHostsFile=/dev/null \
+         -o LogLevel=QUIET \
+         "$SSH_USER@$SERVER_IP" \
+         "sudo cat /etc/rancher/k3s/k3s.yaml > ~/.kube/config && chmod 600 ~/.kube/config" >> "$LOG_FILE" 2>&1; then
+    log_output "${GREEN}✓ Kubeconfig copied to remote user at ~/.kube/config${NC}\n"
+  else
+    log_output "${YELLOW}⚠ Failed to copy kubeconfig to remote user (continuing)${NC}\n"
+  fi
+else
+  log_output "${YELLOW}⚠ Failed to create ~/.kube on remote user (continuing)${NC}\n"
 fi
 
 log_output "${GREEN}=== ✓ K3s Installation Complete ===${NC}\n"
