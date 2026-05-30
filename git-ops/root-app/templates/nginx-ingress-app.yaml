@@ -32,10 +32,7 @@ spec:
               memory: 512Mi
 
         defaultBackend:
-          enabled: true
-          image:
-            repository: defaultbackend-amd64
-            tag: "1.5"
+          enabled: false
 
   destination:
     server: https://kubernetes.default.svc
