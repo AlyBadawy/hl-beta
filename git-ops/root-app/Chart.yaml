@@ -1,0 +1,15 @@
+apiVersion: v2
+name: root-app
+description: Root Application - App of Apps pattern for cluster management
+type: application
+version: 1.0.0
+appVersion: "1.0.0"
+
+keywords:
+  - argocd
+  - gitops
+  - app-of-apps
+
+maintainers:
+  - name: Homelab
+    email: admin@in.alybadawy.com

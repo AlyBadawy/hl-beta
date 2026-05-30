@@ -1,0 +1,59 @@
+{{- if .Values.nginxIngress.enabled }}
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: {{ .Values.nginxIngress.name }}
+  namespace: {{ .Values.argocd.namespace }}
+  labels:
+    app.kubernetes.io/name: {{ .Values.nginxIngress.name }}
+    app.kubernetes.io/instance: root-app
+    app.kubernetes.io/component: infrastructure
+spec:
+  project: default
+  source:
+    repoURL: https://kubernetes.github.io/ingress-nginx
+    chart: {{ .Values.nginxIngress.chart }}
+    targetRevision: {{ .Values.nginxIngress.chartVersion }}
+    helm:
+      valuesObject:
+        # Controller configuration
+        controller:
+          replicas: 1
+          service:
+            type: LoadBalancer
+            # Fallback to NodePort if LoadBalancer not available
+            externalTrafficPolicy: Local
+          metrics:
+            enabled: false
+          resources:
+            requests:
+              cpu: 100m
+              memory: 90Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+
+        # Default backend
+        defaultBackend:
+          enabled: true
+          image:
+            repository: defaultbackend-amd64
+            tag: "1.5"
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: {{ .Values.nginxIngress.namespace }}
+
+  syncPolicy:
+    automated:
+      prune: {{ .Values.syncPolicy.automated.prune }}
+      selfHeal: {{ .Values.syncPolicy.automated.selfHeal }}
+    syncOptions:
+      - CreateNamespace=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
+{{- end }}

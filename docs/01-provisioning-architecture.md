@@ -150,14 +150,43 @@ env:
 | Phase 4 | ✓ Complete | NAS storage mounting and verification |
 | Phase 5 | ✓ Complete | K3s cluster installation and verification |
 | Phase 6 | ✓ Complete | Cluster configuration provisioning (ConfigMap, Secret) |
-| Phase 7 | Planned | Application deployment (ingress, storage classes, manifests) |
+| Phase 7 | ✓ Complete | Bootstrap GitOps (ArgoCD + root-app) |
+| Phase 8 | Planned | Application deployment (Longhorn, Vaultwarden, custom apps) |
+
+### Completed: Bootstrap GitOps (Phase 7)
+
+Initializes the GitOps infrastructure with ArgoCD and the App of Apps pattern:
+1. Installs nginx-ingress controller via Helm (prerequisite)
+2. Creates ArgoCD namespace
+3. Applies bootstrap Application manifest pointing to git-ops/root-app
+4. Waits for ArgoCD components to start
+5. Retrieves initial admin credentials
+6. Displays access information
+
+**Bootstrap Architecture:**
+- **Nginx-ingress:** Installed first (prerequisite for ArgoCD UI ingress at argo.in.alybadawy.com)
+- **Bootstrap Application:** Created via kubectl, points to git repository
+- **Root-app:** Helm chart that defines child Applications (ArgoCD, nginx-ingress)
+- **ArgoCD:** Self-managing via self-referential Application
+
+**Git Integration:**
+- Repository: https://github.com/AlyBadawy/hl-beta
+- Branch: main
+- Path: git-ops/
+- Source of truth for all cluster configuration
+
+**Access:**
+- URL: http://argo.in.alybadawy.com (no SSL yet)
+- Username: admin
+- Password: Displayed in logs after Phase 7 completion
 
 ## Future Phases
 
-**Phase 7: Application Deployment** (planned)
-- Ingress controller setup and configuration
-- Storage class provisioning for NAS mounts
-- Application manifest deployment
+**Phase 8: Application Deployment** (planned)
+- Longhorn for distributed block storage
+- Vaultwarden for secrets management
+- Custom applications and services
+- Storage classes and persistent volumes
 - Service networking and DNS configuration
 
 ## Configuration Schema

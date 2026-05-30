@@ -1,0 +1,102 @@
+# ArgoCD Helm Chart Values
+
+## Global
+global:
+  domain: argo.in.alybadawy.com
+
+## ArgoCD Server
+server:
+  # Server service type
+  service:
+    type: ClusterIP
+    port: 80
+    targetPort: 8080
+
+  # Ingress configuration
+  ingress:
+    enabled: true
+    ingressClassName: nginx
+    annotations:
+      # No SSL redirect yet
+      nginx.ingress.kubernetes.io/force-ssl-redirect: "false"
+    hosts:
+      - argo.in.alybadawy.com
+    paths:
+      - path: /
+        pathType: Prefix
+    # No TLS configuration yet
+    tls: []
+
+  # UI settings
+  config:
+    # Disable auth for testing (use with caution!)
+    # Will remove this once authentication is properly configured
+    disableAuth: "false"
+
+  # Insecure mode (no HTTPS for internal communication)
+  insecure: true
+
+## ArgoCD Configs
+configs:
+  # General configuration
+  general:
+    url: http://argo.in.alybadawy.com
+
+  # RBAC configuration
+  rbac:
+    policy.default: 'role:readonly'
+
+  # Repository configuration
+  repositories:
+    - url: https://github.com/AlyBadawy/hl-beta
+      type: git
+      name: hl-beta
+      # No credentials needed for public repo
+
+  # Configure secret store (will be updated when Vaultwarden is available)
+  cm:
+    # Cluster configuration
+    server.disable.auth: "false"
+    server.insecure: "true"
+    application.instanceLabelKey: "argocd.argoproj.io/instance"
+
+## Persistence Configuration
+persistence:
+  # Disabled for now - using ephemeral storage
+  # Will be updated when Longhorn is available
+  enabled: false
+
+## Redis (for data persistence)
+redis:
+  # Using in-memory by default
+  enabled: true
+
+## Replica Counts
+controller:
+  replicas: 1
+
+server:
+  replicas: 1
+
+repoServer:
+  replicas: 1
+
+applicationController:
+  replicas: 1
+
+## Resource Requests (minimal for homelab)
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+
+## Notifications (for future use)
+notifications:
+  enabled: false
+
+## Metrics (disabled for now)
+metrics:
+  enabled: false

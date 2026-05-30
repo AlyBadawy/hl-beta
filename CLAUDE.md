@@ -12,18 +12,34 @@ hl-beta/
 │   ├── secrets.example.yaml     # Example secrets structure (tracked)
 │   └── secrets.yaml             # Actual secrets (git-ignored, created by provision.sh)
 ├── provision/                   # Provisioning automation
-│   ├── provision.sh             # Main orchestration script (Steps 1-6)
+│   ├── provision.sh             # Main orchestration script (Phases 1-7)
 │   ├── scripts/                 # Individual provisioning scripts
-│   │   ├── config-secrets       # Step 1: Configuration collection & validation
-│   │   ├── check-ssh-connection # Step 2: SSH connectivity verification
-│   │   ├── update-dependencies  # Step 3: System updates and package installation
-│   │   ├── mount-nas            # Step 4: NAS mount setup
-│   │   ├── install-k3s          # Step 5: K3s installation
-│   │   └── configure-cluster    # Step 6: Cluster configuration provisioning
+│   │   ├── config-secrets       # Phase 1: Configuration collection & validation
+│   │   ├── check-ssh-connection # Phase 2: SSH connectivity verification
+│   │   ├── update-dependencies  # Phase 3: System updates and package installation
+│   │   ├── mount-nas            # Phase 4: NAS mount setup
+│   │   ├── install-k3s          # Phase 5: K3s installation
+│   │   ├── configure-cluster    # Phase 6: Cluster configuration provisioning
+│   │   └── bootstrap-gitops     # Phase 7: Bootstrap GitOps (ArgoCD + root-app)
 │   ├── lib/                     # Helper functions & utilities
 │   │   ├── validation.sh        # Input validation functions
 │   │   └── config.sh            # Configuration/secrets loading functions
 │   └── README.md                # Provisioning documentation
+├── git-ops/                     # GitOps - App of Apps configuration
+│   ├── root-app/                # Root Application (Helm chart)
+│   │   ├── Chart.yaml
+│   │   ├── values.yaml
+│   │   └── templates/
+│   │       ├── argocd-app.yaml         # ArgoCD Application (self-managing)
+│   │       ├── nginx-ingress-app.yaml  # Nginx Ingress Application
+│   │       └── git-config-cm.yaml      # Git repository configuration
+│   ├── argocd/                  # ArgoCD Helm values
+│   │   ├── Chart.yaml
+│   │   └── values.yaml
+│   ├── nginx-ingress/           # Nginx-ingress Helm values
+│   │   ├── Chart.yaml
+│   │   └── values.yaml
+│   └── README.md                # GitOps documentation
 ├── docs/                        # Architecture and decision documentation
 │   ├── 01-provisioning-architecture.md  # Phase 1 architecture overview
 │   └── ADR-001-provisioning-script-design.md  # Design decisions & rationale
@@ -105,14 +121,36 @@ Provisions cluster-wide configuration from `config/secrets.yaml` as Kubernetes r
 
 **Purpose:** Decouples configuration from application manifests, following 12-factor app principles. Applications can reference values via environment variables or volume mounts.
 
-### Phase 7: Application Deployment (Planned)
+### Phase 7: Bootstrap GitOps ✓ Complete
+**Script:** `provision/scripts/bootstrap-gitops`
+
+Initializes the GitOps infrastructure with ArgoCD and the App of Apps pattern:
+- Installs nginx-ingress controller (Helm)
+- Creates ArgoCD namespace
+- Deploys bootstrap Application (points to git-ops/root-app)
+- Waits for ArgoCD to be ready
+- Displays access credentials and next steps
+
+**Bootstrap Flow:**
+1. Nginx-ingress installed first (prerequisite for Argo UI ingress)
+2. Bootstrap Application created via kubectl apply
+3. ArgoCD deploys root-app from git repository
+4. Root-app deploys ArgoCD (self-managing) and nginx-ingress via Applications
+5. Git (main branch) becomes source of truth
+
+**Access:**
+- URL: `http://argo.in.alybadawy.com`
+- Username: `admin`
+- Password: Displayed in logs after Phase 7
+
+### Phase 8: Application Deployment (Planned)
 **Scripts:** (TBD)
 
-Deploy cluster infrastructure and applications:
-- Ingress controller selection and setup
-- Storage class provisioning for NAS mounts
-- Application manifest deployment
-- Service networking and DNS configuration
+Deploy additional applications and services:
+- Longhorn for distributed storage
+- Vaultwarden for secrets management
+- Custom applications and services
+- DNS, monitoring, and logging infrastructure
 
 ## Key Design Decisions
 

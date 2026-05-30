@@ -1,0 +1,35 @@
+# Root App - App of Apps Values
+
+# Git repository configuration
+git:
+  repoUrl: "https://github.com/AlyBadawy/hl-beta"
+  targetRevision: "main"
+  path: "git-ops"
+
+# ArgoCD Application Configuration
+argocd:
+  enabled: true
+  namespace: "argocd"
+  name: "argocd"
+  chart: "argo-cd"
+  chartVersion: "7.6.0"  # Latest stable as of 2026-05
+  # Path to ArgoCD values in this repo
+  valuesPath: "git-ops/argocd/values.yaml"
+
+# Nginx Ingress Configuration
+nginxIngress:
+  enabled: true
+  namespace: "ingress-nginx"
+  name: "nginx-ingress"
+  chart: "ingress-nginx"
+  chartVersion: "4.11.0"  # Latest stable as of 2026-05
+  # Path to Nginx values in this repo
+  valuesPath: "git-ops/nginx-ingress/values.yaml"
+
+# Sync policies
+syncPolicy:
+  automated:
+    prune: true
+    selfHeal: true
+  syncOptions:
+    - CreateNamespace=true
