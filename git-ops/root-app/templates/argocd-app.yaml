@@ -20,6 +20,8 @@ spec:
         server:
           replicas: 1
           insecure: true
+          ingress:
+            enabled: false
 
         controller:
           replicas: 1

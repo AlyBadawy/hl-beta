@@ -124,24 +124,35 @@ Provisions cluster-wide configuration from `config/secrets.yaml` as Kubernetes r
 ### Phase 7: Bootstrap GitOps ✓ Complete
 **Script:** `provision/scripts/bootstrap-gitops`
 
-Initializes the GitOps infrastructure with ArgoCD and the App of Apps pattern:
-- Installs nginx-ingress controller (Helm)
-- Creates ArgoCD namespace
-- Deploys bootstrap Application (points to git-ops/root-app)
-- Waits for ArgoCD to be ready
-- Displays access credentials and next steps
+Initializes GitOps infrastructure with ArgoCD and App of Apps pattern using a two-phase approach:
 
-**Bootstrap Flow:**
-1. Nginx-ingress installed first (prerequisite for Argo UI ingress)
-2. Bootstrap Application created via kubectl apply
-3. ArgoCD deploys root-app from git repository
-4. Root-app deploys ArgoCD (self-managing) and nginx-ingress via Applications
-5. Git (main branch) becomes source of truth
+**Phase 7a - Bootstrap:**
+1. Installs nginx-ingress controller via Helm (prerequisite for ingress routing)
+2. Creates ArgoCD namespace
+3. Installs ArgoCD via Helm with **simplified bootstrap values** (no complex ingress config)
+4. Creates Ingress resource via kubectl (separate from Helm values)
+5. Creates bootstrap Application pointing to git-ops/root-app
+6. Waits for ArgoCD to be ready
+7. Retrieves admin credentials
 
-**Access:**
-- URL: `http://argo.in.alybadawy.com`
-- Username: `admin`
-- Password: Displayed in logs after Phase 7
+**Phase 7b - GitOps Takeover:**
+1. Root-app Application syncs from git and orchestrates cluster
+2. Root-app deploys argocd-app.yaml (ArgoCD self-manages itself)
+3. Root-app deploys nginx-ingress-app.yaml (Ingress controller)
+4. Git (main branch) becomes source of truth for all configurations
+
+**Key Design: Bootstrap Separation**
+- Bootstrap uses minimal, simple Helm values to avoid Helm ingress configuration complexity
+- Ingress created as simple Kubernetes resource via kubectl
+- Root-app takes over full configuration management after bootstrap
+- See `docs/ADR-002-bootstrap-simplification.md` for rationale
+
+**Access ArgoCD:**
+- **URL:** http://argo.in.alybadawy.com (requires DNS: argo.in.alybadawy.com → 172.20.20.3)
+- **Port Forward:** `kubectl port-forward -n argocd svc/argocd-server 8080:80` then http://localhost:8080
+- **Username:** admin
+- **Password:** `kubectl get secret -n argocd argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d`
+- **Action:** Change password on first login
 
 ### Phase 8: Application Deployment (Planned)
 **Scripts:** (TBD)
@@ -154,22 +165,28 @@ Deploy additional applications and services:
 
 ## Key Design Decisions
 
-See `docs/ADR-001-provisioning-script-design.md` for detailed rationale.
+See Architecture Decision Records in `docs/ADR-*.md` for detailed rationale.
 
-### 1. Configuration Collection
-- **Interactive bash scripts** with sensible defaults
-- **Input validation** (IP format, domain names, email format, port ranges)
-- **Plain YAML storage** in `config/secrets.yaml` (not encrypted initially)
+### Phase 1-6 Decisions
+See `docs/ADR-001-provisioning-script-design.md`:
+1. **Configuration Collection** — Interactive bash scripts with validation
+2. **Security** — Secrets file (mode 600), never in git
+3. **Modularity** — Each script has single responsibility
 
-### 2. Security
-- Secrets file created with mode 600 (read/write owner only)
-- Never committed to git (.gitignore protection)
-- Passwords entered with hidden input
+### Phase 7 Decisions  
+See `docs/ADR-002-bootstrap-simplification.md`:
+4. **Bootstrap Separation** — Two-phase approach:
+   - Phase 7a: Deploy ArgoCD with minimal Helm values + Ingress via kubectl
+   - Phase 7b: Root-app takes over configuration management via git
+   - **Why:** Avoids Helm `valuesObject` JSON serialization issues with complex ingress configs
 
-### 3. Modularity
-- Each script has a single responsibility
-- Scripts called by `provision/provision.sh` orchestrator
-- Configuration centralized for easy reference and updates
+5. **Helm Values Format** — Use `helm.values` (YAML string) instead of `helm.valuesObject` (JSON)
+   - **Why:** YAML format is more reliable for complex nested structures
+   - **Lesson:** `valuesObject` can have JSON marshaling edge cases, prefer YAML strings
+
+6. **Ingress Management** — Create Ingress as simple Kubernetes resource, not through Helm values
+   - **Why:** Avoids configuration complexity, easier to troubleshoot
+   - **Benefit:** Clean separation between bootstrap and GitOps layers
 
 ## Running the Provisioning
 
