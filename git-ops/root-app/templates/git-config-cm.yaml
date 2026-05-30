@@ -8,6 +8,9 @@ metadata:
     app.kubernetes.io/instance: root-app
     app.kubernetes.io/component: configuration
 data:
+  # Cluster domain
+  DOMAIN: {{ .Values.domain | quote }}
+
   # Git repository URL for all applications
   GIT_REPO_URL: {{ .Values.git.repoUrl | quote }}
 
@@ -20,7 +23,7 @@ data:
   # ArgoCD specific
   ARGOCD_REPO_URL: {{ .Values.git.repoUrl | quote }}
   ARGOCD_NAMESPACE: {{ .Values.argocd.namespace | quote }}
-  ARGOCD_INGRESS_HOST: "argo.in.alybadawy.com"
+  ARGOCD_INGRESS_HOST: "argo.{{ .Values.domain }}"
 
   # Nginx Ingress specific
   NGINX_INGRESS_NAMESPACE: {{ .Values.nginxIngress.namespace | quote }}

@@ -1,5 +1,8 @@
 # Root App - App of Apps Values
 
+# Cluster domain configuration
+domain: "in.alybadawy.com"  # Base domain; services use format: service.{domain}
+
 # Git repository configuration
 git:
   repoUrl: "https://github.com/AlyBadawy/hl-beta"

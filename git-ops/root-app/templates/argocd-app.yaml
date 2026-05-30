@@ -34,7 +34,7 @@ spec:
             enabled: true
             ingressClassName: "nginx"
             hosts:
-              - "argo.in.alybadawy.com"
+              - "argo.{{ .Values.domain }}"
             paths:
               - /
             pathType: Prefix
