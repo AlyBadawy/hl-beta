@@ -39,12 +39,17 @@ hl-beta/
 - Admin and notification emails
 - Base domain for the cluster
 
-### Phase 2: Server Bootstrap (Planned)
+### Phase 2: Server Bootstrap (In Progress)
 **What:** Prepare the target Ubuntu server  
-**Scripts:** (TBD)
-**Responsibilities:**
-- SSH connectivity verification
-- OS package updates and essential dependencies
+**Scripts:** Step 2, Step 3, (TBD for remaining tasks)
+
+**Completed Responsibilities:**
+- ✓ SSH connectivity verification (Step 2: checks SSH access and NOPASSWD sudo)
+- ✓ System updates and package installation (Step 3: apt update/upgrade + 23 essential packages)
+- ✓ SWAP disabled (required for k3s)
+- ✓ System information displayed and logged
+
+**Remaining Responsibilities:**
 - Network and storage configuration
 - NAS mount setup
 
@@ -100,9 +105,15 @@ cat config/secrets.yaml
 
 ### Updating Configuration
 ```bash
-# Re-run to overwrite (will prompt for all values again)
+# Re-run and choose to reconfigure when prompted
 ./provision/provision.sh
+
+# When prompted: Reconfigure secrets? [y/N]: 
+# Type 'Y' to reconfigure all values
+# Press Enter or 'N' to skip and keep existing configuration
 ```
+
+On subsequent runs, the script will detect existing `config/secrets.yaml` and ask if you want to reconfigure. This allows for quick re-runs without redundant configuration prompts.
 
 ## Configuration Reference
 

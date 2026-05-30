@@ -1,0 +1,110 @@
+#!/bin/bash
+
+set -e
+
+# Color output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
+
+# Get script directory and load config loader
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
+CONFIG_FILE="$PROJECT_DIR/config/secrets.yaml"
+LOG_FILE="$PROJECT_DIR/provision.log"
+
+# Source config loader
+source "$(dirname "$SCRIPT_DIR")/lib/config.sh"
+
+# SSH timeout in seconds
+SSH_TIMEOUT=5
+
+# Helper function to log output
+log_output() {
+  local message=$1
+  echo -e "$message" | tee -a "$LOG_FILE"
+}
+
+log_output "${BLUE}=== SSH Connection Validation ===${NC}\n"
+
+# Check if config file exists
+if [ ! -f "$CONFIG_FILE" ]; then
+  log_output "${RED}✗ Error: Configuration file not found at $CONFIG_FILE${NC}"
+  log_output "${YELLOW}Please run: ./provision/provision.sh${NC}"
+  exit 1
+fi
+
+# Load SSH configuration
+log_output "${YELLOW}Loading SSH configuration...${NC}"
+if ! load_ssh_config "$CONFIG_FILE"; then
+  log_output "${RED}✗ Failed to load SSH configuration${NC}"
+  exit 1
+fi
+
+log_output "${GREEN}✓ Configuration loaded${NC}"
+log_output "  Server IP: ${BLUE}$SERVER_IP${NC}"
+log_output "  SSH User:  ${BLUE}$SSH_USER${NC}\n"
+
+# Test 1: Basic SSH connectivity
+log_output "${YELLOW}Test 1: SSH Connectivity${NC}"
+log_output "  Running: ssh -o ConnectTimeout=$SSH_TIMEOUT -o StrictHostKeyChecking=no $SSH_USER@$SERVER_IP \"whoami\""
+
+SSH_OUTPUT=$(ssh \
+  -o ConnectTimeout=$SSH_TIMEOUT \
+  -o StrictHostKeyChecking=no \
+  -o UserKnownHostsFile=/dev/null \
+  -o LogLevel=QUIET \
+  "$SSH_USER@$SERVER_IP" \
+  "whoami" 2>&1) || {
+  log_output "${RED}✗ SSH connection failed${NC}"
+  log_output "${RED}Error: $SSH_OUTPUT${NC}"
+  exit 1
+}
+
+SSH_OUTPUT=$(echo "$SSH_OUTPUT" | tr -d '\n' | xargs)
+
+if [ "$SSH_OUTPUT" != "$SSH_USER" ]; then
+  log_output "${RED}✗ SSH user mismatch${NC}"
+  log_output "  Expected: ${BLUE}$SSH_USER${NC}"
+  log_output "  Got: ${BLUE}$SSH_OUTPUT${NC}"
+  exit 1
+fi
+
+log_output "${GREEN}✓ SSH connectivity verified${NC}"
+log_output "  Remote user: ${BLUE}$SSH_OUTPUT${NC}\n"
+
+# Test 2: NOPASSWD sudo access
+log_output "${YELLOW}Test 2: NOPASSWD Sudo Access${NC}"
+log_output "  Running: ssh -o ConnectTimeout=$SSH_TIMEOUT $SSH_USER@$SERVER_IP \"sudo whoami\""
+
+SUDO_OUTPUT=$(ssh \
+  -o ConnectTimeout=$SSH_TIMEOUT \
+  -o StrictHostKeyChecking=no \
+  -o UserKnownHostsFile=/dev/null \
+  -o LogLevel=QUIET \
+  "$SSH_USER@$SERVER_IP" \
+  "sudo whoami" 2>&1) || {
+  log_output "${RED}✗ Sudo command failed${NC}"
+  log_output "${RED}Error: $SUDO_OUTPUT${NC}"
+  log_output "${YELLOW}Make sure $SSH_USER has NOPASSWD sudo access${NC}"
+  exit 1
+}
+
+SUDO_OUTPUT=$(echo "$SUDO_OUTPUT" | tr -d '\n' | xargs)
+
+if [ "$SUDO_OUTPUT" != "root" ]; then
+  log_output "${RED}✗ Sudo verification failed${NC}"
+  log_output "  Expected: ${BLUE}root${NC}"
+  log_output "  Got: ${BLUE}$SUDO_OUTPUT${NC}"
+  log_output "${YELLOW}Make sure $SSH_USER has NOPASSWD sudo access${NC}"
+  exit 1
+fi
+
+log_output "${GREEN}✓ NOPASSWD sudo access verified${NC}"
+log_output "  Sudo user: ${BLUE}$SUDO_OUTPUT${NC}\n"
+
+# Summary
+log_output "${GREEN}=== ✓ All SSH Checks Passed ===${NC}"
+echo -e "${BLUE}Server is ready for provisioning${NC}\n"

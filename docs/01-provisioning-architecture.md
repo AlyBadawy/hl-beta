@@ -49,14 +49,44 @@ User Input
 [Save to config/secrets.yaml]
 ```
 
+## Implementation Status
+
+**Phase 1: Configuration Management** ✓ Complete
+- ✓ Secrets collection (config-secrets script)
+- ✓ Input validation (validation.sh library)
+- ✓ Example configuration (secrets.example.yaml)
+- ✓ Skip existing secrets on re-run (provision.sh)
+
+**Phase 2: Server Bootstrap** - In Progress
+- ✓ SSH connectivity validation (Step 2: check-ssh-connection)
+- ✓ System updates and dependencies (Step 3: update-dependencies)
+- ✓ Configuration loader (config.sh library)
+- ⏳ Network and storage configuration (planned)
+- ⏳ NAS mount setup (planned)
+
+### Completed: SSH Connectivity Check (Step 2)
+
+Validates that the configured Ubuntu server is:
+1. Reachable via SSH
+2. Using the correct user
+3. Configured with NOPASSWD sudo access
+
+This ensures the server is ready for bootstrap provisioning.
+
+### Completed: System Updates & Dependencies (Step 3)
+
+Prepares the Ubuntu server with essential packages and configuration:
+1. Runs `apt update` and `apt upgrade`
+2. Installs 23 essential packages (curl, wget, git, jq, vim, nfs-common, apparmor, socat, etc.)
+3. Disables SWAP (required for k3s operation)
+4. Displays and logs system information (OS, kernel, CPU, memory, disk)
+5. Logs all output to `provision.log` for debugging
+
+User can skip this step if already installed.
+
 ## Future Phases
 
-Phase 1 (Current): Configuration management
-- ✓ Secrets collection
-- ✓ Input validation
-- ✓ Example configuration
-
-Phase 2: Server bootstrap (planned)
+Phase 3: K3s installation (planned)
 - SSH connectivity verification
 - OS package updates and dependencies
 - Network configuration
