@@ -59,6 +59,15 @@ fi
 log_output "${GREEN}✓ Git repo: $GIT_REPO${NC}"
 log_output "${GREEN}✓ Domain:   $DOMAIN${NC}\n"
 
+# Load NAS configuration for Longhorn
+log_output "${YELLOW}Loading NAS configuration...${NC}"
+if ! load_nas_config "$CONFIG_FILE"; then
+  log_output "${RED}✗ Failed to load NAS configuration${NC}"
+  exit 1
+fi
+log_output "${GREEN}✓ NAS IP:        $NAS_IP${NC}"
+log_output "${GREEN}✓ NAS Base Share: $NAS_BASE_SHARE${NC}\n"
+
 # ─────────────────────────────────────────────────────────────────
 # Step 1: Install Nginx Ingress Controller (prerequisite)
 # ─────────────────────────────────────────────────────────────────
@@ -259,6 +268,10 @@ spec:
           value: "$DOMAIN"
         - name: git.repoUrl
           value: "$GIT_REPO"
+        - name: nas.ip
+          value: "$NAS_IP"
+        - name: nas.baseShare
+          value: "$NAS_BASE_SHARE"
   destination:
     server: https://kubernetes.default.svc
     namespace: default
