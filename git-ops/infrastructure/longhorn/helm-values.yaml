@@ -26,11 +26,11 @@ defaultSettings:
   # Metrics collection disabled for single-node
   allowCollectingLonghornUsageMetrics: false
 
-  # Disable pre-upgrade checker — not needed for fresh installations
-  # This prevents the longhorn-pre-upgrade Job from being created, which can cause
-  # OutOfSync issues on first install. Upgrades will work without this check.
-  preUpgradeChecker:
-    enabled: false
+# Disable pre-upgrade checker — not needed for fresh installations
+# This prevents the longhorn-pre-upgrade Job from being created, which can cause
+# OutOfSync issues on first install. Upgrades will work without this check.
+preUpgradeChecker:
+  enabled: false
 
 # Storage class configuration
 persistence:
