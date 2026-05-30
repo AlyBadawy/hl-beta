@@ -1,1 +1,4 @@
 .DS_Store
+
+# Config secrets (never commit)
+config/secrets.yaml
