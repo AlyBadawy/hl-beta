@@ -12,10 +12,17 @@ hl-beta/
 │   ├── secrets.example.yaml     # Example secrets structure (tracked)
 │   └── secrets.yaml             # Actual secrets (git-ignored, created by provision.sh)
 ├── provision/                   # Provisioning automation
-│   ├── provision.sh             # Main orchestration script
+│   ├── provision.sh             # Main orchestration script (Steps 1-6)
 │   ├── scripts/                 # Individual provisioning scripts
-│   │   └── config-secrets       # Configuration collection & validation
-│   ├── lib/                     # Helper functions & utilities (future)
+│   │   ├── config-secrets       # Step 1: Configuration collection & validation
+│   │   ├── check-ssh-connection # Step 2: SSH connectivity verification
+│   │   ├── update-dependencies  # Step 3: System updates and package installation
+│   │   ├── mount-nas            # Step 4: NAS mount setup
+│   │   ├── install-k3s          # Step 5: K3s installation
+│   │   └── configure-cluster    # Step 6: Cluster configuration provisioning
+│   ├── lib/                     # Helper functions & utilities
+│   │   ├── validation.sh        # Input validation functions
+│   │   └── config.sh            # Configuration/secrets loading functions
 │   └── README.md                # Provisioning documentation
 ├── docs/                        # Architecture and decision documentation
 │   ├── 01-provisioning-architecture.md  # Phase 1 architecture overview
@@ -26,48 +33,86 @@ hl-beta/
 
 ## Development Phases
 
-### Phase 1: Configuration Management ✓ (Current)
-**Status:** In Progress  
-**What:** Interactive scripts for infrastructure configuration  
-**Scripts:** `provision/scripts/config-secrets`  
+Provisioning is executed as a sequence of phases, each running a shell script with one or more internal steps.
+
+### Phase 1: Configuration Collection ✓ Complete
+**Script:** `provision/scripts/config-secrets`  
 **Output:** `config/secrets.yaml`
 
-**Configuration includes:**
+Collects and validates infrastructure configuration interactively:
 - Server IP and SSH credentials
 - NAS storage location and mount path
-- SMTP server (email notifications)
-- Admin and notification emails
+- SMTP server configuration (server, port, username, password, from address)
+- Admin and notification email addresses
 - Base domain for the cluster
 
-### Phase 2: Server Bootstrap (In Progress)
-**What:** Prepare the target Ubuntu server  
-**Scripts:** Step 2, Step 3, Step 4, (TBD for remaining tasks)
+**Features:** Interactive prompts, input validation, sensible defaults, YAML output with restricted permissions (600).
 
-**Completed Responsibilities:**
-- ✓ SSH connectivity verification (Step 2: checks SSH access and NOPASSWD sudo)
-- ✓ System updates and package installation (Step 3: apt update/upgrade + 23 essential packages)
-- ✓ SWAP disabled (required for k3s)
-- ✓ System information displayed and logged
-- ✓ NAS mount setup (Step 4: mounts 4 NFS shares for homelab, backups, immich, nextcloud)
+### Phase 2: SSH Connectivity Check ✓ Complete
+**Script:** `provision/scripts/check-ssh-connection`
 
-**Remaining Responsibilities:**
-- Any additional network/storage configuration
+Validates SSH connectivity and NOPASSWD sudo access to target Ubuntu server:
+- SSH key-based authentication working
+- SSH user matches configured credentials
+- Passwordless sudo (NOPASSWD) is configured
 
-### Phase 3: K3s Installation (Planned)
-**What:** Install and configure k3s cluster  
+**Blocks provisioning if checks fail** — ensures server is ready before proceeding.
+
+### Phase 3: System Updates & Dependencies ✓ Complete
+**Script:** `provision/scripts/update-dependencies`
+
+Prepares the Ubuntu server with essential packages and configuration:
+- System package updates (`apt update` and `apt upgrade`)
+- Installs 23 essential packages (curl, wget, git, jq, vim, nfs-common, apparmor, socat, etc.)
+- Disables SWAP (required for k3s)
+- Displays system information (OS, kernel, CPU, memory, disk)
+
+**Optional step** — user can skip with N when prompted (Y is default).
+
+### Phase 4: NAS Storage Mounting ✓ Complete
+**Script:** `provision/scripts/mount-nas`
+
+Configures NFS mounts for persistent storage:
+- Tests NAS connectivity
+- Creates mount directories (`/mnt/nas/{homelab,backups,immich,nextcloud}`)
+- Adds NFS entries to `/etc/fstab` with duplicate checking
+- Mounts filesystems and verifies success
+- Optimized NFS options for Kubernetes (automount, nofail, network timeout)
+
+**Idempotent** — safe to re-run without duplication.
+
+### Phase 5: K3s Cluster Installation ✓ Complete
+**Script:** `provision/scripts/install-k3s`
+
+Installs and validates a single-node k3s Kubernetes cluster:
+- Checks if k3s is already installed (skips reinstall if present)
+- Installs k3s v1.36.1+k3s1 with Traefik disabled
+- Waits for k3s service to start (up to 1 minute with retries)
+- Verifies cluster readiness (kubectl connectivity, node status, CoreDNS)
+- Copies kubeconfig to local machine (`~/.kube/config`)
+- Exports KUBECONFIG in shell profiles and current session
+
+**Idempotent** — detects existing installation and skips reinstall.
+
+### Phase 6: Cluster Configuration Provisioning ✓ Complete
+**Script:** `provision/scripts/configure-cluster`
+
+Provisions cluster-wide configuration from `config/secrets.yaml` as Kubernetes resources:
+- Creates `cluster-config` namespace
+- Creates `cluster-config` ConfigMap with non-sensitive data (domain, NAS paths, SMTP server, email, server IP)
+- Creates `cluster-config` Secret with sensitive credentials (SMTP username and password)
+- Verifies resources are created successfully
+
+**Purpose:** Decouples configuration from application manifests, following 12-factor app principles. Applications can reference values via environment variables or volume mounts.
+
+### Phase 7: Application Deployment (Planned)
 **Scripts:** (TBD)
-**Responsibilities:**
-- K3s cluster initialization
-- Node configuration
-- Cluster health validation
 
-### Phase 4: Application Deployment (Planned)
-**What:** Deploy cluster infrastructure and applications  
-**Scripts:** (TBD)
-**Responsibilities:**
-- Ingress and networking setup
-- Storage class provisioning
+Deploy cluster infrastructure and applications:
+- Ingress controller selection and setup
+- Storage class provisioning for NAS mounts
 - Application manifest deployment
+- Service networking and DNS configuration
 
 ## Key Design Decisions
 

@@ -25,7 +25,9 @@ Reconfigure secrets? [y/N]:
 
 ## Provisioning Steps
 
-### Step 1: `config-secrets`
+## Provisioning Phases
+
+### Phase 1: `config-secrets`
 
 Collects and validates configuration for:
 - Server IP and SSH credentials
@@ -40,7 +42,7 @@ Collects and validates configuration for:
 - Saves configuration to `config/secrets.yaml` with restricted permissions (600)
 - Example file available: `config/secrets.example.yaml`
 
-### Step 2: `check-ssh-connection`
+### Phase 2: `check-ssh-connection`
 
 Validates SSH connectivity and permissions to the target server.
 
@@ -59,7 +61,7 @@ Validates SSH connectivity and permissions to the target server.
 - SSH key-based authentication configured for the server
 - `ssh_user` must have passwordless sudo access (NOPASSWD in sudoers)
 
-### Step 3: `update-dependencies`
+### Phase 3: `update-dependencies`
 
 Updates the system and installs essential packages for k3s provisioning.
 
@@ -80,7 +82,7 @@ Updates the system and installs essential packages for k3s provisioning.
 **Log Output:**
 All steps are logged to `provision.log` for future reference and debugging.
 
-### Step 4: `mount-nas`
+### Phase 4: `mount-nas`
 
 Sets up NFS mounts for the NAS storage on the server.
 
@@ -107,6 +109,105 @@ defaults,_netdev,nofail,x-systemd.automount,x-systemd.mount-timeout=10
 - `_netdev`: network filesystem (waits for network before mounting)
 - `nofail`: don't block boot if mount fails
 - `x-systemd.automount`: auto-mount on access
+
+### Phase 5: `install-k3s`
+
+Installs and verifies k3s kubernetes cluster on the server.
+
+**What it does:**
+1. Checks if k3s is already installed (skips installation if present)
+2. Downloads and installs k3s v1.36.1+k3s1 in single-node mode
+3. Waits for k3s service to start (up to 1 minute)
+4. Verifies cluster readiness:
+   - kubectl connectivity
+   - Node status (should be Ready)
+   - CoreDNS pod deployment
+5. **Copies kubeconfig locally** to `~/.kube/config`
+6. **Updates shell profiles** (~/.bashrc, ~/.zshrc) with KUBECONFIG export
+7. **Exports KUBECONFIG** for current session
+8. Displays k3s version and cluster information
+
+**Features:**
+- Detects existing k3s installation and skips reinstall
+- Automatic retry logic (waits up to 1 minute for service to start)
+- Comprehensive readiness checks
+- Shows kubeconfig path for local kubectl access
+- Provides next steps for deploying applications
+- Logs all output to `provision.log`
+- Remote execution via SSH
+
+**Kubeconfig Access:**
+After installation, copy kubeconfig for local access:
+```bash
+scp homelab@$SERVER_IP:/etc/rancher/k3s/k3s.yaml ~/.kube/config
+```
+
+**K3s Configuration:**
+- Version: v1.36.1+k3s1 (latest stable)
+- Traefik disabled: You'll manage your own ingress controller later
+- Single-node mode: Control plane + worker on same node
+
+**Environment Variables:**
+```bash
+K3S_VERSION="v1.36.1+k3s1"
+K3S_INSTALL_SCRIPT="https://get.k3s.io"
+K3S_INSTALL_EXEC="--disable=traefik"
+```
+
+### Phase 6: `configure-cluster`
+
+Provisions cluster configuration from `config/secrets.yaml` as Kubernetes ConfigMap and Secret.
+
+**What it does:**
+1. Creates `cluster-config` namespace
+2. Creates `cluster-config` ConfigMap with non-sensitive cluster data:
+   - Base domain
+   - NAS IP, mount paths, and share paths
+   - SMTP server, port, and from address
+   - Admin email
+   - Server IP
+3. Creates `cluster-config` Secret with sensitive credentials:
+   - SMTP username and password
+4. Verifies both ConfigMap and Secret are created successfully
+
+**Features:**
+- Loads all configuration from `config/secrets.yaml` using config loaders
+- Splits configuration between ConfigMap (public) and Secret (sensitive passwords)
+- Safe to re-run (uses `kubectl apply` for idempotent updates)
+- Displays ConfigMap and Secret keys for verification
+- Logs all output to `provision.log`
+- Remote execution via SSH
+
+**Usage in Kubernetes Manifests:**
+
+Reference ConfigMap values as environment variables:
+```yaml
+env:
+  - name: BASE_DOMAIN
+    valueFrom:
+      configMapKeyRef:
+        name: cluster-config
+        key: BASE_DOMAIN
+```
+
+Reference Secret values:
+```yaml
+env:
+  - name: SMTP_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        name: cluster-config
+        key: SMTP_PASSWORD
+```
+
+**Verification:**
+```bash
+# View ConfigMap
+kubectl get configmap cluster-config -n cluster-config -o yaml
+
+# View Secret keys (values are base64 encoded)
+kubectl get secret cluster-config -n cluster-config -o yaml
+```
 
 ## Configuration
 

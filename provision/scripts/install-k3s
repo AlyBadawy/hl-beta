@@ -1,0 +1,308 @@
+#!/bin/bash
+
+set -e
+
+# Color output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
+
+# Get script directory and load helpers
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
+CONFIG_FILE="$PROJECT_DIR/config/secrets.yaml"
+LOG_FILE="$PROJECT_DIR/provision.log"
+
+# Source config loader
+source "$(dirname "$SCRIPT_DIR")/lib/config.sh"
+
+# SSH timeout
+SSH_TIMEOUT=5
+
+# K3s installation configuration
+K3S_VERSION="v1.36.1+k3s1"
+K3S_INSTALL_SCRIPT="https://get.k3s.io"
+K3S_INSTALL_EXEC="--disable=traefik"
+
+# Helper function to log output
+log_output() {
+  local message=$1
+  echo -e "$message" | tee -a "$LOG_FILE"
+}
+
+# Helper function to run remote SSH command
+run_remote_command() {
+  local command=$1
+  local description=$2
+  local fail_on_error=${3:-true}
+
+  log_output "${YELLOW}$description${NC}"
+
+  if output=$(ssh \
+    -o ConnectTimeout=$SSH_TIMEOUT \
+    -o StrictHostKeyChecking=no \
+    -o UserKnownHostsFile=/dev/null \
+    -o LogLevel=QUIET \
+    "$SSH_USER@$SERVER_IP" \
+    "$command" 2>&1); then
+    log_output "${GREEN}✓ Success${NC}"
+    return 0
+  else
+    log_output "${RED}✗ Failed${NC}"
+    log_output "${RED}Error: $output${NC}"
+
+    if [ "$fail_on_error" = "true" ]; then
+      return 1
+    else
+      return 0
+    fi
+  fi
+}
+
+log_output "${BLUE}=== K3s Installation ===${NC}\n"
+
+# Check if config file exists
+if [ ! -f "$CONFIG_FILE" ]; then
+  log_output "${RED}✗ Error: Configuration file not found at $CONFIG_FILE${NC}"
+  exit 1
+fi
+
+# Load SSH configuration
+log_output "${YELLOW}Loading SSH configuration...${NC}"
+if ! load_ssh_config "$CONFIG_FILE"; then
+  log_output "${RED}✗ Failed to load SSH configuration${NC}"
+  exit 1
+fi
+
+log_output "${GREEN}✓ SSH configuration loaded${NC}\n"
+
+# Step 1: Check if k3s is already installed
+log_output "${YELLOW}Step 1: Checking K3s Installation Status${NC}"
+
+k3s_installed=$(ssh \
+  -o ConnectTimeout=$SSH_TIMEOUT \
+  -o StrictHostKeyChecking=no \
+  -o UserKnownHostsFile=/dev/null \
+  -o LogLevel=QUIET \
+  "$SSH_USER@$SERVER_IP" \
+  "command -v k3s >/dev/null 2>&1 && echo 'installed' || echo 'not_installed'" 2>&1)
+
+if [[ "$k3s_installed" == "installed" ]]; then
+  log_output "${GREEN}✓ K3s is already installed${NC}"
+
+  # Get current version
+  current_version=$(ssh \
+    -o ConnectTimeout=$SSH_TIMEOUT \
+    -o StrictHostKeyChecking=no \
+    -o UserKnownHostsFile=/dev/null \
+    -o LogLevel=QUIET \
+    "$SSH_USER@$SERVER_IP" \
+    "k3s --version" 2>&1)
+
+  log_output "  Current version: ${BLUE}$current_version${NC}\n"
+
+  # Skip to verification
+  log_output "${YELLOW}Skipping installation, verifying existing cluster...${NC}\n"
+
+else
+  log_output "${YELLOW}K3s not installed, proceeding with installation${NC}\n"
+
+  # Step 2: Install k3s
+  log_output "${YELLOW}Step 2: Installing K3s ${K3S_VERSION}${NC}"
+  log_output "  This may take 2-5 minutes...\n"
+
+  K3S_CMD="curl -sfL $K3S_INSTALL_SCRIPT | INSTALL_K3S_VERSION=$K3S_VERSION INSTALL_K3S_EXEC='$K3S_INSTALL_EXEC' sh -s - server"
+
+  run_remote_command \
+    "$K3S_CMD" \
+    "  Downloading and installing K3s..."
+
+  log_output ""
+
+  # Step 3: Wait for k3s to be ready
+  log_output "${YELLOW}Step 3: Waiting for K3s to Initialize${NC}"
+  log_output "  Checking if k3s service is running..."
+
+  # Wait for k3s service to be active (with retries)
+  for i in {1..30}; do
+    service_status=$(ssh \
+      -o ConnectTimeout=$SSH_TIMEOUT \
+      -o StrictHostKeyChecking=no \
+      -o UserKnownHostsFile=/dev/null \
+      -o LogLevel=QUIET \
+      "$SSH_USER@$SERVER_IP" \
+      "sudo systemctl is-active k3s" 2>&1 || echo "inactive")
+
+    if [[ "$service_status" == "active" ]]; then
+      log_output "${GREEN}✓ K3s service is running${NC}\n"
+      break
+    fi
+
+    if [ $i -eq 30 ]; then
+      log_output "${RED}✗ K3s service failed to start after 30 attempts${NC}"
+      exit 1
+    fi
+
+    log_output "  Attempt $i/30: Waiting for k3s service... ($((i * 2)) seconds elapsed)"
+    sleep 2
+  done
+
+  log_output ""
+fi
+
+# Step 4: Verify k3s cluster readiness
+log_output "${YELLOW}Step 4: Verifying K3s Cluster Readiness${NC}\n"
+
+# Check if kubectl can connect
+log_output "  Checking kubectl connectivity..."
+kubectl_check=$(ssh \
+  -o ConnectTimeout=$SSH_TIMEOUT \
+  -o StrictHostKeyChecking=no \
+  -o UserKnownHostsFile=/dev/null \
+  -o LogLevel=QUIET \
+  "$SSH_USER@$SERVER_IP" \
+  "sudo k3s kubectl cluster-info 2>&1 | head -1" 2>&1)
+
+if [[ "$kubectl_check" == *"Kubernetes control plane is running"* ]]; then
+  log_output "${GREEN}✓ kubectl connected to cluster${NC}\n"
+else
+  log_output "${YELLOW}⚠ Could not verify kubectl connection (continuing)${NC}\n"
+fi
+
+# Check node status
+log_output "  Checking node status..."
+node_status=$(ssh \
+  -o ConnectTimeout=$SSH_TIMEOUT \
+  -o StrictHostKeyChecking=no \
+  -o UserKnownHostsFile=/dev/null \
+  -o LogLevel=QUIET \
+  "$SSH_USER@$SERVER_IP" \
+  "sudo k3s kubectl get nodes -o wide" 2>&1)
+
+log_output "${BLUE}Node Status:${NC}"
+echo "$node_status" | tee -a "$LOG_FILE"
+log_output ""
+
+# Check if node is Ready
+node_ready=$(echo "$node_status" | grep -E "Ready|NotReady" | tail -1)
+if [[ "$node_ready" == *"Ready"* ]]; then
+  log_output "${GREEN}✓ Node is in Ready state${NC}\n"
+else
+  log_output "${YELLOW}⚠ Node is not in Ready state yet (may still be initializing)${NC}\n"
+fi
+
+# Check CoreDNS pod
+log_output "  Checking CoreDNS pod..."
+coredns_check=$(ssh \
+  -o ConnectTimeout=$SSH_TIMEOUT \
+  -o StrictHostKeyChecking=no \
+  -o UserKnownHostsFile=/dev/null \
+  -o LogLevel=QUIET \
+  "$SSH_USER@$SERVER_IP" \
+  "sudo k3s kubectl get pods -n kube-system -l k8s-app=kube-dns -o wide 2>&1" 2>&1)
+
+log_output "${BLUE}CoreDNS Pod:${NC}"
+echo "$coredns_check" | tee -a "$LOG_FILE"
+log_output ""
+
+# Step 5: Get k3s version and status
+log_output "${YELLOW}Step 5: K3s Cluster Information${NC}\n"
+
+k3s_version=$(ssh \
+  -o ConnectTimeout=$SSH_TIMEOUT \
+  -o StrictHostKeyChecking=no \
+  -o UserKnownHostsFile=/dev/null \
+  -o LogLevel=QUIET \
+  "$SSH_USER@$SERVER_IP" \
+  "k3s --version" 2>&1)
+
+log_output "${BLUE}K3s Version:${NC}"
+echo "$k3s_version" | tee -a "$LOG_FILE"
+
+log_output ""
+log_output "${BLUE}Kubeconfig Location:${NC}"
+log_output "  Remote: ${BLUE}/etc/rancher/k3s/k3s.yaml${NC}"
+log_output "  To copy kubeconfig locally:"
+log_output "    ${YELLOW}scp homelab@${SERVER_IP}:/etc/rancher/k3s/k3s.yaml ~/.kube/config${NC}\n"
+
+# Check systemd k3s service
+k3s_service=$(ssh \
+  -o ConnectTimeout=$SSH_TIMEOUT \
+  -o StrictHostKeyChecking=no \
+  -o UserKnownHostsFile=/dev/null \
+  -o LogLevel=QUIET \
+  "$SSH_USER@$SERVER_IP" \
+  "sudo systemctl status k3s --no-pager 2>&1 | head -10" 2>&1)
+
+log_output "${BLUE}K3s Service Status:${NC}"
+echo "$k3s_service" | tee -a "$LOG_FILE"
+
+# Step 6: Copy kubeconfig locally
+log_output "${YELLOW}Step 6: Setting Up Local Kubeconfig Access${NC}\n"
+
+KUBE_DIR="$HOME/.kube"
+KUBE_CONFIG="$KUBE_DIR/config"
+
+log_output "  Creating ~/.kube directory..."
+mkdir -p "$KUBE_DIR"
+
+log_output "  Copying kubeconfig from server..."
+if scp -o ConnectTimeout=$SSH_TIMEOUT \
+       -o StrictHostKeyChecking=no \
+       -o UserKnownHostsFile=/dev/null \
+       -o LogLevel=QUIET \
+       "$SSH_USER@$SERVER_IP:/etc/rancher/k3s/k3s.yaml" \
+       "$KUBE_CONFIG" 2>&1; then
+
+  # Set appropriate permissions
+  chmod 600 "$KUBE_CONFIG"
+  log_output "${GREEN}✓ Kubeconfig copied to $KUBE_CONFIG${NC}\n"
+
+  # Check if we need to update shell profiles
+  log_output "  Updating shell profiles with KUBECONFIG export...\n"
+
+  KUBECONFIG_EXPORT="export KUBECONFIG=\"$KUBE_CONFIG\""
+
+  # Update .bashrc if it exists
+  if [ -f "$HOME/.bashrc" ]; then
+    if ! grep -q "export KUBECONFIG" "$HOME/.bashrc" 2>/dev/null; then
+      echo "" >> "$HOME/.bashrc"
+      echo "# K3s kubeconfig" >> "$HOME/.bashrc"
+      echo "$KUBECONFIG_EXPORT" >> "$HOME/.bashrc"
+      log_output "  ✓ Added to ~/.bashrc"
+    else
+      log_output "  → KUBECONFIG already in ~/.bashrc"
+    fi
+  fi
+
+  # Update .zshrc if it exists
+  if [ -f "$HOME/.zshrc" ]; then
+    if ! grep -q "export KUBECONFIG" "$HOME/.zshrc" 2>/dev/null; then
+      echo "" >> "$HOME/.zshrc"
+      echo "# K3s kubeconfig" >> "$HOME/.zshrc"
+      echo "$KUBECONFIG_EXPORT" >> "$HOME/.zshrc"
+      log_output "  ✓ Added to ~/.zshrc"
+    else
+      log_output "  → KUBECONFIG already in ~/.zshrc"
+    fi
+  fi
+
+  # Export for current session
+  export KUBECONFIG="$KUBE_CONFIG"
+  log_output "  ✓ KUBECONFIG exported for current session\n"
+
+else
+  log_output "${YELLOW}⚠ Failed to copy kubeconfig locally${NC}"
+  log_output "  Manual copy: scp $SSH_USER@$SERVER_IP:/etc/rancher/k3s/k3s.yaml $KUBE_CONFIG\n"
+fi
+
+log_output "${GREEN}=== ✓ K3s Installation Complete ===${NC}\n"
+log_output "${YELLOW}Next steps:${NC}"
+log_output "  1. Review logs: cat provision.log"
+log_output "  2. Test cluster: kubectl get nodes"
+log_output "  3. Deploy applications using kubectl"
+log_output "  4. (Optional) Source ~/.bashrc or ~/.zshrc to update current shell\n"
+log_output "${BLUE}Kubeconfig location: $KUBE_CONFIG${NC}"
+log_output "${BLUE}Log saved to: $LOG_FILE${NC}\n"

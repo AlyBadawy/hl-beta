@@ -14,7 +14,7 @@ NC='\033[0m' # No Color
 echo -e "${GREEN}=== K3s Cluster Provisioning ===${NC}\n"
 
 echo -e "${YELLOW}========================================${NC}"
-echo -e "${YELLOW}Step 1: Configure Secrets${NC}"
+echo -e "${YELLOW}Phase 1: Configuration Collection${NC}"
 echo -e "${YELLOW}========================================${NC}"
 
 # Check if config-secrets script exists
@@ -50,7 +50,7 @@ else
 fi
 
 echo -e "${YELLOW}========================================${NC}"
-echo -e "${YELLOW}Step 2: Check SSH Connection${NC}"
+echo -e "${YELLOW}Phase 2: SSH Connectivity Check${NC}"
 echo -e "${YELLOW}========================================${NC}\n"
 
 # Check if check-ssh-connection script exists
@@ -64,7 +64,7 @@ chmod +x "$SCRIPT_DIR/scripts/check-ssh-connection"
 "$SCRIPT_DIR/scripts/check-ssh-connection"
 
 echo -e "${YELLOW}========================================${NC}"
-echo -e "${YELLOW}Step 3: Update System & Install Dependencies${NC}"
+echo -e "${YELLOW}Phase 3: System Updates & Dependencies${NC}"
 echo -e "${YELLOW}========================================${NC}\n"
 
 # Check if update-dependencies script exists
@@ -78,7 +78,7 @@ chmod +x "$SCRIPT_DIR/scripts/update-dependencies"
 "$SCRIPT_DIR/scripts/update-dependencies"
 
 echo -e "${YELLOW}========================================${NC}"
-echo -e "${YELLOW}Step 4: Mount NAS Storage${NC}"
+echo -e "${YELLOW}Phase 4: NAS Storage Mounting${NC}"
 echo -e "${YELLOW}========================================${NC}\n"
 
 # Check if mount-nas script exists
@@ -91,7 +91,37 @@ fi
 chmod +x "$SCRIPT_DIR/scripts/mount-nas"
 "$SCRIPT_DIR/scripts/mount-nas"
 
+echo -e "${YELLOW}========================================${NC}"
+echo -e "${YELLOW}Phase 5: K3s Cluster Installation${NC}"
+echo -e "${YELLOW}========================================${NC}\n"
+
+# Check if install-k3s script exists
+if [ ! -f "$SCRIPT_DIR/scripts/install-k3s" ]; then
+  echo -e "${RED}Error: install-k3s script not found${NC}"
+  exit 1
+fi
+
+# Make script executable and run it
+chmod +x "$SCRIPT_DIR/scripts/install-k3s"
+"$SCRIPT_DIR/scripts/install-k3s"
+
+echo -e "${YELLOW}========================================${NC}"
+echo -e "${YELLOW}Phase 6: Cluster Configuration Provisioning${NC}"
+echo -e "${YELLOW}========================================${NC}\n"
+
+# Check if configure-cluster script exists
+if [ ! -f "$SCRIPT_DIR/scripts/configure-cluster" ]; then
+  echo -e "${RED}Error: configure-cluster script not found${NC}"
+  exit 1
+fi
+
+# Make script executable and run it
+chmod +x "$SCRIPT_DIR/scripts/configure-cluster"
+"$SCRIPT_DIR/scripts/configure-cluster"
+
 echo -e "\n${GREEN}=== ✓ Provisioning Complete ===${NC}"
 echo -e "${YELLOW}Next steps:${NC}"
 echo "  - Review logs: cat provision.log"
-echo "  - Server is ready for k3s installation"
+echo "  - Test cluster: kubectl get nodes"
+echo "  - Verify cluster config: kubectl get configmap cluster-config -n cluster-config -o yaml"
+echo "  - Verify cluster secrets: kubectl get secret cluster-config -n cluster-config -o yaml"

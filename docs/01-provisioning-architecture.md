@@ -57,14 +57,16 @@ User Input
 - ✓ Example configuration (secrets.example.yaml)
 - ✓ Skip existing secrets on re-run (provision.sh)
 
-**Phase 2: Server Bootstrap** - In Progress
+**Phase 2: Server Bootstrap** - Complete
 - ✓ SSH connectivity validation (Step 2: check-ssh-connection)
 - ✓ System updates and dependencies (Step 3: update-dependencies)
 - ✓ NAS mount setup (Step 4: mount-nas)
 - ✓ Configuration loader (config.sh library)
-- ⏳ Any additional network configuration (planned)
 
-### Completed: SSH Connectivity Check (Step 2)
+**Phase 3: K3s Installation** - Complete
+- ✓ K3s cluster installation (Step 5: install-k3s)
+
+### Completed: SSH Connectivity Check (Phase 2)
 
 Validates that the configured Ubuntu server is:
 1. Reachable via SSH
@@ -73,7 +75,7 @@ Validates that the configured Ubuntu server is:
 
 This ensures the server is ready for bootstrap provisioning.
 
-### Completed: System Updates & Dependencies (Step 3)
+### Completed: System Updates & Dependencies (Phase 3)
 
 Prepares the Ubuntu server with essential packages and configuration:
 1. Runs `apt update` and `apt upgrade`
@@ -84,7 +86,7 @@ Prepares the Ubuntu server with essential packages and configuration:
 
 User can skip this step if already installed.
 
-### Completed: NAS Mount Setup (Step 4)
+### Completed: NAS Storage Mounting (Phase 4)
 
 Configures NFS mounts for persistent storage:
 1. Tests NAS connectivity (verifies NAS is reachable)
@@ -97,23 +99,66 @@ Configures NFS mounts for persistent storage:
 
 Mount points are safe for kubernetes deployments with optimized NFS options (automount, nofail, network timeout).
 
+### Completed: K3s Cluster Installation (Phase 5)
+
+Installs and validates a single-node k3s kubernetes cluster:
+1. Checks if k3s is already installed (safe to re-run)
+2. Installs k3s v1.36.1+k3s1 if needed (with traefik disabled)
+3. Waits for k3s service to start (up to 1 minute with retries)
+4. Verifies cluster readiness (kubectl connectivity, node status, coredns)
+5. Displays cluster information and kubeconfig location
+6. Logs all output to `provision.log`
+
+**Configuration Notes:**
+- Traefik ingress controller is disabled (install your own ingress later)
+- Single-node cluster (control plane + worker on same node)
+- Ready for application deployment after this step
+- Kubeconfig available at `/etc/rancher/k3s/k3s.yaml` on server
+
+### Completed: Cluster Configuration Provisioning (Phase 6)
+
+Provisions cluster-wide configuration from `config/secrets.yaml` as Kubernetes ConfigMap and Secret:
+1. Creates `cluster-config` namespace
+2. Creates `cluster-config` ConfigMap with non-sensitive data (domain, NAS paths, SMTP server, email addresses, server IP)
+3. Creates `cluster-config` Secret with sensitive credentials (SMTP username and password)
+4. Verifies resources are created and accessible
+
+**Purpose:** Decouples configuration from application manifests, allowing applications to reference cluster configuration via environment variables or volume mounts. Follows 12-factor app principles.
+
+**Usage in Kubernetes:**
+```yaml
+env:
+  - name: BASE_DOMAIN
+    valueFrom:
+      configMapKeyRef:
+        name: cluster-config
+        key: BASE_DOMAIN
+  - name: SMTP_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        name: cluster-config
+        key: SMTP_PASSWORD
+```
+
+## Implementation Status Summary
+
+| Phase | Status | Description |
+|-------|--------|-------------|
+| Phase 1 | ✓ Complete | Configuration collection (secrets.yaml) |
+| Phase 2 | ✓ Complete | SSH connectivity check and validation |
+| Phase 3 | ✓ Complete | System updates and package installation |
+| Phase 4 | ✓ Complete | NAS storage mounting and verification |
+| Phase 5 | ✓ Complete | K3s cluster installation and verification |
+| Phase 6 | ✓ Complete | Cluster configuration provisioning (ConfigMap, Secret) |
+| Phase 7 | Planned | Application deployment (ingress, storage classes, manifests) |
+
 ## Future Phases
 
-Phase 3: K3s installation (planned)
-- SSH connectivity verification
-- OS package updates and dependencies
-- Network configuration
-- Storage mount setup (NAS)
-
-Phase 3: K3s installation (planned)
-- k3s cluster initialization
-- Node provisioning
-- Cluster validation
-
-Phase 4: Application deployment (planned)
-- Networking setup
-- Storage provisioning
-- Application manifests
+**Phase 7: Application Deployment** (planned)
+- Ingress controller setup and configuration
+- Storage class provisioning for NAS mounts
+- Application manifest deployment
+- Service networking and DNS configuration
 
 ## Configuration Schema
 
