@@ -8,6 +8,9 @@ metadata:
     app.kubernetes.io/name: "{{ .Values.nginxIngress.name }}"
     app.kubernetes.io/instance: root-app
     app.kubernetes.io/component: infrastructure
+  annotations:
+    # Sync wave 1: after root-app (wave 0), before other infrastructure
+    argocd.argoproj.io/sync-wave: "1"
 spec:
   project: default
   # Multi-source: Helm chart from upstream registry + values from this git repo.

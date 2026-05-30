@@ -154,11 +154,35 @@ Initializes GitOps infrastructure with ArgoCD and App of Apps pattern using a tw
 - **Password:** `kubectl get secret -n argocd argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d`
 - **Action:** Change password on first login
 
-### Phase 8: Application Deployment (Planned)
+### Phase 8: Longhorn Storage Installation ✓ In Progress
+**GitOps-managed Applications:** (no separate Phase 8 script)
+
+Installs Longhorn distributed storage with NFS backup target via two ArgoCD Applications:
+- **Wave 3 (infra-longhorn):** Helm chart install — CRDs, operator, UI pods
+- **Wave 4 (infra-longhorn-config):** Kustomize config — Ingress, RecurringJobs (snapshots/backups)
+
+**Configuration:**
+- Single-node setup (no replication; only local copies)
+- Local-path remains default storage class; workloads explicitly request Longhorn when needed
+- Backup target: NFS on NAS at `<NAS_IP>:<NAS_BASE_SHARE>/backups/k3s-longhorn` (NFSv3 with nolock)
+- Snapshot schedule: every 6 hours (retain 30)
+- Backup schedule: every 6.5 hours, offset from snapshots (retain 30)
+- UI accessible at `longhorn.<domain>` (e.g., longhorn.in.alybadawy.com)
+
+**Key Design Decisions:**
+- Two-wave approach ensures CRDs exist before RecurringJobs (Longhorn's RecurringJob CRs depend on CRDs installed by Helm)
+- Kustomize manages non-Helm resources (ingress, recurring jobs, namespace)
+- Variable substitution via kustomize-envsubst plugin: domain and NAS path from cluster-config (no hardcoding)
+- ArgoCD ignoreDifferences prevents OutOfSync loop for Longhorn self-modified resources
+
+**See also:** `docs/ADR-004-longhorn-storage-architecture.md` for full rationale and design decisions.
+
+**Status:** Manifests created and Applications defined; ready for GitOps apply and testing.
+
+### Phase 9: Application Deployment (Planned)
 **Scripts:** (TBD)
 
 Deploy additional applications and services:
-- Longhorn for distributed storage
 - Vaultwarden for secrets management
 - Custom applications and services
 - DNS, monitoring, and logging infrastructure
@@ -183,6 +207,19 @@ See `docs/ADR-002-bootstrap-simplification.md` and `docs/ADR-003-gitops-ownershi
 6. **Multi-source ArgoCD Applications** — `nginx-ingress-app.yaml` and `argocd-app.yaml` use ArgoCD multi-source: upstream Helm chart + `$values` ref pointing to this repo's values files. This makes `git-ops/*/values.yaml` the single source of truth for both bootstrap and GitOps. (ADR-003)
 
 7. **ArgoCD Ingress as root-app manifest** — The ArgoCD Ingress (`argocd-server-ingress`) is a plain Kubernetes manifest in `root-app/templates/argocd-ingress.yaml`, templated with `{{ .Values.domain }}`. Bootstrap does NOT create this ingress manually. It appears when root-app first syncs. (ADR-003)
+
+### Phase 8 Decisions
+See `docs/ADR-004-longhorn-storage-architecture.md`:
+
+8. **Single-node Longhorn** — No data replication (only one copy per volume). This is safe on single-node because replication doesn't help when the node fails; backup/restore is the recovery path.
+
+9. **Local-path as default storage class** — Longhorn is opt-in; workloads explicitly request it. Most workloads don't need distributed storage.
+
+10. **NFS backup target on NAS** — Separates backup storage from cluster, enabling disaster recovery. NFSv3 + nolock provides NAS compatibility.
+
+11. **Two-wave Longhorn Applications** — Helm chart (wave 3) installs first to create CRDs. Kustomize config (wave 4) follows, creating RecurringJob CRs that depend on the CRDs.
+
+12. **Kustomize for non-Helm resources** — Ingress, RecurringJobs, namespace are plain YAML in kustomization, not Helm-templated. This keeps them in git as simple, readable manifests.
 
 ## Running the Provisioning
 
@@ -273,5 +310,5 @@ Future enhancements:
 
 ---
 
-**Last Updated:** 2026-05-29  
-**Phase:** Configuration Management (Phase 1)
+**Last Updated:** 2026-05-30  
+**Phase:** Longhorn Storage Integration (Phase 8)

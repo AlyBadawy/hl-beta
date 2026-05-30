@@ -1,0 +1,23 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: longhorn-ui
+  namespace: longhorn-system
+  labels:
+    app.kubernetes.io/name: longhorn
+    app.kubernetes.io/component: ui
+spec:
+  ingressClassName: nginx
+  rules:
+    # Host is substituted by kustomize-envsubst plugin
+    # Format: longhorn.{DOMAIN} where DOMAIN comes from cluster-config
+    - host: longhorn.${DOMAIN}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: longhorn-frontend
+                port:
+                  number: 80

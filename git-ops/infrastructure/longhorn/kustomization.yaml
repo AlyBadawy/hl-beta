@@ -1,0 +1,34 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Longhorn infrastructure configuration
+# Managed by ArgoCD Application: infra-longhorn-config (wave 2)
+#
+# This kustomization:
+# 1. Creates longhorn-system namespace
+# 2. Manages ingress for Longhorn UI (replaces Helm ingress)
+# 3. Manages recurring backup/snapshot jobs (wave 2, after Helm chart CRDs are installed)
+# 4. Uses kustomize-envsubst plugin for variable substitution
+#    - ${DOMAIN} substituted with cluster-config value
+#
+# Note: The Helm chart itself (Longhorn) is managed by infra-longhorn Application (wave 1)
+
+namespace: longhorn-system
+
+resources:
+  - namespace.yaml
+  - ingress.yaml
+  - recurring-jobs.yaml
+
+commonLabels:
+  app.kubernetes.io/part-of: infrastructure
+  app.kubernetes.io/managed-by: argocd
+
+commonAnnotations:
+  # This configuration depends on Longhorn CRDs being installed first
+  # Enforced by sync-wave in ArgoCD Application
+  longhorn.io/config-version: "1"
+
+# Note: Variables like ${DOMAIN} in ingress.yaml are substituted by
+# the kustomize-envsubst ArgoCD plugin at render time, using environment
+# variables or cluster-config values from the host environment.

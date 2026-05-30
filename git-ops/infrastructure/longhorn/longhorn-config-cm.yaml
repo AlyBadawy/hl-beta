@@ -1,0 +1,12 @@
+# NOTE: This file is not used in the current implementation.
+#
+# Instead, we use direct variable substitution in the manifests:
+# - ingress.yaml uses ${DOMAIN} (substituted by kustomize-envsubst plugin)
+# - infra-longhorn Application Helm parameters use ${NAS_IP} and ${NAS_BASE_SHARE}
+#
+# The kustomize-envsubst plugin reads these variables from the environment
+# or cluster-config and substitutes them at render time.
+#
+# If you need to create a separate ConfigMap with constructed values in the future,
+# you would reference it in kustomization.yaml and use kustomize vars/replacements
+# to read from cluster-config and inject into this ConfigMap.

@@ -36,6 +36,24 @@ nginxIngress:
   # Path to Nginx values in this repo
   valuesPath: "git-ops/nginx-ingress/values.yaml"
 
+# Longhorn Storage Configuration
+longhorn:
+  enabled: true
+  namespace: "longhorn-system"
+  # Helm Application — installs Longhorn chart with CRDs
+  helm:
+    enabled: true
+    name: "infra-longhorn"
+    chart: "longhorn"
+    chartVersion: "~1.7.0"
+    # Path to Longhorn Helm values in this repo
+    valuesPath: "git-ops/infrastructure/longhorn/helm-values.yaml"
+  # Kustomize Application — manages ingress, recurring jobs, config
+  config:
+    enabled: true
+    name: "infra-longhorn-config"
+    path: "git-ops/infrastructure/longhorn"
+
 # Sync policies
 syncPolicy:
   automated:

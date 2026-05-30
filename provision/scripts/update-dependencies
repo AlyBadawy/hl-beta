@@ -46,6 +46,9 @@ PACKAGES=(
   "zip"
   "rsync"
   "socat"
+  "open-iscsi"      # Longhorn storage: iSCSI initiator
+  "sg3-utils"       # Longhorn storage: SCSI management
+  "util-linux"      # Longhorn storage: filesystem utilities
 )
 
 # Helper function to log and display
@@ -111,7 +114,7 @@ run_remote_command "sudo DEBIAN_FRONTEND=noninteractive apt upgrade -y" "Step 2:
 log_output "${YELLOW}Step 3: Installing packages...${NC}"
 PACKAGES_STRING=$(printf '%s ' "${PACKAGES[@]}")
 
-if run_remote_command "sudo DEBIAN_FRONTEND=noninteractive apt install -y $PACKAGES_STRING" "  Installing: curl wget git jq htop vim nano openssl nfs-common apparmor net-tools dnsutils traceroute parted e2fsprogs xfsprogs sysstat iotop unzip zip rsync socat"; then
+if run_remote_command "sudo DEBIAN_FRONTEND=noninteractive apt install -y $PACKAGES_STRING" "  Installing: curl wget git jq htop vim nano openssl nfs-common apparmor net-tools dnsutils traceroute parted e2fsprogs xfsprogs sysstat iotop unzip zip rsync socat open-iscsi sg3-utils util-linux"; then
   log_output "${GREEN}✓ Package installation complete${NC}\n"
 else
   log_output "${YELLOW}⚠ Some packages may have failed to install (continuing)${NC}\n"

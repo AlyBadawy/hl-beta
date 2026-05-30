@@ -1,0 +1,49 @@
+# Longhorn Helm Values
+# These values are merged with the official Longhorn Helm chart during Application sync.
+# The backup target is set via Application helm.parameters (injected from cluster-config).
+#
+# Single-node configuration:
+# - No replication (defaultReplicaCount: 1)
+# - Local path remains default storage class
+# - Longhorn UI accessible via ingress (managed by kustomization)
+
+defaultSettings:
+  # Single node cluster — no replication needed
+  defaultReplicaCount: 1
+
+  # Do NOT make Longhorn the default storage class
+  # Applications that need Longhorn must explicitly request it
+  # Local-path-provisioner remains default for most workloads
+  defaultDataLocality: best-effort
+
+  # Backup target is injected via Application Helm parameter
+  # Format: nfs://<NAS_IP>:<NAS_BASE_SHARE>/backups/k3s-longhorn?nfsOptions=nfsvers%3D3%2Cnolock
+  # Not set here — passed at deploy time to avoid duplication
+
+  # Replica auto-balance is irrelevant on single-node cluster
+  replicaAutoBalance: "disabled"
+
+  # Metrics collection disabled for single-node
+  allowCollectingLonghornUsageMetrics: false
+
+# Storage class configuration
+persistence:
+  # local-path stays as the default storage class
+  defaultClass: false
+  defaultClassReplicaCount: 1
+
+# Ingress configuration
+ingress:
+  # Ingress is managed by our own ingress.yaml in kustomization
+  # Not by Helm — this keeps ingress configuration in git as plain YAML
+  enabled: false
+
+# Longhorn UI
+longhornUI:
+  # The UI pod still runs; ingress.yaml exposes it via HTTP
+  replicas: 1
+
+# Service for UI access
+service:
+  ui:
+    type: ClusterIP

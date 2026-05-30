@@ -1,0 +1,44 @@
+{{- if .Values.longhorn.config.enabled }}
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: "{{ .Values.longhorn.config.name }}"
+  namespace: "{{ .Values.argocd.namespace }}"
+  labels:
+    app.kubernetes.io/name: "{{ .Values.longhorn.config.name }}"
+    app.kubernetes.io/instance: root-app
+    app.kubernetes.io/component: infrastructure
+    homelab/stack: infrastructure
+  annotations:
+    # Sync wave 4: after Longhorn Helm chart (wave 3)
+    # Ensures CRDs from wave 3 are available before creating RecurringJobs
+    argocd.argoproj.io/sync-wave: "4"
+spec:
+  project: default
+
+  source:
+    repoURL: "{{ .Values.git.repoUrl }}"
+    targetRevision: "{{ .Values.git.targetRevision }}"
+    path: "{{ .Values.longhorn.config.path }}"
+    # Kustomize plugin for variable substitution
+    # Reads ${DOMAIN} from cluster-config and injects into ingress.yaml
+    plugin:
+      name: kustomize-envsubst
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: "{{ .Values.longhorn.namespace }}"
+
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
+{{- end }}
