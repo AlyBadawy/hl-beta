@@ -174,19 +174,15 @@ See `docs/ADR-001-provisioning-script-design.md`:
 3. **Modularity** — Each script has single responsibility
 
 ### Phase 7 Decisions  
-See `docs/ADR-002-bootstrap-simplification.md`:
-4. **Bootstrap Separation** — Two-phase approach:
-   - Phase 7a: Deploy ArgoCD with minimal Helm values + Ingress via kubectl
-   - Phase 7b: Root-app takes over configuration management via git
-   - **Why:** Avoids Helm `valuesObject` JSON serialization issues with complex ingress configs
+See `docs/ADR-002-bootstrap-simplification.md` and `docs/ADR-003-gitops-ownership-and-ingress.md`:
 
-5. **Helm Values Format** — Use `helm.values` (YAML string) instead of `helm.valuesObject` (JSON)
-   - **Why:** YAML format is more reliable for complex nested structures
-   - **Lesson:** `valuesObject` can have JSON marshaling edge cases, prefer YAML strings
+4. **Bootstrap Separation** — Bootstrap installs nginx-ingress + ArgoCD minimally via Helm, then hands off to GitOps.
 
-6. **Ingress Management** — Create Ingress as simple Kubernetes resource, not through Helm values
-   - **Why:** Avoids configuration complexity, easier to troubleshoot
-   - **Benefit:** Clean separation between bootstrap and GitOps layers
+5. **Helm Tracking Secret Deletion** — After each `helm install` in bootstrap, the Helm release tracking Secret is deleted so ArgoCD becomes the sole owner. Running resources are preserved. (ADR-003)
+
+6. **Multi-source ArgoCD Applications** — `nginx-ingress-app.yaml` and `argocd-app.yaml` use ArgoCD multi-source: upstream Helm chart + `$values` ref pointing to this repo's values files. This makes `git-ops/*/values.yaml` the single source of truth for both bootstrap and GitOps. (ADR-003)
+
+7. **ArgoCD Ingress as root-app manifest** — The ArgoCD Ingress (`argocd-server-ingress`) is a plain Kubernetes manifest in `root-app/templates/argocd-ingress.yaml`, templated with `{{ .Values.domain }}`. Bootstrap does NOT create this ingress manually. It appears when root-app first syncs. (ADR-003)
 
 ## Running the Provisioning
 

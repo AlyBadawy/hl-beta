@@ -10,29 +10,18 @@ metadata:
     app.kubernetes.io/component: infrastructure
 spec:
   project: default
-  source:
-    repoURL: https://kubernetes.github.io/ingress-nginx
-    chart: {{ .Values.nginxIngress.chart }}
-    targetRevision: {{ .Values.nginxIngress.chartVersion }}
-    helm:
-      values: |
-        controller:
-          replicas: 1
-          service:
-            type: LoadBalancer
-            externalTrafficPolicy: Local
-          metrics:
-            enabled: false
-          resources:
-            requests:
-              cpu: 100m
-              memory: 90Mi
-            limits:
-              cpu: 500m
-              memory: 512Mi
-
-        defaultBackend:
-          enabled: false
+  # Multi-source: Helm chart from upstream registry + values from this git repo.
+  # This ensures git-ops/nginx-ingress/values.yaml is the single source of truth.
+  sources:
+    - repoURL: https://kubernetes.github.io/ingress-nginx
+      chart: {{ .Values.nginxIngress.chart }}
+      targetRevision: {{ .Values.nginxIngress.chartVersion }}
+      helm:
+        valueFiles:
+          - $values/git-ops/nginx-ingress/values.yaml
+    - repoURL: {{ .Values.git.repoUrl }}
+      targetRevision: {{ .Values.git.targetRevision }}
+      ref: values
 
   destination:
     server: https://kubernetes.default.svc

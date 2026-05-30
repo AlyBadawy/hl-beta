@@ -50,59 +50,79 @@ if ! load_ssh_config "$CONFIG_FILE"; then
 fi
 log_output "${GREEN}✓ SSH configuration loaded${NC}\n"
 
+# ─────────────────────────────────────────────────────────────────
 # Step 1: Install Nginx Ingress Controller (prerequisite)
+# ─────────────────────────────────────────────────────────────────
 log_output "${YELLOW}Step 1: Installing Nginx Ingress Controller${NC}\n"
 
 NGINX_REPO="https://kubernetes.github.io/ingress-nginx"
 NGINX_CHART_VERSION="4.11.0"
-
-# Create temporary file with nginx values on remote server
 NGINX_VALUES_LOCAL="$GIT_OPS_DIR/nginx-ingress/values.yaml"
 
-# Add Helm repository (on remote server)
-log_output "  Adding nginx helm repository..."
-if ssh \
-  -o ConnectTimeout=$SSH_TIMEOUT \
-  -o StrictHostKeyChecking=no \
-  -o UserKnownHostsFile=/dev/null \
-  -o LogLevel=QUIET \
-  "$SSH_USER@$SERVER_IP" \
-  "helm repo add ingress-nginx $NGINX_REPO && helm repo update" >> "$LOG_FILE" 2>&1; then
-  log_output "${GREEN}✓ Repository added and updated${NC}"
+# Idempotency check: skip if nginx-ingress controller is already running.
+# This covers both a previous bootstrap run AND the case where ArgoCD already manages it.
+NGINX_RUNNING=$(kubectl get deployment -n ingress-nginx \
+  -l 'app.kubernetes.io/name=ingress-nginx' \
+  --no-headers 2>/dev/null | wc -l | tr -d ' ')
+
+if [ "$NGINX_RUNNING" -gt 0 ]; then
+  log_output "${GREEN}✓ Nginx Ingress Controller already running — skipping install${NC}\n"
 else
-  log_output "${YELLOW}⚠ Repository may already exist (continuing)${NC}"
-fi
+  # Add Helm repository on remote server
+  log_output "  Adding nginx helm repository..."
+  if ssh \
+    -o ConnectTimeout=$SSH_TIMEOUT \
+    -o StrictHostKeyChecking=no \
+    -o UserKnownHostsFile=/dev/null \
+    -o LogLevel=QUIET \
+    "$SSH_USER@$SERVER_IP" \
+    "helm repo add ingress-nginx $NGINX_REPO && helm repo update" >> "$LOG_FILE" 2>&1; then
+    log_output "${GREEN}✓ Repository added and updated${NC}"
+  else
+    log_output "${YELLOW}⚠ Repository may already exist (continuing)${NC}"
+  fi
 
-# Create ingress-nginx namespace
-log_output "  Creating ingress-nginx namespace..."
-kubectl create namespace ingress-nginx --dry-run=client -o yaml | kubectl apply -f - >> "$LOG_FILE" 2>&1
+  # Create namespace
+  log_output "  Creating ingress-nginx namespace..."
+  kubectl create namespace ingress-nginx --dry-run=client -o yaml | kubectl apply -f - >> "$LOG_FILE" 2>&1
 
-# Get nginx values file content
-log_output "  Preparing nginx-ingress values..."
-NGINX_VALUES=$(cat "$NGINX_VALUES_LOCAL" | sed 's/"/\\"/g')
+  # Install nginx-ingress via Helm on remote server using values from git-ops
+  log_output "  Installing nginx-ingress via helm (using git-ops/nginx-ingress/values.yaml)..."
+  if ssh \
+    -o ConnectTimeout=$SSH_TIMEOUT \
+    -o StrictHostKeyChecking=no \
+    -o UserKnownHostsFile=/dev/null \
+    -o LogLevel=QUIET \
+    "$SSH_USER@$SERVER_IP" \
+    "export KUBECONFIG=~/.kube/config && helm upgrade --install nginx-ingress ingress-nginx/ingress-nginx \
+      --namespace ingress-nginx \
+      --version $NGINX_CHART_VERSION \
+      --values - \
+      --wait \
+      --timeout 5m" <<< "$(cat $NGINX_VALUES_LOCAL)" >> "$LOG_FILE" 2>&1; then
+    log_output "${GREEN}✓ Nginx Ingress Controller installed${NC}"
+  else
+    log_output "${RED}✗ Failed to install Nginx Ingress Controller${NC}"
+    log_output "${RED}Check logs: tail -50 provision.log${NC}"
+    exit 1
+  fi
 
-# Install or upgrade nginx-ingress using helm (on remote server)
-log_output "  Installing nginx-ingress via helm..."
-if ssh \
-  -o ConnectTimeout=$SSH_TIMEOUT \
-  -o StrictHostKeyChecking=no \
-  -o UserKnownHostsFile=/dev/null \
-  -o LogLevel=QUIET \
-  "$SSH_USER@$SERVER_IP" \
-  "export KUBECONFIG=~/.kube/config && helm upgrade --install nginx-ingress ingress-nginx/ingress-nginx \
+  # Hand off Helm release ownership to ArgoCD.
+  # ArgoCD manages resources via kubectl apply (not helm upgrade), so we remove the
+  # Helm tracking secret to avoid dual-ownership conflicts. The actual running resources
+  # (Deployment, Service, IngressClass, etc.) are preserved — only the Helm metadata is removed.
+  # When ArgoCD syncs the nginx-ingress Application, it will adopt and fully manage these resources.
+  log_output "  Handing off nginx-ingress ownership to ArgoCD (removing Helm tracking secret)..."
+  kubectl delete secret \
     --namespace ingress-nginx \
-    --version $NGINX_CHART_VERSION \
-    --values - \
-    --wait \
-    --timeout 5m" <<< "$(cat $NGINX_VALUES_LOCAL)" >> "$LOG_FILE" 2>&1; then
-  log_output "${GREEN}✓ Nginx Ingress Controller installed${NC}\n"
-else
-  log_output "${RED}✗ Failed to install Nginx Ingress Controller${NC}"
-  log_output "${RED}Check logs: tail -50 provision.log${NC}"
-  exit 1
+    --selector "owner=helm,name=nginx-ingress" \
+    --ignore-not-found >> "$LOG_FILE" 2>&1
+  log_output "${GREEN}✓ Nginx Ingress Controller ready for ArgoCD management${NC}\n"
 fi
 
+# ─────────────────────────────────────────────────────────────────
 # Step 2: Create ArgoCD namespace
+# ─────────────────────────────────────────────────────────────────
 log_output "${YELLOW}Step 2: Creating ArgoCD namespace${NC}\n"
 
 if kubectl create namespace argocd --dry-run=client -o yaml | kubectl apply -f - >> "$LOG_FILE" 2>&1; then
@@ -112,34 +132,45 @@ else
   exit 1
 fi
 
-# Step 3: Install ArgoCD via Helm (prerequisite for bootstrap app)
+# ─────────────────────────────────────────────────────────────────
+# Step 3: Install ArgoCD via Helm (bootstrap only)
+# ─────────────────────────────────────────────────────────────────
 log_output "${YELLOW}Step 3: Installing ArgoCD via Helm${NC}\n"
 
 ARGOCD_REPO="https://argoproj.github.io/argo-helm"
 ARGOCD_CHART_VERSION="7.6.0"
 
-# Add ArgoCD helm repository (on remote server)
-log_output "  Adding ArgoCD helm repository..."
-if ssh \
-  -o ConnectTimeout=$SSH_TIMEOUT \
-  -o StrictHostKeyChecking=no \
-  -o UserKnownHostsFile=/dev/null \
-  -o LogLevel=QUIET \
-  "$SSH_USER@$SERVER_IP" \
-  "helm repo add argo $ARGOCD_REPO && helm repo update" >> "$LOG_FILE" 2>&1; then
-  log_output "${GREEN}✓ Repository added and updated${NC}"
+# Idempotency check: skip if ArgoCD server is already running.
+ARGOCD_RUNNING=$(kubectl get deployment -n argocd argocd-server --no-headers 2>/dev/null | wc -l | tr -d ' ')
+
+if [ "$ARGOCD_RUNNING" -gt 0 ]; then
+  log_output "${GREEN}✓ ArgoCD already running — skipping install${NC}\n"
 else
-  log_output "${YELLOW}⚠ Repository may already exist (continuing)${NC}"
-fi
+  # Add ArgoCD helm repository on remote server
+  log_output "  Adding ArgoCD helm repository..."
+  if ssh \
+    -o ConnectTimeout=$SSH_TIMEOUT \
+    -o StrictHostKeyChecking=no \
+    -o UserKnownHostsFile=/dev/null \
+    -o LogLevel=QUIET \
+    "$SSH_USER@$SERVER_IP" \
+    "helm repo add argo $ARGOCD_REPO && helm repo update" >> "$LOG_FILE" 2>&1; then
+    log_output "${GREEN}✓ Repository added and updated${NC}"
+  else
+    log_output "${YELLOW}⚠ Repository may already exist (continuing)${NC}"
+  fi
 
-log_output ""
+  log_output ""
 
-# Install ArgoCD using helm with simplified bootstrap values (on remote server)
-log_output "  Installing ArgoCD via helm..."
-ARGOCD_BOOTSTRAP_VALUES=$(cat <<'HELM_EOF'
+  # Bootstrap values: minimal config to get ArgoCD running.
+  # Full configuration is applied by ArgoCD self-management once the root-app syncs
+  # (using git-ops/argocd/values.yaml via the argocd Application in root-app).
+  ARGOCD_BOOTSTRAP_VALUES=$(cat <<'HELM_EOF'
 server:
   replicas: 1
   insecure: true
+  ingress:
+    enabled: false
 
 controller:
   replicas: 1
@@ -160,27 +191,41 @@ configs:
 HELM_EOF
 )
 
-if ssh \
-  -o ConnectTimeout=$SSH_TIMEOUT \
-  -o StrictHostKeyChecking=no \
-  -o UserKnownHostsFile=/dev/null \
-  -o LogLevel=QUIET \
-  "$SSH_USER@$SERVER_IP" \
-  "export KUBECONFIG=~/.kube/config && helm upgrade --install argocd argo/argo-cd \
+  log_output "  Installing ArgoCD via helm (bootstrap values)..."
+  if ssh \
+    -o ConnectTimeout=$SSH_TIMEOUT \
+    -o StrictHostKeyChecking=no \
+    -o UserKnownHostsFile=/dev/null \
+    -o LogLevel=QUIET \
+    "$SSH_USER@$SERVER_IP" \
+    "export KUBECONFIG=~/.kube/config && helm upgrade --install argocd argo/argo-cd \
+      --namespace argocd \
+      --version $ARGOCD_CHART_VERSION \
+      --values - \
+      --wait \
+      --timeout 5m" <<< "$ARGOCD_BOOTSTRAP_VALUES" >> "$LOG_FILE" 2>&1; then
+    log_output "${GREEN}✓ ArgoCD installed${NC}"
+  else
+    log_output "${RED}✗ Failed to install ArgoCD${NC}"
+    log_output "${RED}Check logs: tail -50 provision.log${NC}"
+    exit 1
+  fi
+
+  # Hand off ArgoCD's Helm release ownership to ArgoCD self-management.
+  # Same reasoning as nginx-ingress: ArgoCD uses kubectl apply, not helm upgrade.
+  # The argocd Application in root-app will adopt and fully manage ArgoCD going forward.
+  log_output "  Handing off ArgoCD ownership to self-management (removing Helm tracking secret)..."
+  kubectl delete secret \
     --namespace argocd \
-    --version $ARGOCD_CHART_VERSION \
-    --values - \
-    --wait \
-    --timeout 5m" <<< "$ARGOCD_BOOTSTRAP_VALUES" >> "$LOG_FILE" 2>&1; then
-  log_output "${GREEN}✓ ArgoCD installed${NC}\n"
-else
-  log_output "${RED}✗ Failed to install ArgoCD${NC}"
-  log_output "${RED}Check logs: tail -50 provision.log${NC}"
-  exit 1
+    --selector "owner=helm,name=argocd" \
+    --ignore-not-found >> "$LOG_FILE" 2>&1
+  log_output "${GREEN}✓ ArgoCD ready for self-management${NC}\n"
 fi
 
-# Step 4: Create bootstrap Application manifest
-log_output "${YELLOW}Step 3: Creating bootstrap Application${NC}\n"
+# ─────────────────────────────────────────────────────────────────
+# Step 4: Create bootstrap root-app Application
+# ─────────────────────────────────────────────────────────────────
+log_output "${YELLOW}Step 4: Creating bootstrap Application${NC}\n"
 
 BOOTSTRAP_MANIFEST=$(cat <<'EOF'
 apiVersion: argoproj.io/v1alpha1
@@ -214,54 +259,15 @@ spec:
 EOF
 )
 
-# Apply bootstrap application
 log_output "  Applying bootstrap Application manifest..."
 echo "$BOOTSTRAP_MANIFEST" | kubectl apply -f - >> "$LOG_FILE" 2>&1
-
 log_output "${GREEN}✓ Bootstrap Application created${NC}\n"
 
-# Step 4b: Create ArgoCD Ingress
-log_output "${YELLOW}Step 4b: Creating ArgoCD Ingress${NC}\n"
-
-# Read domain from config
-DOMAIN=$(grep "^domain:" "$CONFIG_FILE" | awk '{print $2}' | tr -d "\"'")
-
-if [ -z "$DOMAIN" ]; then
-  DOMAIN="in.alybadawy.com"
-fi
-
-ARGOCD_INGRESS=$(cat <<EOF
-apiVersion: networking.k8s.io/v1
-kind: Ingress
-metadata:
-  name: argocd-server-ingress
-  namespace: argocd
-  annotations:
-    nginx.ingress.kubernetes.io/force-ssl-redirect: "false"
-spec:
-  ingressClassName: nginx
-  rules:
-    - host: "argo.$DOMAIN"
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: argocd-server
-                port:
-                  number: 80
-EOF
-)
-
-log_output "  Creating Ingress for argo.$DOMAIN..."
-echo "$ARGOCD_INGRESS" | kubectl apply -f - >> "$LOG_FILE" 2>&1
-log_output "${GREEN}✓ ArgoCD Ingress created${NC}\n"
-
+# ─────────────────────────────────────────────────────────────────
 # Step 5: Wait for ArgoCD to be ready
+# ─────────────────────────────────────────────────────────────────
 log_output "${YELLOW}Step 5: Waiting for ArgoCD to become ready${NC}\n"
 
-# Wait for argocd-server deployment
 log_output "  Waiting for ArgoCD server deployment (up to 3 minutes)..."
 if kubectl rollout status deployment/argocd-server -n argocd --timeout=3m >> "$LOG_FILE" 2>&1; then
   log_output "${GREEN}✓ ArgoCD server is running${NC}\n"
@@ -269,12 +275,15 @@ else
   log_output "${YELLOW}⚠ ArgoCD server did not start in time (continuing)${NC}\n"
 fi
 
-# Step 6: Get ArgoCD initial admin password
+# ─────────────────────────────────────────────────────────────────
+# Step 6: Retrieve ArgoCD admin credentials
+# ─────────────────────────────────────────────────────────────────
 log_output "${YELLOW}Step 6: Retrieving ArgoCD admin credentials${NC}\n"
 
 ADMIN_PASSWORD=""
 for i in {1..30}; do
-  ADMIN_PASSWORD=$(kubectl get secret -n argocd argocd-initial-admin-secret -o jsonpath="{.data.password}" 2>/dev/null | base64 -d 2>/dev/null || echo "")
+  ADMIN_PASSWORD=$(kubectl get secret -n argocd argocd-initial-admin-secret \
+    -o jsonpath="{.data.password}" 2>/dev/null | base64 -d 2>/dev/null || echo "")
   if [ -n "$ADMIN_PASSWORD" ]; then
     log_output "${GREEN}✓ Admin credentials retrieved${NC}\n"
     break
@@ -282,7 +291,7 @@ for i in {1..30}; do
 
   if [ $i -eq 30 ]; then
     log_output "${YELLOW}⚠ Could not retrieve admin password (may still be initializing)${NC}\n"
-    ADMIN_PASSWORD="Check with: kubectl get secret -n argocd argocd-initial-admin-secret -o jsonpath=\"{.data.password}\" | base64 -d"
+    ADMIN_PASSWORD="Run: kubectl get secret -n argocd argocd-initial-admin-secret -o jsonpath=\"{.data.password}\" | base64 -d"
     break
   fi
 
@@ -290,35 +299,41 @@ for i in {1..30}; do
   sleep 2
 done
 
-# Step 7: Display access information
+# ─────────────────────────────────────────────────────────────────
+# Done
+# ─────────────────────────────────────────────────────────────────
 log_output "${GREEN}=== ✓ GitOps Bootstrap Complete ===${NC}\n"
 
-log_output "${YELLOW}Access ArgoCD:${NC}\n"
-log_output "  ${BLUE}URL: http://argo.in.alybadawy.com${NC}"
-log_output "  ${BLUE}Username: admin${NC}"
+# Read domain from config
+DOMAIN=$(grep "^domain:" "$CONFIG_FILE" 2>/dev/null | awk '{print $2}' | tr -d "\"'" || echo "in.alybadawy.com")
+[ -z "$DOMAIN" ] && DOMAIN="in.alybadawy.com"
 
-if [ "$ADMIN_PASSWORD" != "Check with: kubectl get secret -n argocd argocd-initial-admin-secret -o jsonpath=\"{.data.password}\" | base64 -d" ]; then
-  log_output "  ${BLUE}Password: $ADMIN_PASSWORD${NC}\n"
-else
-  log_output "  ${BLUE}Password:${NC} $ADMIN_PASSWORD\n"
-fi
-
-log_output "${YELLOW}Port Forward (if ingress not working):${NC}"
+log_output "${YELLOW}Access ArgoCD (port-forward — use this until root-app syncs):${NC}"
 log_output "  kubectl port-forward -n argocd svc/argocd-server 8080:80"
-log_output "  Visit: http://localhost:8080\n"
+log_output "  Visit: http://localhost:8080"
+log_output "  Username: admin"
+if echo "$ADMIN_PASSWORD" | grep -q "^Run:"; then
+  log_output "  Password: $ADMIN_PASSWORD"
+else
+  log_output "  Password: $ADMIN_PASSWORD"
+fi
+log_output ""
 
-log_output "${YELLOW}Verify root-app status:${NC}"
+log_output "${YELLOW}What happens next (automatic):${NC}"
+log_output "  1. ArgoCD syncs root-app from git"
+log_output "  2. root-app creates the nginx-ingress Application → ArgoCD adopts the running controller"
+log_output "  3. root-app creates the argocd Application → ArgoCD self-manages itself"
+log_output "  4. root-app applies the ArgoCD Ingress (argo.${DOMAIN})"
+log_output "  5. Once DNS argo.${DOMAIN} → server IP is set, the UI is accessible at http://argo.${DOMAIN}"
+log_output ""
+
+log_output "${YELLOW}Monitor sync status:${NC}"
 log_output "  kubectl get applications -n argocd"
-log_output "  kubectl describe application root-app -n argocd\n"
+log_output "  kubectl describe application root-app -n argocd"
+log_output ""
 
-log_output "${YELLOW}View ArgoCD logs:${NC}"
-log_output "  kubectl logs -n argocd deployment/argocd-server -f\n"
-
-log_output "${BLUE}Next steps:${NC}"
-log_output "  1. Wait for Nginx Ingress Controller to get an IP (LoadBalancer)"
-log_output "  2. Point DNS argo.in.alybadawy.com to cluster IP"
-log_output "  3. Access ArgoCD UI at http://argo.in.alybadawy.com"
-log_output "  4. Monitor root-app syncing in the UI"
-log_output "  5. Once stable, change admin password\n"
+log_output "${YELLOW}View ArgoCD server logs:${NC}"
+log_output "  kubectl logs -n argocd deployment/argocd-server -f"
+log_output ""
 
 log_output "${BLUE}Log saved to: $LOG_FILE${NC}\n"

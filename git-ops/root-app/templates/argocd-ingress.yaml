@@ -1,0 +1,27 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: argocd-server-ingress
+  namespace: {{ .Values.argocd.namespace }}
+  labels:
+    app.kubernetes.io/name: argocd-server-ingress
+    app.kubernetes.io/instance: root-app
+    app.kubernetes.io/component: infrastructure
+  annotations:
+    # ArgoCD server runs in insecure mode (no TLS internally).
+    # SSL redirect disabled until cert-manager is configured.
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "false"
+    nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: "argo.{{ .Values.domain }}"
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: argocd-server
+                port:
+                  number: 80

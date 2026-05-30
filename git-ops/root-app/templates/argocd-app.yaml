@@ -10,29 +10,18 @@ metadata:
     app.kubernetes.io/component: infrastructure
 spec:
   project: default
-  source:
-    repoURL: https://argoproj.github.io/argo-helm
-    chart: {{ .Values.argocd.chart }}
-    targetRevision: {{ .Values.argocd.chartVersion }}
-    helm:
-      values: |
-        server:
-          replicas: 1
-          insecure: true
-          ingress:
-            enabled: false
-        controller:
-          replicas: 1
-        repoServer:
-          replicas: 1
-        persistence:
-          enabled: false
-        redis:
-          enabled: true
-        configs:
-          cm:
-            server.disable.auth: "false"
-            server.insecure: "true"
+  # Multi-source: Helm chart from upstream registry + values from this git repo.
+  # The Ingress for ArgoCD is managed separately via argocd-ingress.yaml in this chart.
+  sources:
+    - repoURL: https://argoproj.github.io/argo-helm
+      chart: {{ .Values.argocd.chart }}
+      targetRevision: {{ .Values.argocd.chartVersion }}
+      helm:
+        valueFiles:
+          - $values/git-ops/argocd/values.yaml
+    - repoURL: {{ .Values.git.repoUrl }}
+      targetRevision: {{ .Values.git.targetRevision }}
+      ref: values
   destination:
     server: https://kubernetes.default.svc
     namespace: {{ .Values.argocd.namespace }}
