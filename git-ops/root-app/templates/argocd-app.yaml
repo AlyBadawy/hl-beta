@@ -16,34 +16,26 @@ spec:
     targetRevision: {{ .Values.argocd.chartVersion }}
     helm:
       values: |
-        # Use defaults from ArgoCD chart, override only critical settings
         server:
           replicas: 1
           insecure: true
           ingress:
             enabled: false
-
         controller:
           replicas: 1
-
         repoServer:
           replicas: 1
-
         persistence:
           enabled: false
-
         redis:
           enabled: true
-
         configs:
           cm:
             server.disable.auth: "false"
             server.insecure: "true"
-
   destination:
     server: https://kubernetes.default.svc
     namespace: {{ .Values.argocd.namespace }}
-
   syncPolicy:
     automated:
       prune: {{ .Values.syncPolicy.automated.prune }}
