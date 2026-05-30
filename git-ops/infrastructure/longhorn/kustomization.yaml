@@ -29,6 +29,6 @@ commonAnnotations:
   # Enforced by sync-wave in ArgoCD Application
   longhorn.io/config-version: "1"
 
-# Note: Variables like ${DOMAIN} in ingress.yaml are substituted by
-# the kustomize-envsubst ArgoCD plugin at render time, using environment
-# variables or cluster-config values from the host environment.
+# Note: The domain in ingress.yaml is patched by the infra-longhorn-config
+# Application using patchesJson6902. This approach avoids needing plugins
+# and keeps everything self-contained within the ArgoCD Application definition.

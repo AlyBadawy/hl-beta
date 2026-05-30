@@ -30,7 +30,7 @@ spec:
         # NFSv3 with nolock (stateless locking) for NAS compatibility
         parameters:
           - name: defaultSettings.backupTarget
-            value: "nfs://${NAS_IP}:${NAS_BASE_SHARE}/backups/k3s-longhorn?nfsOptions=nfsvers%3D3%2Cnolock"
+            value: "nfs://{{ .Values.nas.ip }}:{{ .Values.nas.baseShare }}/backups/k3s-longhorn?nfsOptions=nfsvers%3D3%2Cnolock"
 
     - repoURL: "{{ .Values.git.repoUrl }}"
       targetRevision: "{{ .Values.git.targetRevision }}"

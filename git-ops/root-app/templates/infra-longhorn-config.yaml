@@ -20,10 +20,19 @@ spec:
     repoURL: "{{ .Values.git.repoUrl }}"
     targetRevision: "{{ .Values.git.targetRevision }}"
     path: "{{ .Values.longhorn.config.path }}"
-    # Kustomize plugin for variable substitution
-    # Reads ${DOMAIN} from cluster-config and injects into ingress.yaml
-    plugin:
-      name: kustomize-envsubst
+    # Kustomize with inline replacement patches for domain
+    kustomize:
+      patchesJson6902:
+        - target:
+            group: networking.k8s.io
+            version: v1
+            kind: Ingress
+            name: longhorn-ui
+            namespace: longhorn-system
+          patch:
+            - op: replace
+              path: /spec/rules/0/host
+              value: "longhorn.{{ .Values.domain }}"
 
   destination:
     server: https://kubernetes.default.svc

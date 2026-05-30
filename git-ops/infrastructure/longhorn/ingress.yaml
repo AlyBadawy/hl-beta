@@ -9,9 +9,9 @@ metadata:
 spec:
   ingressClassName: nginx
   rules:
-    # Host is substituted by kustomize-envsubst plugin
-    # Format: longhorn.{DOMAIN} where DOMAIN comes from cluster-config
-    - host: longhorn.${DOMAIN}
+    # Host is patched by infra-longhorn-config Application via patchesJson6902
+    # The Application injects the domain from root-app values
+    - host: longhorn.PLACEHOLDER
       http:
         paths:
           - path: /

@@ -9,6 +9,11 @@
 # Cluster domain — injected by bootstrap via helm.parameters.
 domain: ""
 
+# NAS configuration — injected by bootstrap via helm.parameters.
+nas:
+  ip: ""
+  baseShare: ""
+
 # Git repository configuration
 git:
   # repoUrl — injected by bootstrap via helm.parameters.
