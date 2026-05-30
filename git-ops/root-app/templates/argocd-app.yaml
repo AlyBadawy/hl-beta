@@ -1,71 +1,51 @@
-{{- if .Values.argocd.enabled }}
+# {{- if .Values.argocd.enabled }}
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: {{ .Values.argocd.name }}
-  namespace: {{ .Values.argocd.namespace }}
+  name: { { .Values.argocd.name } }
+  namespace: { { .Values.argocd.namespace } }
   labels:
-    app.kubernetes.io/name: {{ .Values.argocd.name }}
+    app.kubernetes.io/name: { { .Values.argocd.name } }
     app.kubernetes.io/instance: root-app
     app.kubernetes.io/component: infrastructure
 spec:
   project: default
   source:
     repoURL: https://argoproj.github.io/argo-helm
-    chart: {{ .Values.argocd.chart }}
-    targetRevision: {{ .Values.argocd.chartVersion }}
+    chart: { { .Values.argocd.chart } }
+    targetRevision: { { .Values.argocd.chartVersion } }
     helm:
-      valuesObject:
-        configs:
-          cm:
-            # Server configuration
-            server.disable.auth: "false"
-            # No SSL yet
-            server.insecure: "true"
-
-          # RBAC configuration
-          rbac:
-            policy.default: "role:readonly"
-
-        # ArgoCD Server
+      values: |
+        # Use defaults from ArgoCD chart, override only critical settings
         server:
-          service:
-            type: ClusterIP
-          ingress:
-            enabled: true
-            ingressClassName: "nginx"
-            hosts:
-              - "argo.{{ .Values.domain }}"
-            paths:
-              - path: /
-                pathType: Prefix
-            # No TLS for now
-            tls: []
+          replicas: 1
+          insecure: true
 
-        # Storage: Local ephemeral (no PVC yet)
-        persistence:
-          enabled: false
-
-        # Controller
         controller:
           replicas: 1
 
-        # Repo server
         repoServer:
           replicas: 1
 
-        # Application Controller
-        applicationController:
-          replicas: 1
+        persistence:
+          enabled: false
+
+        redis:
+          enabled: true
+
+        configs:
+          cm:
+            server.disable.auth: "false"
+            server.insecure: "true"
 
   destination:
     server: https://kubernetes.default.svc
-    namespace: {{ .Values.argocd.namespace }}
+    namespace: { { .Values.argocd.namespace } }
 
   syncPolicy:
     automated:
-      prune: {{ .Values.syncPolicy.automated.prune }}
-      selfHeal: {{ .Values.syncPolicy.automated.selfHeal }}
+      prune: { { .Values.syncPolicy.automated.prune } }
+      selfHeal: { { .Values.syncPolicy.automated.selfHeal } }
     syncOptions:
       - CreateNamespace=true
     retry:
@@ -74,4 +54,4 @@ spec:
         duration: 5s
         factor: 2
         maxDuration: 3m
-{{- end }}
+# {{- end }}

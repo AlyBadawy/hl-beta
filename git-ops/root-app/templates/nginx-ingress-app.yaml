@@ -15,13 +15,11 @@ spec:
     chart: {{ .Values.nginxIngress.chart }}
     targetRevision: {{ .Values.nginxIngress.chartVersion }}
     helm:
-      valuesObject:
-        # Controller configuration
+      values: |
         controller:
           replicas: 1
           service:
             type: LoadBalancer
-            # Fallback to NodePort if LoadBalancer not available
             externalTrafficPolicy: Local
           metrics:
             enabled: false
@@ -33,7 +31,6 @@ spec:
               cpu: 500m
               memory: 512Mi
 
-        # Default backend
         defaultBackend:
           enabled: true
           image:

@@ -117,7 +117,6 @@ log_output "${YELLOW}Step 3: Installing ArgoCD via Helm${NC}\n"
 
 ARGOCD_REPO="https://argoproj.github.io/argo-helm"
 ARGOCD_CHART_VERSION="7.6.0"
-ARGOCD_VALUES_LOCAL="$GIT_OPS_DIR/argocd/values.yaml"
 
 # Add ArgoCD helm repository (on remote server)
 log_output "  Adding ArgoCD helm repository..."
@@ -135,8 +134,32 @@ fi
 
 log_output ""
 
-# Install ArgoCD using helm (on remote server)
+# Install ArgoCD using helm with simplified bootstrap values (on remote server)
 log_output "  Installing ArgoCD via helm..."
+ARGOCD_BOOTSTRAP_VALUES=$(cat <<'HELM_EOF'
+server:
+  replicas: 1
+  insecure: true
+
+controller:
+  replicas: 1
+
+repoServer:
+  replicas: 1
+
+persistence:
+  enabled: false
+
+redis:
+  enabled: true
+
+configs:
+  cm:
+    server.disable.auth: "false"
+    server.insecure: "true"
+HELM_EOF
+)
+
 if ssh \
   -o ConnectTimeout=$SSH_TIMEOUT \
   -o StrictHostKeyChecking=no \
@@ -148,7 +171,7 @@ if ssh \
     --version $ARGOCD_CHART_VERSION \
     --values - \
     --wait \
-    --timeout 5m" <<< "$(cat $ARGOCD_VALUES_LOCAL)" >> "$LOG_FILE" 2>&1; then
+    --timeout 5m" <<< "$ARGOCD_BOOTSTRAP_VALUES" >> "$LOG_FILE" 2>&1; then
   log_output "${GREEN}✓ ArgoCD installed${NC}\n"
 else
   log_output "${RED}✗ Failed to install ArgoCD${NC}"
@@ -196,6 +219,44 @@ log_output "  Applying bootstrap Application manifest..."
 echo "$BOOTSTRAP_MANIFEST" | kubectl apply -f - >> "$LOG_FILE" 2>&1
 
 log_output "${GREEN}✓ Bootstrap Application created${NC}\n"
+
+# Step 4b: Create ArgoCD Ingress
+log_output "${YELLOW}Step 4b: Creating ArgoCD Ingress${NC}\n"
+
+# Read domain from config
+DOMAIN=$(grep "^domain:" "$CONFIG_FILE" | awk '{print $2}' | tr -d "\"'")
+
+if [ -z "$DOMAIN" ]; then
+  DOMAIN="in.alybadawy.com"
+fi
+
+ARGOCD_INGRESS=$(cat <<EOF
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: argocd-server-ingress
+  namespace: argocd
+  annotations:
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "false"
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: "argo.$DOMAIN"
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: argocd-server
+                port:
+                  number: 80
+EOF
+)
+
+log_output "  Creating Ingress for argo.$DOMAIN..."
+echo "$ARGOCD_INGRESS" | kubectl apply -f - >> "$LOG_FILE" 2>&1
+log_output "${GREEN}✓ ArgoCD Ingress created${NC}\n"
 
 # Step 5: Wait for ArgoCD to be ready
 log_output "${YELLOW}Step 5: Waiting for ArgoCD to become ready${NC}\n"
