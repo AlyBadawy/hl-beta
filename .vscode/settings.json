@@ -1,0 +1,16 @@
+{
+  // Treat Helm template files as the "helm" language so the standard YAML
+  // language server doesn't try to validate them. Helm's {{ }} syntax is not
+  // valid YAML and will always produce false-positive errors in a plain YAML linter.
+  "files.associations": {
+    "**/templates/*.yaml": "helm",
+    "**/templates/*.yml": "helm"
+  },
+
+  // Disable YAML schema validation for the entire git-ops tree.
+  // Kubernetes manifests and ArgoCD CRDs are validated by the cluster, not here.
+  "yaml.validate": true,
+  "yaml.schemas": {
+    "kubernetes": "git-ops/**/*.yaml"
+  }
+}

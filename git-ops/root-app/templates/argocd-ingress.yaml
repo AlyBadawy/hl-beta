@@ -2,14 +2,18 @@ apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: argocd-server-ingress
-  namespace: {{ .Values.argocd.namespace }}
+  namespace: "{{ .Values.argocd.namespace }}"
   labels:
     app.kubernetes.io/name: argocd-server-ingress
     app.kubernetes.io/instance: root-app
     app.kubernetes.io/component: infrastructure
   annotations:
     # ArgoCD server runs in insecure mode (no TLS internally).
-    # SSL redirect disabled until cert-manager is configured.
+    # All three annotations are required to prevent redirect loops:
+    #   ssl-redirect      — stops nginx from redirecting HTTP → HTTPS
+    #   force-ssl-redirect — same, but overrides any global nginx config
+    #   backend-protocol  — tells nginx the upstream speaks plain HTTP
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
     nginx.ingress.kubernetes.io/force-ssl-redirect: "false"
     nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
 spec:

@@ -2,10 +2,10 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: {{ .Values.nginxIngress.name }}
-  namespace: {{ .Values.argocd.namespace }}
+  name: "{{ .Values.nginxIngress.name }}"
+  namespace: "{{ .Values.argocd.namespace }}"
   labels:
-    app.kubernetes.io/name: {{ .Values.nginxIngress.name }}
+    app.kubernetes.io/name: "{{ .Values.nginxIngress.name }}"
     app.kubernetes.io/instance: root-app
     app.kubernetes.io/component: infrastructure
 spec:
@@ -14,18 +14,18 @@ spec:
   # This ensures git-ops/nginx-ingress/values.yaml is the single source of truth.
   sources:
     - repoURL: https://kubernetes.github.io/ingress-nginx
-      chart: {{ .Values.nginxIngress.chart }}
-      targetRevision: {{ .Values.nginxIngress.chartVersion }}
+      chart: "{{ .Values.nginxIngress.chart }}"
+      targetRevision: "{{ .Values.nginxIngress.chartVersion }}"
       helm:
         valueFiles:
           - $values/git-ops/nginx-ingress/values.yaml
-    - repoURL: {{ .Values.git.repoUrl }}
-      targetRevision: {{ .Values.git.targetRevision }}
+    - repoURL: "{{ .Values.git.repoUrl }}"
+      targetRevision: "{{ .Values.git.targetRevision }}"
       ref: values
 
   destination:
     server: https://kubernetes.default.svc
-    namespace: {{ .Values.nginxIngress.namespace }}
+    namespace: "{{ .Values.nginxIngress.namespace }}"
 
   syncPolicy:
     automated:

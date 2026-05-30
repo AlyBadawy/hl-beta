@@ -2,10 +2,10 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: {{ .Values.argocd.name }}
-  namespace: {{ .Values.argocd.namespace }}
+  name: "{{ .Values.argocd.name }}"
+  namespace: "{{ .Values.argocd.namespace }}"
   labels:
-    app.kubernetes.io/name: {{ .Values.argocd.name }}
+    app.kubernetes.io/name: "{{ .Values.argocd.name }}"
     app.kubernetes.io/instance: root-app
     app.kubernetes.io/component: infrastructure
 spec:
@@ -14,17 +14,17 @@ spec:
   # The Ingress for ArgoCD is managed separately via argocd-ingress.yaml in this chart.
   sources:
     - repoURL: https://argoproj.github.io/argo-helm
-      chart: {{ .Values.argocd.chart }}
-      targetRevision: {{ .Values.argocd.chartVersion }}
+      chart: "{{ .Values.argocd.chart }}"
+      targetRevision: "{{ .Values.argocd.chartVersion }}"
       helm:
         valueFiles:
           - $values/git-ops/argocd/values.yaml
-    - repoURL: {{ .Values.git.repoUrl }}
-      targetRevision: {{ .Values.git.targetRevision }}
+    - repoURL: "{{ .Values.git.repoUrl }}"
+      targetRevision: "{{ .Values.git.targetRevision }}"
       ref: values
   destination:
     server: https://kubernetes.default.svc
-    namespace: {{ .Values.argocd.namespace }}
+    namespace: "{{ .Values.argocd.namespace }}"
   syncPolicy:
     automated:
       prune: {{ .Values.syncPolicy.automated.prune }}
