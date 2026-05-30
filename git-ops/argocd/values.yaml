@@ -36,6 +36,9 @@ server:
   # Insecure mode (no HTTPS for internal communication)
   insecure: true
 
+  # Replica count
+  replicas: 1
+
 ## ArgoCD Configs
 configs:
   # General configuration
@@ -73,9 +76,6 @@ redis:
 
 ## Replica Counts
 controller:
-  replicas: 1
-
-server:
   replicas: 1
 
 repoServer:
