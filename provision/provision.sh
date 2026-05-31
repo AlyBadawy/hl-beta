@@ -42,7 +42,7 @@ chmod +x "$SCRIPT_DIR/scripts/config-secrets"
 
 # Run config-secrets only if not skipping
 if [ "$SKIP_SECRETS" != "true" ]; then
-  "$(mkdir -p "$CONFIG_DIR")"
+  "$(mkdir -p '$CONFIG_DIR')"
   "$SCRIPT_DIR/scripts/config-secrets"
   echo -e "\n${GREEN}✓ Secret configuration complete${NC}"
 else
