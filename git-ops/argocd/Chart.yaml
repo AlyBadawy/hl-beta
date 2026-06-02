@@ -3,7 +3,7 @@ name: argocd-values
 description: ArgoCD Helm chart values configuration
 type: application
 version: 1.0.0
-appVersion: "v2.13.0" # Latest stable
+appVersion: "v3.4.3" # Latest stable
 
 keywords:
   - argocd
