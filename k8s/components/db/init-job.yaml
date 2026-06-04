@@ -1,0 +1,66 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: postgres-init-databases
+  namespace: db
+  labels:
+    app.kubernetes.io/name: postgres-init
+    homelab/stack: db
+spec:
+  backoffLimit: 10
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: psql
+          image: ghcr.io/immich-app/postgres:14-vectorchord0.4.3-pgvectors0.2.0@sha256:bcf63357191b76a916ae5eb93464d65c07511da41e3bf7a8416db519b40b1c23
+          command:
+            - /bin/bash
+            - -c
+            - |
+              set -e
+              echo "Creating users and databases..."
+
+              psql -c "CREATE USER \"$AUTHENTIK_DB_USER\" WITH PASSWORD '$AUTHENTIK_DB_PASSWORD';" \
+                || echo "  user $AUTHENTIK_DB_USER already exists, skipping"
+              psql -c "CREATE DATABASE authentik OWNER \"$AUTHENTIK_DB_USER\";" \
+                || echo "  database authentik already exists, skipping"
+
+              psql -c "CREATE USER \"$IMMICH_DB_USER\" WITH PASSWORD '$IMMICH_DB_PASSWORD';" \
+                || echo "  user $IMMICH_DB_USER already exists, skipping"
+              psql -c "CREATE DATABASE immich OWNER \"$IMMICH_DB_USER\";" \
+                || echo "  database immich already exists, skipping"
+
+              psql -c "CREATE USER \"$NEXTCLOUD_DB_USER\" WITH PASSWORD '$NEXTCLOUD_DB_PASSWORD';" \
+                || echo "  user $NEXTCLOUD_DB_USER already exists, skipping"
+              psql -c "CREATE DATABASE nextcloud OWNER \"$NEXTCLOUD_DB_USER\";" \
+                || echo "  database nextcloud already exists, skipping"
+
+              echo "Done."
+          env:
+            - name: PGHOST
+              value: postgres.db.svc.cluster.local
+            - name: PGPORT
+              value: "5432"
+            - name: PGUSER
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-secret
+                  key: POSTGRES_USER
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-secret
+                  key: POSTGRES_PASSWORD
+            - name: PGDATABASE
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-secret
+                  key: POSTGRES_DB
+          envFrom:
+            - secretRef:
+                name: authentik-db
+            - secretRef:
+                name: immich-db
+            - secretRef:
+                name: nextcloud-db

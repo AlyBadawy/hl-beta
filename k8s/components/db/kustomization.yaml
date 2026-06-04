@@ -6,3 +6,4 @@ resources:
   - redis.yaml
   - ingress.yaml
   - external-secrets.yaml
+  - init-job.yaml
