@@ -7,6 +7,9 @@ defaultSettings:
   defaultReplicaCount: 1 # single-node cluster — no benefit from extra replicas
   backupstorePollInterval: 300
 
+persistence:
+  defaultClassReplicaCount: 1 # single-node cluster — keeps StorageClass in sync with the setting above
+
 ingress:
   enabled: true
   ingressClassName: nginx
