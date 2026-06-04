@@ -13,9 +13,9 @@ spec:
   ingressClassName: nginx
   tls:
     - hosts:
-        - ${WHOAMI_HOST}
+        - whoami.alybadawy.com
   rules:
-    - host: ${WHOAMI_HOST}
+    - host: whoami.alybadawy.com
       http:
         paths:
           - path: /
