@@ -9,6 +9,9 @@ kind: Kustomization
 
 namespace: longhorn-system
 
+resources:
+  - backup-target.yaml
+
 helmCharts:
   - name: longhorn
     repo: https://charts.longhorn.io

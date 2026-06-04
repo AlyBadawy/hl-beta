@@ -4,7 +4,6 @@
 # backupTarget must match NAS_IP and NAS_BASE_SHARE in provision/lib/defaults.sh.
 
 defaultSettings:
-  backupTarget: "nfs://172.20.20.2:/var/nfs/shared/backups/pvcs"
   defaultReplicaCount: 1 # single-node cluster — no benefit from extra replicas
   backupstorePollInterval: 300
 

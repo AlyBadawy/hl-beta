@@ -24,6 +24,10 @@ spec:
       kind: CustomResourceDefinition
       jsonPointers:
         - /spec/preserveUnknownFields
+    - group: longhorn.io
+      kind: BackupTarget
+      jsonPointers:
+        - /spec/syncRequestedAt
   syncPolicy:
     automated:
       prune: true
