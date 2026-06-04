@@ -5,3 +5,4 @@ resources:
   - pgadmin.yaml
   - redis.yaml
   - ingress.yaml
+  - external-secrets.yaml

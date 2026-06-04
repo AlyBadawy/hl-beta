@@ -246,6 +246,7 @@ env:
 | Secret in `secrets` ns | Key(s) | ExternalSecret in git | Consuming app |
 |---|---|---|---|
 | `vaultwarden-admin` | `ADMIN_TOKEN` | `k8s/components/vaultwarden/external-secret.yaml` | `vaultwarden` ns |
+| `pgadmin-secret` | `PGADMIN_DEFAULT_EMAIL`, `PGADMIN_DEFAULT_PASSWORD` | `k8s/components/db/external-secrets.yaml` | `db` ns |
 
 Add a row here whenever a new secret is wired up through ESO.
 
