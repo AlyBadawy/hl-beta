@@ -2,12 +2,12 @@
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: pgadmin-data-lh
+  name: pgadmin-data
   namespace: db
   labels:
     app.kubernetes.io/name: pgadmin
     homelab/stack: db
-    longhorn.io/pvc-name: pgadmin-data-lh
+    longhorn.io/pvc-name: pgadmin-data
     longhorn.io/pvc-namespace: db
 spec:
   accessModes: [ReadWriteOnce]
@@ -68,7 +68,7 @@ spec:
       volumes:
         - name: data
           persistentVolumeClaim:
-            claimName: pgadmin-data-lh
+            claimName: pgadmin-data
 ---
 apiVersion: v1
 kind: Service
