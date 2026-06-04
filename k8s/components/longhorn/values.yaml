@@ -1,0 +1,18 @@
+# Helm values for the Longhorn chart.
+# Docs: https://longhorn.io/docs/latest/references/helm-values/
+#
+# backupTarget must match NAS_IP and NAS_BASE_SHARE in provision/lib/defaults.sh.
+
+defaultSettings:
+  backupTarget: "nfs://172.20.20.2:/var/nfs/shared/backups/pvcs"
+  defaultReplicaCount: 1 # single-node cluster — no benefit from extra replicas
+  backupstorePollInterval: 300
+
+ingress:
+  enabled: true
+  ingressClassName: nginx
+  host: longhorn.in.alybadawy.com
+  tls: true
+  tlsSecret: longhorn-tls
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod

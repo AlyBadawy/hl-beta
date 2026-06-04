@@ -8,37 +8,45 @@
 
 ```
 hl-beta/
-├── provision/                   # Provisioning automation
-│   ├── provision-server.sh      # Server provisioning orchestrator (Phases 2-6)
-│   ├── provision-gitops.sh      # GitOps bootstrap (Phase 7)
-│   ├── scripts/                 # Individual provisioning scripts
-│   │   ├── check-ssh-connection # Phase 2: SSH connectivity verification
-│   │   ├── update-dependencies  # Phase 3: System updates and package installation
-│   │   ├── mount-nas            # Phase 4: NAS mount setup
-│   │   ├── install-k3s          # Phase 5: K3s installation
-│   │   └── configure-cluster    # Phase 6: Cluster configuration provisioning
-│   ├── lib/                     # Helper functions & utilities
-│   │   └── defaults.sh          # Hardcoded homelab defaults + require_server_ip helper
-│   └── README.md                # Provisioning documentation
-├── git-ops/                     # GitOps - App of Apps configuration
-│   ├── root-app/                # Root Application (Helm chart)
-│   │   ├── Chart.yaml
-│   │   ├── values.yaml
-│   │   └── templates/
-│   │       ├── argocd-app.yaml         # ArgoCD Application (self-managing)
-│   │       ├── nginx-ingress-app.yaml  # Nginx Ingress Application
-│   │       └── git-config-cm.yaml      # Git repository configuration
-│   ├── argocd/                  # ArgoCD Helm values
-│   │   ├── Chart.yaml
-│   │   └── values.yaml
-│   ├── nginx-ingress/           # Nginx-ingress Helm values
-│   │   ├── Chart.yaml
-│   │   └── values.yaml
-│   └── README.md                # GitOps documentation
-├── docs/                        # Architecture and decision documentation
-│   ├── 01-provisioning-architecture.md  # Phase 1 architecture overview
-│   └── ADR-001-provisioning-script-design.md  # Design decisions & rationale
-└── CLAUDE.md                    # This file
+├── provision/                    # Provisioning automation
+│   ├── provision-server.sh       # Server provisioning orchestrator (Phases 2-6)
+│   ├── bootstrap-argocd.sh       # Phase 7: install ArgoCD
+│   ├── restore-volumes.sh        # Phase 8: install Longhorn + restore PVC backups
+│   ├── activate-gitops.sh        # Phase 9: apply app-of-apps, GitOps takes over
+│   ├── scripts/                  # Individual provisioning scripts
+│   │   ├── check-ssh-connection  # Phase 2: SSH connectivity verification
+│   │   ├── update-dependencies   # Phase 3: System updates and package installation
+│   │   ├── mount-nas             # Phase 4: NAS mount setup
+│   │   ├── install-k3s           # Phase 5: K3s installation
+│   │   └── configure-cluster     # Phase 6: Cluster configuration provisioning
+│   ├── lib/                      # Helper functions & utilities
+│   │   └── defaults.sh           # Hardcoded homelab defaults + require_server_ip helper
+│   └── README.md                 # Provisioning documentation
+├── k8s/
+│   ├── apps/                     # ArgoCD Application manifests (app-of-apps)
+│   │   ├── root.yaml             # Root app — watches k8s/apps/, self-managing
+│   │   ├── argocd.yaml           # ArgoCD self-management Application
+│   │   ├── longhorn.yaml         # Longhorn self-management Application
+│   │   ├── ingress-nginx.yaml
+│   │   ├── cert-manager.yaml
+│   │   ├── external-secrets.yaml
+│   │   ├── db.yaml
+│   │   ├── vaultwarden.yaml
+│   │   ├── monitor.yaml
+│   │   └── whoami.yaml
+│   └── components/               # Helm chart values + Kustomize overlays
+│       ├── argocd/               # ArgoCD Helm values (bootstrapped + GitOps-managed)
+│       ├── longhorn/             # Longhorn Helm values (bootstrapped + GitOps-managed)
+│       ├── ingress-nginx/
+│       ├── cert-manager/
+│       ├── external-secrets/
+│       ├── db/
+│       ├── vaultwarden/
+│       ├── monitor/
+│       └── whoami/
+├── docs/                         # Architecture and decision documentation
+│   └── ADR-*.md                  # Architecture Decision Records with rationale
+└── CLAUDE.md                     # This file
 
 ```
 
@@ -65,7 +73,7 @@ Validates SSH connectivity and NOPASSWD sudo access to target Ubuntu server:
 Prepares the Ubuntu server with essential packages and configuration:
 
 - System package updates (`apt update` and `apt upgrade`)
-- Installs 23 essential packages (curl, wget, git, jq, vim, nfs-common, apparmor, socat, etc.)
+- Installs essential packages (curl, wget, git, jq, vim, nfs-common, open-iscsi, apparmor, socat, etc.) — `open-iscsi` is required by Longhorn
 - Disables SWAP (required for k3s)
 - Displays system information (OS, kernel, CPU, memory, disk)
 
@@ -113,89 +121,102 @@ Provisions cluster-wide configuration from `config/secrets.yaml` as Kubernetes r
 
 **Purpose:** Decouples configuration from application manifests, following 12-factor app principles. Applications can reference values via environment variables or volume mounts.
 
-### Phase 7: Bootstrap GitOps ✓ Complete
+### Phase 7: Bootstrap ArgoCD ✓ Complete
 
-**Script:** `provision/scripts/bootstrap-gitops`
+**Script:** `provision/bootstrap-argocd.sh`
 
-Initializes GitOps infrastructure with ArgoCD and App of Apps pattern using a two-phase approach:
+Installs ArgoCD onto the cluster and prepares the cert-manager secret. **Deliberately
+stops before deploying any applications** — this gate allows Phase 8 to restore PVC
+backups before stateful services start.
 
-**Phase 7a - Bootstrap:**
+1. Installs ArgoCD via Kustomize + Helm from `k8s/components/argocd`
+2. Waits for ArgoCD to be ready
+3. Creates `cert-manager` namespace and `cloudflare-api-token` secret (DNS-01 challenge)
 
-1. Installs nginx-ingress controller via Helm (prerequisite for ingress routing)
-2. Creates ArgoCD namespace
-3. Installs ArgoCD via Helm with **simplified bootstrap values** (no complex ingress config)
-4. Creates Ingress resource via kubectl (separate from Helm values)
-5. Creates bootstrap Application pointing to git-ops/root-app
-6. Waits for ArgoCD to be ready
-7. Retrieves admin credentials
+**Access ArgoCD before ingress is live:**
+```bash
+kubectl port-forward -n argocd svc/argocd-server 8080:80
+# open http://localhost:8080  username: admin
+kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d
+```
 
-**Phase 7b - GitOps Takeover:**
+### Phase 8: Longhorn + Volume Restore ✓ Complete
 
-1. Root-app Application syncs from git and orchestrates cluster
-2. Root-app deploys argocd-app.yaml (ArgoCD self-manages itself)
-3. Root-app deploys nginx-ingress-app.yaml (Ingress controller)
-4. Git (main branch) becomes source of truth for all configurations
+**Script:** `provision/restore-volumes.sh`
 
-**Key Design: Bootstrap Separation**
+Installs Longhorn distributed storage and optionally restores PVC backups from NAS.
 
-- Bootstrap uses minimal, simple Helm values to avoid Helm ingress configuration complexity
-- Ingress created as simple Kubernetes resource via kubectl
-- Root-app takes over full configuration management after bootstrap
-- See `docs/ADR-002-bootstrap-simplification.md` for rationale
+**Fresh cluster mode** (no backups to restore):
+- Installs Longhorn via Kustomize + Helm from `k8s/components/longhorn`
+- Configures NAS NFS share as the backup target
+- Exits; volumes are created automatically on first use
 
-**Access ArgoCD:**
+**Cluster rebuild mode** (restoring from backup):
+- Installs Longhorn, then port-forwards the Longhorn REST API
+- Syncs the backup target and lists available backup volumes
+- For each volume: restores from the latest backup, creates a pre-bound PV + PVC
+- When Phase 9 deploys stateful apps, they bind to the restored PVCs
 
-- **URL:** http://argo.in.alybadawy.com
-- **Port Forward:** `kubectl port-forward -n argocd svc/argocd-server 8080:80` then http://localhost:8080
-- **Username:** admin
-- **Password:** `kubectl get secret -n argocd argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d`
-- **Action:** Change password on first login
+**Access Longhorn UI (once ingress-nginx and cert-manager are live):**
+- https://longhorn.in.alybadawy.com
+- Before ingress is live: `kubectl port-forward -n longhorn-system svc/longhorn-frontend 9000:80` → http://localhost:9000
 
-### Phase 8: Application Deployment (Planned)
+### Phase 9: Activate GitOps ✓ Complete
 
-**Scripts:** (TBD)
+**Script:** `provision/activate-gitops.sh`
 
-Deploy additional applications and services:
+Applies the root app-of-apps (`k8s/apps/root.yaml`) and hands full cluster ownership
+to ArgoCD. After this, Git (main branch) is the sole source of truth.
 
-- Longhorn for distributed storage
-- Vaultwarden for secrets management
-- Custom applications and services
-- DNS, monitoring, and logging infrastructure
+- ArgoCD discovers all child apps in `k8s/apps/`
+- Adopts the imperatively-installed ArgoCD and Longhorn with no diff (self-managing)
+- Deploys ingress-nginx, cert-manager, external-secrets, and all application stacks
+- Stateful apps bind to PVCs pre-created in Phase 8
+
+**Access ArgoCD UI (once ingress-nginx syncs):**
+- https://argo.in.alybadawy.com
+- Username: `admin` — rotate the password on first login
 
 ## Key Design Decisions
 
 See Architecture Decision Records in `docs/ADR-*.md` for detailed rationale.
 
-### Phase 1-6 Decisions
-
-See `docs/ADR-001-provisioning-script-design.md`:
+### Provisioning Design
 
 1. **Configuration Collection** — Interactive bash scripts with validation
 2. **Security** — Secrets file (mode 600), never in git
 3. **Modularity** — Each script has single responsibility
 
-### Phase 7 Decisions
+### GitOps Bootstrap Design
 
-See `docs/ADR-002-bootstrap-simplification.md` and `docs/ADR-003-gitops-ownership-and-ingress.md`:
+4. **Three-phase GitOps bootstrap** — Phases 7–9 are deliberately split so there is a
+   safe window (Phase 8) to restore Longhorn PVC backups before stateful apps start.
+   Without this, GitOps would create new empty volumes on first sync.
 
-4. **Bootstrap Separation** — Bootstrap installs nginx-ingress + ArgoCD minimally via Helm, then hands off to GitOps.
+5. **Imperative bootstrap, GitOps adoption** — ArgoCD and Longhorn are installed
+   imperatively (Kustomize + Helm) then adopted by `k8s/apps/argocd.yaml` and
+   `k8s/apps/longhorn.yaml` respectively. The `k8s/components/*/` directories serve as
+   both the bootstrap source and the GitOps source — ensuring zero diff on adoption.
 
-5. **Helm Tracking Secret Deletion** — After each `helm install` in bootstrap, the Helm release tracking Secret is deleted so ArgoCD becomes the sole owner. Running resources are preserved. (ADR-003)
-
-6. **Multi-source ArgoCD Applications** — `nginx-ingress-app.yaml` and `argocd-app.yaml` use ArgoCD multi-source: upstream Helm chart + `$values` ref pointing to this repo's values files. This makes `git-ops/*/values.yaml` the single source of truth for both bootstrap and GitOps. (ADR-003)
-
-7. **ArgoCD Ingress as root-app manifest** — The ArgoCD Ingress (`argocd-server-ingress`) is a plain Kubernetes manifest in `root-app/templates/argocd-ingress.yaml`, templated with `{{ .Values.domain }}`. Bootstrap does NOT create this ingress manually. It appears when root-app first syncs. (ADR-003)
+6. **Pre-bound PVCs** — On a rebuild, PVCs are created with `spec.volumeName` pointing
+   to a specific restored Longhorn volume. When apps deploy, they bind to existing PVCs
+   instead of triggering dynamic provisioning. Namespace must exist before PVC creation.
 
 ## Running the Provisioning
 
 ### Initial Setup
 
 ```bash
+# Server setup
 ./provision/provision-server.sh   # Phases 2–6
-./provision/provision-gitops.sh   # Phase 7
+
+# GitOps bootstrap — run in order:
+./provision/bootstrap-argocd.sh   # Phase 7: install ArgoCD
+./provision/restore-volumes.sh    # Phase 8: install Longhorn + restore PVCs
+./provision/activate-gitops.sh    # Phase 9: apply app-of-apps, GitOps takes over
 ```
 
-Both scripts prompt only for what varies at runtime (server IP, SMTP credentials, Vercel token). Everything else is hardcoded in `provision/lib/defaults.sh`.
+Scripts prompt only for what varies at runtime. Everything else is hardcoded in `provision/lib/defaults.sh`.
 
 ## Configuration Reference
 
@@ -219,7 +240,7 @@ export SMTP_FROM=alerts@mycompany.com
 | `DOMAIN` | `in.alybadawy.com` | Base domain for cluster |
 | `GIT_REPO` | `https://github.com/AlyBadawy/hl-beta` | GitOps repository URL |
 
-**Prompted at runtime:** `SERVER_IP`, `SMTP_USERNAME`, `SMTP_PASSWORD`, `VERCEL_API_TOKEN`.
+**Prompted at runtime:** `SERVER_IP`, `SMTP_USERNAME`, `SMTP_PASSWORD`, `CLOUDFLARE_API_TOKEN`.
 
 ## Documentation
 
@@ -249,5 +270,5 @@ export SMTP_FROM=alerts@mycompany.com
 
 ---
 
-**Last Updated:** 2026-05-29  
-**Phase:** Configuration Management (Phase 1)
+**Last Updated:** 2026-06-04  
+**Phase:** Phase 9 Complete — GitOps active

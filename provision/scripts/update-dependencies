@@ -20,6 +20,7 @@ SSH_TIMEOUT=5
 PACKAGES=(
   curl wget git jq htop vim nano openssl
   nfs-common apparmor apparmor-utils
+  open-iscsi
   net-tools dnsutils traceroute
   parted e2fsprogs xfsprogs
   sysstat iotop unzip zip rsync socat
