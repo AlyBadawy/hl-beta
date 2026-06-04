@@ -18,15 +18,15 @@ helmCharts:
     valuesFile: values.yaml
     includeCRDs: true
 
-# The pre-upgrade Job has a helm.sh/hook annotation that ArgoCD ignores — it
-# applies the Job alongside all other resources. Pushing it to wave 1 ensures
-# the ServiceAccount and RBAC from wave 0 exist before the Job's pod runs.
+# ArgoCD doesn't understand Helm lifecycle hooks — it treats the pre-upgrade
+# Job as a regular resource and keeps reconciling it, causing a creation loop.
+# Longhorn's manager handles version migration directly; this Job is only
+# meaningful when Helm itself drives the upgrade, not ArgoCD.
 patches:
   - patch: |-
+      $patch: delete
       apiVersion: batch/v1
       kind: Job
       metadata:
         name: longhorn-pre-upgrade
         namespace: longhorn-system
-        annotations:
-          argocd.argoproj.io/sync-wave: "1"
