@@ -1,4 +1,4 @@
-# Vaultwarden depends on the ingress controller and the cert-manager
+# whoami depends on the ingress controller and the cert-manager
 # ClusterIssuer, so it syncs in a later wave than the platform controllers.
 apiVersion: argoproj.io/v1alpha1
 kind: Application

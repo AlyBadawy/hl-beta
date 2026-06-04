@@ -9,13 +9,15 @@ metadata:
   annotations:
     nginx.ingress.kubernetes.io/ssl-redirect: "true"
     nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    cert-manager.io/cluster-issuer: letsencrypt-prod
 spec:
   ingressClassName: nginx
   tls:
     - hosts:
-        - whoami.alybadawy.com
+        - whoami.in.alybadawy.com
+      secretName: whoami-tls
   rules:
-    - host: whoami.alybadawy.com
+    - host: whoami.in.alybadawy.com
       http:
         paths:
           - path: /
