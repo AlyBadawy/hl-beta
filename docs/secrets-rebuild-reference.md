@@ -55,44 +55,7 @@ kubectl get secret cloudflare-api-token -n cert-manager \
 
 ---
 
-## Secret 2 — `cluster-config`
-
-| Field | Value |
-|---|---|
-| **Namespace** | `cluster-config` |
-| **Type** | `Opaque` |
-| **Keys** | `SMTP_USERNAME`, `SMTP_PASSWORD` |
-| **Used by** | Any application that sends email via the cluster SMTP relay (`smtp.resend.com`) |
-| **Created by** | `provision/scripts/configure-cluster` (prompts at runtime) |
-
-**Create:**
-```bash
-kubectl create namespace cluster-config --dry-run=client -o yaml | kubectl apply -f -
-
-kubectl create secret generic cluster-config \
-  --namespace=cluster-config \
-  --from-literal=SMTP_USERNAME="<YOUR_SMTP_USERNAME>" \
-  --from-literal=SMTP_PASSWORD="<YOUR_SMTP_PASSWORD>" \
-  --save-config \
-  --dry-run=client -o yaml | kubectl apply -f -
-```
-
-**Retrieve:**
-```bash
-# SMTP username
-kubectl get secret cluster-config -n cluster-config \
-  -o jsonpath="{.data.SMTP_USERNAME}" | base64 -d; echo
-
-# SMTP password
-kubectl get secret cluster-config -n cluster-config \
-  -o jsonpath="{.data.SMTP_PASSWORD}" | base64 -d; echo
-```
-
-> This secret is created automatically when you run `provision/scripts/configure-cluster` (Phase 6 of provisioning).
-
----
-
-## Secret 3 — `vaultwarden-admin`
+## Secret 2 — `vaultwarden-admin`
 
 | Field | Value |
 |---|---|
@@ -100,9 +63,9 @@ kubectl get secret cluster-config -n cluster-config \
 | **Type** | `Opaque` |
 | **Key** | `ADMIN_TOKEN` |
 | **Used by** | Vaultwarden — ESO reads this from the `secrets` namespace and distributes it to the `vaultwarden` namespace |
-| **Created by** | Manually (bootstrap step — must exist before ArgoCD syncs the `vaultwarden` app) |
+| **Created by** | Manually — must exist before ArgoCD syncs the `vaultwarden` app |
 
-This secret must be seeded before the cluster syncs. Store the token value in a password manager (e.g., Vaultwarden itself, once it's running, or a local offline backup).
+This is a pure bootstrap secret. It must be seeded before the cluster syncs. Store the token value offline (e.g., in your local password manager) since this is also what you'll use to log into Vaultwarden once it starts.
 
 **Create:**
 ```bash
@@ -130,7 +93,6 @@ kubectl get secret vaultwarden-admin -n secrets \
 | Secret | Namespace | Keys | Who creates it |
 |---|---|---|---|
 | `cloudflare-api-token` | `cert-manager` | `api-token` | `provision-gitops.sh` (or manually) |
-| `cluster-config` | `cluster-config` | `SMTP_USERNAME`, `SMTP_PASSWORD` | `configure-cluster` script (or manually) |
 | `vaultwarden-admin` | `secrets` | `ADMIN_TOKEN` | Manually — must be done before first ArgoCD sync |
 
 ---
@@ -141,12 +103,11 @@ Create secrets in this order to avoid dependency failures:
 
 ```
 1. kubectl create namespace secrets
-2. kubectl create secret generic vaultwarden-admin -n secrets ...
-3. ./provision/provision-gitops.sh          # creates cloudflare-api-token, bootstraps ArgoCD
-4. ./provision/scripts/configure-cluster   # creates cluster-config (SMTP)
+2. kubectl create secret generic vaultwarden-admin -n secrets ...   ← save the token offline
+3. ./provision/provision-gitops.sh    # prompts for Cloudflare token, bootstraps ArgoCD
 ```
 
-Steps 3 and 4 prompt interactively for the values.
+Once Vaultwarden is running, store all credentials there. Future application secrets (SMTP, API keys, etc.) are added to Vaultwarden and seeded into the `secrets` namespace via `bw` CLI — see `docs/vaultwarden-secrets-management.md`.
 
 ---
 
