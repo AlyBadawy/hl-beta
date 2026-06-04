@@ -31,6 +31,13 @@ kubectl cluster-info >/dev/null 2>&1 || fail "Cannot reach a Kubernetes cluster 
 log "Repo URL : $REPO_URL"
 log "Revision : $REPO_REVISION"
 
+# Prompt for Cloudflare API token (DNS-01 challenge for cert-manager).
+# The token needs Zone:DNS:Edit permissions for the domain zone.
+if [[ -z "${CLOUDFLARE_API_TOKEN:-}" ]]; then
+  read -rsp "Cloudflare API token (Zone:DNS:Edit): " CLOUDFLARE_API_TOKEN; echo
+  [[ -n "$CLOUDFLARE_API_TOKEN" ]] || fail "Cloudflare API token is required."
+fi
+
 # --- 1. Install ArgoCD imperatively ---------------------------------------
 log "Creating namespace '$ARGOCD_NAMESPACE'"
 kubectl get namespace "$ARGOCD_NAMESPACE" >/dev/null 2>&1 \
@@ -45,13 +52,21 @@ log "Waiting for ArgoCD to become ready"
 kubectl -n "$ARGOCD_NAMESPACE" rollout status deploy/argocd-server      --timeout=300s
 kubectl -n "$ARGOCD_NAMESPACE" rollout status deploy/argocd-repo-server --timeout=300s
 
-# --- 3. Apply the root app -------------------------------------------------
+# --- 3. Create cert-manager Cloudflare token secret -----------------------
+log "Creating cert-manager namespace and Cloudflare API token secret"
+kubectl get namespace cert-manager >/dev/null 2>&1 \
+  || kubectl create namespace cert-manager
+kubectl -n cert-manager create secret generic cloudflare-api-token \
+  --from-literal=api-token="$CLOUDFLARE_API_TOKEN" \
+  --dry-run=client -o yaml | kubectl apply -f -
+
+# --- 4. Apply the root app -------------------------------------------------
 log "Applying the root 'app of apps' Application"
 sed -e "s|^\( *targetRevision: \).*|\1$REPO_REVISION|g" \
     k8s/root/root-app.yaml \
   | kubectl apply -f -
 
-# --- 4. Done ---------------------------------------------------------------
+# --- 5. Done ---------------------------------------------------------------
 cat <<EOF
 
 $(log "Bootstrap complete.")
