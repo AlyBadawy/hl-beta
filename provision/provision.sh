@@ -119,23 +119,9 @@ fi
 chmod +x "$SCRIPT_DIR/scripts/configure-cluster"
 "$SCRIPT_DIR/scripts/configure-cluster"
 
-echo -e "${YELLOW}========================================${NC}"
-echo -e "${YELLOW}Phase 7: Bootstrap GitOps${NC}"
-echo -e "${YELLOW}========================================${NC}\n"
-
-# Check if bootstrap-gitops script exists
-if [ ! -f "$SCRIPT_DIR/scripts/bootstrap-gitops" ]; then
-  echo -e "${RED}Error: bootstrap-gitops script not found${NC}"
-  exit 1
-fi
-
-# Make script executable and run it
-chmod +x "$SCRIPT_DIR/scripts/bootstrap-gitops"
-"$SCRIPT_DIR/scripts/bootstrap-gitops"
-
 echo -e "\n${GREEN}=== ✓ Provisioning Complete ===${NC}"
-echo -e "${YELLOW}Next steps:${NC}"
+echo -e "${YELLOW}Cluster is ready. Next steps:${NC}"
 echo "  - Review logs: cat provision.log"
-echo "  - Access ArgoCD: http://argo.in.alybadawy.com"
-echo "  - Monitor root-app sync: kubectl get applications -n argocd"
-echo "  - Check all phases: kubectl get all -A"
+echo "  - Verify cluster: kubectl get nodes"
+echo "  - Verify config: kubectl get configmap cluster-config -n cluster-config"
+echo "  - Bootstrap GitOps: ./provision/bootstrap-gitops.sh"

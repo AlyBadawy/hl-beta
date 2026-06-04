@@ -336,11 +336,55 @@ else
   log_output "${YELLOW}⚠ Failed to create ~/.kube on remote user (continuing)${NC}\n"
 fi
 
-log_output "${GREEN}=== ✓ K3s Installation Complete ===${NC}\n"
+# Step 8: Install Helm on remote server
+log_output "${YELLOW}Step 8: Installing Helm on Remote Server${NC}\n"
+
+helm_installed=$(ssh \
+  -o ConnectTimeout=$SSH_TIMEOUT \
+  -o StrictHostKeyChecking=no \
+  -o UserKnownHostsFile=/dev/null \
+  -o LogLevel=QUIET \
+  "$SSH_USER@$SERVER_IP" \
+  "command -v helm >/dev/null 2>&1 && echo 'installed' || echo 'not_installed'" 2>&1)
+
+if [[ "$helm_installed" == "installed" ]]; then
+  helm_version=$(ssh \
+    -o ConnectTimeout=$SSH_TIMEOUT \
+    -o StrictHostKeyChecking=no \
+    -o UserKnownHostsFile=/dev/null \
+    -o LogLevel=QUIET \
+    "$SSH_USER@$SERVER_IP" \
+    "helm version --short" 2>&1)
+  log_output "${GREEN}✓ Helm already installed: $helm_version${NC}\n"
+else
+  log_output "  Downloading and installing Helm..."
+  if ssh \
+    -o ConnectTimeout=$SSH_TIMEOUT \
+    -o StrictHostKeyChecking=no \
+    -o UserKnownHostsFile=/dev/null \
+    -o LogLevel=QUIET \
+    "$SSH_USER@$SERVER_IP" \
+    "curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash" >> "$LOG_FILE" 2>&1; then
+
+    helm_version=$(ssh \
+      -o ConnectTimeout=$SSH_TIMEOUT \
+      -o StrictHostKeyChecking=no \
+      -o UserKnownHostsFile=/dev/null \
+      -o LogLevel=QUIET \
+      "$SSH_USER@$SERVER_IP" \
+      "helm version --short" 2>&1)
+    log_output "${GREEN}✓ Helm installed: $helm_version${NC}\n"
+  else
+    log_output "${RED}✗ Failed to install Helm${NC}"
+    exit 1
+  fi
+fi
+
+log_output "${GREEN}=== ✓ K3s + Helm Installation Complete ===${NC}\n"
 log_output "${YELLOW}Next steps:${NC}"
 log_output "  1. Review logs: cat provision.log"
 log_output "  2. Test cluster: kubectl get nodes"
-log_output "  3. Deploy applications using kubectl"
+log_output "  3. Test Helm: ssh $SSH_USER@$SERVER_IP helm version"
 log_output "  4. (Optional) Source ~/.bashrc or ~/.zshrc to update current shell\n"
 log_output "${BLUE}Kubeconfig location: $KUBE_CONFIG${NC}"
 log_output "${BLUE}Log saved to: $LOG_FILE${NC}\n"
