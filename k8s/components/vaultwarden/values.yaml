@@ -4,14 +4,12 @@
 # Full external URL of the instance (must match the ingress hostname, https).
 domain: "https://vault.in.alybadawy.com"
 
-# Admin panel token. The chart ships with a PUBLIC example argon2 hash — leaving
-# it as-is is insecure. Replace it before exposing the instance. Prefer wiring
-# this to an External-Secrets-managed Secret once ESO has a backend:
-#   adminToken:
-#     existingSecret: vaultwarden-admin
-#     existingSecretKey: ADMIN_TOKEN
+# Admin token is managed via External Secrets Operator — never stored in git.
+# Bootstrap: kubectl create secret generic vaultwarden-admin -n secrets \
+#   --from-literal=ADMIN_TOKEN="$(openssl rand -base64 48)"
 adminToken:
-  value: "CHANGE_ME" # PLACEHOLDER: set a strong token (plain or argon2 hash)
+  existingSecret: vaultwarden-admin
+  existingSecretKey: ADMIN_TOKEN
 
 # Persistent storage for the SQLite DB + attachments. Uses the k3s default
 # StorageClass (local-path) unless `class` is set.

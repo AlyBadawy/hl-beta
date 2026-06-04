@@ -11,3 +11,6 @@ helmCharts:
     namespace: vaultwarden
     valuesFile: values.yaml
     includeCRDs: true
+
+resources:
+  - external-secret.yaml
