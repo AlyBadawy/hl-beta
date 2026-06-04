@@ -13,6 +13,21 @@ spec:
     requests:
       storage: 20Gi
 ---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: postgres-data-lh
+  namespace: db
+  labels:
+    app.kubernetes.io/name: postgres
+    homelab/stack: db
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: longhorn
+  resources:
+    requests:
+      storage: 20Gi
+---
 # ── Deployment ────────────────────────────────────────────────────────────────
 apiVersion: apps/v1
 kind: Deployment
@@ -23,7 +38,7 @@ metadata:
     app.kubernetes.io/name: postgres
     homelab/stack: db
 spec:
-  replicas: 1
+  replicas: 0
   selector:
     matchLabels:
       app.kubernetes.io/name: postgres
