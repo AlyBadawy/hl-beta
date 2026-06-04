@@ -1,0 +1,19 @@
+# Helm values for the ingress-nginx chart.
+# Docs: https://github.com/kubernetes/ingress-nginx/tree/main/charts/ingress-nginx
+
+controller:
+  # Make nginx the cluster-wide default IngressClass so Ingress resources
+  # without an explicit class are handled by it.
+  ingressClassResource:
+    default: true
+
+  # On k3s, a Service of type LoadBalancer is fulfilled by the built-in
+  # ServiceLB (klipper-lb), which exposes the controller on the node IP(s).
+  # Ensure k3s was installed WITH Traefik disabled (see README) so nginx is the
+  # only ingress controller binding :80/:443.
+  service:
+    type: LoadBalancer
+
+  # Surface real client IPs through ServiceLB.
+  config:
+    use-forwarded-headers: "true"

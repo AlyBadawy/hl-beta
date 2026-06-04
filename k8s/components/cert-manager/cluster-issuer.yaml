@@ -1,0 +1,40 @@
+# Let's Encrypt ClusterIssuer used by the ArgoCD and Vaultwarden Ingresses
+# (referenced via the `cert-manager.io/cluster-issuer: letsencrypt-prod`
+# annotation). sync-wave "1" ensures the cert-manager CRDs from wave 0 exist
+# before this resource is applied.
+#
+# A staging issuer is included as well — switch annotations to
+# `letsencrypt-staging` while testing to avoid Let's Encrypt rate limits.
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-prod
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  acme:
+    server: https://acme-v02.api.letsencrypt.org/directory
+    email: you@example.com # PLACEHOLDER: replace with your email
+    privateKeySecretRef:
+      name: letsencrypt-prod-account-key
+    solvers:
+      - http01:
+          ingress:
+            ingressClassName: nginx
+---
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-staging
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  acme:
+    server: https://acme-staging-v02.api.letsencrypt.org/directory
+    email: you@example.com # PLACEHOLDER: replace with your email
+    privateKeySecretRef:
+      name: letsencrypt-staging-account-key
+    solvers:
+      - http01:
+          ingress:
+            ingressClassName: nginx

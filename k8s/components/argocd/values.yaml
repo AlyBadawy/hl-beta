@@ -1,0 +1,24 @@
+# Helm values for the argo-cd chart.
+# Docs: https://github.com/argoproj/argo-helm/tree/main/charts/argo-cd
+
+configs:
+  cm:
+    # CRITICAL: lets ArgoCD's repo-server build Kustomize overlays that use the
+    # `helmCharts:` field (Helm inflation). Without this, every child app that
+    # inflates a Helm chart fails to render. Keep this enabled.
+    kustomize.buildOptions: --enable-helm
+  params:
+    # nginx terminates TLS at the edge and talks plain HTTP to argocd-server.
+    # This avoids the double-TLS / gRPC passthrough complications on k3s.
+    server.insecure: true
+
+# Web UI / API ingress. TLS certificate is issued by cert-manager.
+server:
+  ingress:
+    enabled: true
+    ingressClassName: nginx
+    hostname: argocd.example.com # PLACEHOLDER: replace with your hostname
+    annotations:
+      cert-manager.io/cluster-issuer: letsencrypt-prod
+      nginx.ingress.kubernetes.io/backend-protocol: HTTP
+    tls: true # creates a TLS section for `hostname`, stored in argocd-server-tls

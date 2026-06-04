@@ -1,0 +1,4 @@
+# Helm charts pulled by Kustomize's `--enable-helm` inflation are a local cache;
+# ArgoCD's repo-server re-pulls them at sync time. Don't commit them.
+charts/
+**/charts/

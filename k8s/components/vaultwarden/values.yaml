@@ -1,0 +1,35 @@
+# Helm values for the guerzon/vaultwarden chart.
+# Docs: https://github.com/guerzon/vaultwarden/tree/main/charts/vaultwarden
+
+# Full external URL of the instance (must match the ingress hostname, https).
+domain: "https://vault.example.com" # PLACEHOLDER: replace with your hostname
+
+# Admin panel token. The chart ships with a PUBLIC example argon2 hash — leaving
+# it as-is is insecure. Replace it before exposing the instance. Prefer wiring
+# this to an External-Secrets-managed Secret once ESO has a backend:
+#   adminToken:
+#     existingSecret: vaultwarden-admin
+#     existingSecretKey: ADMIN_TOKEN
+adminToken:
+  value: "CHANGE_ME" # PLACEHOLDER: set a strong token (plain or argon2 hash)
+
+# Persistent storage for the SQLite DB + attachments. Uses the k3s default
+# StorageClass (local-path) unless `class` is set.
+storage:
+  data:
+    name: "vaultwarden-data"
+    size: "5Gi"
+    # class: "local-path"
+    accessMode: "ReadWriteOnce"
+    keepPvc: true
+
+# TLS-terminated ingress via nginx, certificate issued by cert-manager.
+ingress:
+  enabled: true
+  class: "nginx"
+  nginxIngressAnnotations: true
+  additionalAnnotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+  tls: true
+  hostname: "vault.example.com" # PLACEHOLDER: replace with your hostname
+  tlsSecret: "vaultwarden-tls" # cert-manager writes the issued cert here

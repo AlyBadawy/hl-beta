@@ -1,0 +1,10 @@
+# Helm values for the external-secrets chart.
+# Docs: https://github.com/external-secrets/external-secrets/tree/main/deploy/charts/external-secrets
+
+# Install the ESO CRDs (ExternalSecret, SecretStore, ClusterSecretStore, ...).
+# The child Application uses ServerSideApply for the large CRDs.
+installCRDs: true
+
+# No SecretStore / ClusterSecretStore is defined here. Add one per backend
+# (e.g. HashiCorp Vault, AWS SSM, GCP SM) once you decide where secrets live,
+# then create ExternalSecret resources that reference it.

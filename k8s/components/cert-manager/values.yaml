@@ -1,0 +1,8 @@
+# Helm values for the cert-manager chart.
+# Docs: https://cert-manager.io/docs/installation/helm/
+
+# Install the cert-manager CRDs as part of this release. The child Application
+# uses ServerSideApply so the large CRDs apply cleanly.
+crds:
+  enabled: true
+  keep: true

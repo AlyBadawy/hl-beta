@@ -1,0 +1,29 @@
+# Self-management Application: tracks components/argocd, the very chart used to
+# bootstrap ArgoCD. After bootstrap, when this app first syncs it adopts the
+# already-running ArgoCD resources with no diff — from here on ArgoCD upgrades
+# and manages ITSELF from Git.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: argocd
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/AlyBadawy/hl-beta
+    targetRevision: main
+    path: components/argocd
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
