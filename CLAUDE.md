@@ -8,22 +8,17 @@
 
 ```
 hl-beta/
-├── config/                      # Configuration (git-ignored secrets)
-│   ├── secrets.example.yaml     # Example secrets structure (tracked)
-│   └── secrets.yaml             # Actual secrets (git-ignored, created by provision.sh)
 ├── provision/                   # Provisioning automation
-│   ├── provision.sh             # Main orchestration script (Phases 1-7)
+│   ├── provision-server.sh      # Server provisioning orchestrator (Phases 2-6)
+│   ├── provision-gitops.sh      # GitOps bootstrap (Phase 7)
 │   ├── scripts/                 # Individual provisioning scripts
-│   │   ├── config-secrets       # Phase 1: Configuration collection & validation
 │   │   ├── check-ssh-connection # Phase 2: SSH connectivity verification
 │   │   ├── update-dependencies  # Phase 3: System updates and package installation
 │   │   ├── mount-nas            # Phase 4: NAS mount setup
 │   │   ├── install-k3s          # Phase 5: K3s installation
-│   │   ├── configure-cluster    # Phase 6: Cluster configuration provisioning
-│   │   └── bootstrap-gitops     # Phase 7: Bootstrap GitOps (ArgoCD + root-app)
+│   │   └── configure-cluster    # Phase 6: Cluster configuration provisioning
 │   ├── lib/                     # Helper functions & utilities
-│   │   ├── validation.sh        # Input validation functions
-│   │   └── config.sh            # Configuration/secrets loading functions
+│   │   └── defaults.sh          # Hardcoded homelab defaults + require_server_ip helper
 │   └── README.md                # Provisioning documentation
 ├── git-ops/                     # GitOps - App of Apps configuration
 │   ├── root-app/                # Root Application (Helm chart)
@@ -50,21 +45,6 @@ hl-beta/
 ## Development Phases
 
 Provisioning is executed as a sequence of phases, each running a shell script with one or more internal steps.
-
-### Phase 1: Configuration Collection ✓ Complete
-
-**Script:** `provision/scripts/config-secrets`  
-**Output:** `config/secrets.yaml`
-
-Collects and validates infrastructure configuration interactively:
-
-- Server IP and SSH credentials
-- NAS storage location and mount path
-- SMTP server configuration (server, port, username, password, from address)
-- Admin and notification email addresses
-- Base domain for the cluster
-
-**Features:** Interactive prompts, input validation, sensible defaults, YAML output with restricted permissions (600).
 
 ### Phase 2: SSH Connectivity Check ✓ Complete
 
@@ -211,49 +191,35 @@ See `docs/ADR-002-bootstrap-simplification.md` and `docs/ADR-003-gitops-ownershi
 ### Initial Setup
 
 ```bash
-# Make scripts executable and run provisioning
-./provision/provision.sh
-
-# Result: Guided prompts create config/secrets.yaml
+./provision/provision-server.sh   # Phases 2–6
+./provision/provision-gitops.sh   # Phase 7
 ```
 
-### Reviewing Configuration
-
-```bash
-cat config/secrets.yaml
-```
-
-### Updating Configuration
-
-```bash
-# Re-run and choose to reconfigure when prompted
-./provision/provision.sh
-
-# When prompted: Reconfigure secrets? [y/N]:
-# Type 'Y' to reconfigure all values
-# Press Enter or 'N' to skip and keep existing configuration
-```
-
-On subsequent runs, the script will detect existing `config/secrets.yaml` and ask if you want to reconfigure. This allows for quick re-runs without redundant configuration prompts.
+Both scripts prompt only for what varies at runtime (server IP, SMTP credentials, Vercel token). Everything else is hardcoded in `provision/lib/defaults.sh`.
 
 ## Configuration Reference
 
-See `config/secrets.example.yaml` for the structure. Key fields:
+All static values live in `provision/lib/defaults.sh`. To override, export the variable before running:
 
-| Section | Field      | Purpose                    | Default          |
-| ------- | ---------- | -------------------------- | ---------------- |
-| server  | ip         | Target Ubuntu server IP    | (required)       |
-| server  | ssh_user   | SSH user for remote access | homelab          |
-| nas     | ip         | NAS server IP              | 172.20.20.2      |
-| nas     | base_share | NFS export path on NAS     | /var/nfs/shared  |
-| nas     | base_mount | Local mount point          | /mnt/nas         |
-| smtp    | server     | Email server hostname      | smtp.resend.com  |
-| smtp    | port       | SMTP port                  | 587              |
-| smtp    | username   | SMTP auth username         | (required)       |
-| smtp    | password   | SMTP auth password         | (required)       |
-| smtp    | from       | Sender email address       | (required)       |
-| email   | admin      | Admin notification email   | (required)       |
-| domain  | base       | Base domain for cluster    | in.alybadawy.com |
+```bash
+export SMTP_FROM=alerts@mycompany.com
+./provision/provision-server.sh
+```
+
+| Variable | Default | Description |
+|---|---|---|
+| `SSH_USER` | `homelab` | SSH user on the target server |
+| `NAS_IP` | `172.20.20.2` | NAS server IP |
+| `NAS_BASE_SHARE` | `/var/nfs/shared` | NFS export path on NAS |
+| `NAS_BASE_MOUNT` | `/mnt/nas` | Local mount point |
+| `SMTP_SERVER` | `smtp.resend.com` | SMTP server hostname |
+| `SMTP_PORT` | `587` | SMTP port |
+| `SMTP_FROM` | `noreply@alybadawy.com` | Sender email address |
+| `ADMIN_EMAIL` | `alybadawy@icloud.com` | Admin notification email |
+| `DOMAIN` | `in.alybadawy.com` | Base domain for cluster |
+| `GIT_REPO` | `https://github.com/AlyBadawy/hl-beta` | GitOps repository URL |
+
+**Prompted at runtime:** `SERVER_IP`, `SMTP_USERNAME`, `SMTP_PASSWORD`, `VERCEL_API_TOKEN`.
 
 ## Documentation
 
@@ -265,32 +231,11 @@ See `config/secrets.example.yaml` for the structure. Key fields:
 
 ### When Adding New Configurations
 
-1. Update the validation script (`provision/scripts/config-secrets`)
-2. Add new fields to `config/secrets.example.yaml`
-3. Document the field purpose and default in this CLAUDE.md
-4. Update relevant ADR or create new one if it's a significant decision
-5. Update `provision/README.md` if it changes how provisioning works
-
-### Before Starting Phase 2
-
-1. Review and confirm Phase 1 works as expected
-2. Discuss Phase 2 scope with user
-3. Create ADR-002 for Phase 2 decisions before implementation
-4. Document Phase 2 architecture in `docs/02-server-bootstrap.md`
-
-### Validation & Testing
-
-Current approach:
-
-- Input validation in the script (regex, ranges)
-- Confirmation prompt before writing config
-- No SSH/NAS connectivity checks yet (Phase 2 responsibility)
-
-Future enhancements:
-
-- Connection validation in Phase 2
-- Dry-run mode for scripts
-- Rollback capability
+1. Add the variable with a sensible default to `provision/lib/defaults.sh`
+2. Update the relevant sub-script to use the variable
+3. Document the field in the Configuration Reference table above
+4. Update `provision/README.md` if it changes how provisioning works
+5. Create an ADR if it's a significant design decision
 
 ## Project Collaboration
 

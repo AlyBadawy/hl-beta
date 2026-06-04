@@ -2,59 +2,31 @@
 
 set -e
 
-# Color output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
-NC='\033[0m' # No Color
+NC='\033[0m'
 
-# Get script directory and load helpers
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
-CONFIG_FILE="$PROJECT_DIR/config/secrets.yaml"
 LOG_FILE="$PROJECT_DIR/provision.log"
 
-# Source config loader
-source "$(dirname "$SCRIPT_DIR")/lib/config.sh"
+source "$(dirname "$SCRIPT_DIR")/lib/defaults.sh"
+require_server_ip
 
-# SSH timeout
 SSH_TIMEOUT=5
 
-# Packages to install
 PACKAGES=(
-  "curl"
-  "wget"
-  "git"
-  "jq"
-  "htop"
-  "vim"
-  "nano"
-  "openssl"
-  "nfs-common"
-  "apparmor"
-  "apparmor-utils"
-  "net-tools"
-  "dnsutils"
-  "traceroute"
-  "parted"
-  "e2fsprogs"
-  "xfsprogs"
-  "sysstat"
-  "iotop"
-  "unzip"
-  "zip"
-  "rsync"
-  "socat"
+  curl wget git jq htop vim nano openssl
+  nfs-common apparmor apparmor-utils
+  net-tools dnsutils traceroute
+  parted e2fsprogs xfsprogs
+  sysstat iotop unzip zip rsync socat
 )
 
-# Helper function to log and display
-log_output() {
-  local message=$1
-  echo -e "$message" | tee -a "$LOG_FILE"
-}
+log_output() { echo -e "$1" | tee -a "$LOG_FILE"; }
 
-# Helper function to run remote SSH command
 run_remote_command() {
   local command=$1
   local description=$2
@@ -71,29 +43,14 @@ run_remote_command() {
     log_output "${GREEN}✓ Success${NC}"
     return 0
   else
-    log_output "${RED}✗ Failed${NC}"
-    log_output "${RED}Error: $output${NC}"
+    log_output "${RED}✗ Failed: $output${NC}"
     return 1
   fi
 }
 
 echo -e "${BLUE}=== Server Updates & Dependencies ===${NC}\n"
 
-# Check if config file exists
-if [ ! -f "$CONFIG_FILE" ]; then
-  echo -e "${RED}✗ Error: Configuration file not found at $CONFIG_FILE${NC}"
-  exit 1
-fi
-
-# Load SSH configuration
-if ! load_ssh_config "$CONFIG_FILE"; then
-  log_output "${RED}✗ Failed to load SSH configuration${NC}"
-  exit 1
-fi
-
-# Ask user if they want to proceed
 read -p "$(echo -e ${YELLOW}Update system and install dependencies?${NC}) [Y/n]: " proceed
-
 if [[ $proceed =~ ^[Nn]$ ]]; then
   log_output "${YELLOW}Skipping updates and dependencies${NC}\n"
   exit 0
@@ -101,26 +58,21 @@ fi
 
 log_output "\n${BLUE}=== Starting System Updates ===${NC}\n"
 
-# Step 1: Update package lists
 run_remote_command "sudo apt update" "Step 1: Updating package lists..." || true
 
-# Step 2: Upgrade packages
 run_remote_command "sudo DEBIAN_FRONTEND=noninteractive apt upgrade -y" "Step 2: Upgrading packages..." || true
 
-# Step 3: Install packages
+PACKAGES_STRING="${PACKAGES[*]}"
 log_output "${YELLOW}Step 3: Installing packages...${NC}"
-PACKAGES_STRING=$(printf '%s ' "${PACKAGES[@]}")
-
-if run_remote_command "sudo DEBIAN_FRONTEND=noninteractive apt install -y $PACKAGES_STRING" "  Installing: curl wget git jq htop vim nano openssl nfs-common apparmor net-tools dnsutils traceroute parted e2fsprogs xfsprogs sysstat iotop unzip zip rsync socat"; then
+if run_remote_command \
+  "sudo DEBIAN_FRONTEND=noninteractive apt install -y $PACKAGES_STRING" \
+  "  Installing: $PACKAGES_STRING"; then
   log_output "${GREEN}✓ Package installation complete${NC}\n"
 else
   log_output "${YELLOW}⚠ Some packages may have failed to install (continuing)${NC}\n"
 fi
 
-# Step 4: Disable SWAP
 log_output "${YELLOW}Step 4: Disabling SWAP...${NC}"
-
-# Check current swap status
 swap_status=$(ssh \
   -o ConnectTimeout=$SSH_TIMEOUT \
   -o StrictHostKeyChecking=no \
@@ -132,83 +84,45 @@ swap_status=$(ssh \
 if [ -z "$swap_status" ]; then
   log_output "${GREEN}✓ SWAP is already disabled${NC}\n"
 else
-  log_output "  Current SWAP configuration:"
-  echo "$swap_status" | tee -a "$LOG_FILE"
-
+  log_output "  Current SWAP: $swap_status"
   if run_remote_command "sudo swapoff -a" "  Disabling SWAP..."; then
-    log_output "${GREEN}✓ SWAP disabled${NC}"
-
-    # Comment out swap entries in fstab
     run_remote_command "sudo sed -i '/ swap / s/^/#/' /etc/fstab" "  Removing swap from fstab..." || true
-    log_output ""
+    log_output "${GREEN}✓ SWAP disabled${NC}\n"
   else
     log_output "${YELLOW}⚠ Failed to disable SWAP (continuing)${NC}\n"
   fi
 fi
 
-# Step 5: Install Helm (for GitOps phase 7)
 log_output "${YELLOW}Step 5: Installing Helm${NC}\n"
-
-helm_install_cmd="curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash"
-
-if run_remote_command "sudo bash -c '$helm_install_cmd'" "  Installing Helm via official script..."; then
+if run_remote_command \
+  "curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | sudo bash" \
+  "  Installing Helm via official script..."; then
   log_output "${GREEN}✓ Helm installed${NC}\n"
 else
   log_output "${YELLOW}⚠ Helm installation may have failed (check logs)${NC}\n"
 fi
 
-# Step 6: Display system information
 log_output "${YELLOW}Step 6: System Information${NC}\n"
 
-# OS Information
 log_output "${BLUE}Operating System:${NC}"
-ssh \
-  -o ConnectTimeout=$SSH_TIMEOUT \
-  -o StrictHostKeyChecking=no \
-  -o UserKnownHostsFile=/dev/null \
-  -o LogLevel=QUIET \
+ssh -o ConnectTimeout=$SSH_TIMEOUT -o StrictHostKeyChecking=no \
+  -o UserKnownHostsFile=/dev/null -o LogLevel=QUIET \
   "$SSH_USER@$SERVER_IP" \
   "cat /etc/os-release | grep -E 'PRETTY_NAME|VERSION'" 2>&1 | tee -a "$LOG_FILE"
 
-# Kernel Information
 log_output "\n${BLUE}Kernel:${NC}"
-ssh \
-  -o ConnectTimeout=$SSH_TIMEOUT \
-  -o StrictHostKeyChecking=no \
-  -o UserKnownHostsFile=/dev/null \
-  -o LogLevel=QUIET \
-  "$SSH_USER@$SERVER_IP" \
-  "uname -r" 2>&1 | tee -a "$LOG_FILE"
+ssh -o ConnectTimeout=$SSH_TIMEOUT -o StrictHostKeyChecking=no \
+  -o UserKnownHostsFile=/dev/null -o LogLevel=QUIET \
+  "$SSH_USER@$SERVER_IP" "uname -r" 2>&1 | tee -a "$LOG_FILE"
 
-# CPU Information
-log_output "\n${BLUE}CPU Information:${NC}"
-ssh \
-  -o ConnectTimeout=$SSH_TIMEOUT \
-  -o StrictHostKeyChecking=no \
-  -o UserKnownHostsFile=/dev/null \
-  -o LogLevel=QUIET \
-  "$SSH_USER@$SERVER_IP" \
-  "lscpu | grep -E 'Architecture|CPU op-mode|Byte Order|CPU\\(s\\)|On-line CPU|Model name|CPU max MHz|CPU min MHz'" 2>&1 | tee -a "$LOG_FILE"
-
-# Memory Information
 log_output "\n${BLUE}Memory:${NC}"
-ssh \
-  -o ConnectTimeout=$SSH_TIMEOUT \
-  -o StrictHostKeyChecking=no \
-  -o UserKnownHostsFile=/dev/null \
-  -o LogLevel=QUIET \
-  "$SSH_USER@$SERVER_IP" \
-  "free -h | tail -2" 2>&1 | tee -a "$LOG_FILE"
+ssh -o ConnectTimeout=$SSH_TIMEOUT -o StrictHostKeyChecking=no \
+  -o UserKnownHostsFile=/dev/null -o LogLevel=QUIET \
+  "$SSH_USER@$SERVER_IP" "free -h | tail -2" 2>&1 | tee -a "$LOG_FILE"
 
-# Disk Usage
 log_output "\n${BLUE}Disk Usage:${NC}"
-ssh \
-  -o ConnectTimeout=$SSH_TIMEOUT \
-  -o StrictHostKeyChecking=no \
-  -o UserKnownHostsFile=/dev/null \
-  -o LogLevel=QUIET \
-  "$SSH_USER@$SERVER_IP" \
-  "df -h" 2>&1 | tee -a "$LOG_FILE"
+ssh -o ConnectTimeout=$SSH_TIMEOUT -o StrictHostKeyChecking=no \
+  -o UserKnownHostsFile=/dev/null -o LogLevel=QUIET \
+  "$SSH_USER@$SERVER_IP" "df -h" 2>&1 | tee -a "$LOG_FILE"
 
 log_output "\n${GREEN}=== ✓ Updates and Dependencies Complete ===${NC}\n"
-log_output "${BLUE}Log saved to: $LOG_FILE${NC}\n"

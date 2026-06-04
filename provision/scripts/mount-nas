@@ -2,35 +2,25 @@
 
 set -e
 
-# Color output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
-NC='\033[0m' # No Color
+NC='\033[0m'
 
-# Get script directory and load helpers
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
-CONFIG_FILE="$PROJECT_DIR/config/secrets.yaml"
 LOG_FILE="$PROJECT_DIR/provision.log"
 
-# Source config loader
-source "$(dirname "$SCRIPT_DIR")/lib/config.sh"
+source "$(dirname "$SCRIPT_DIR")/lib/defaults.sh"
+require_server_ip
 
-# SSH timeout
 SSH_TIMEOUT=5
+NFS_OPTIONS="defaults,_netdev,nofail,x-systemd.automount,x-systemd.mount-timeout=10"
+MOUNT_POINTS=(homelab backups immich nextcloud)
 
-# NAS mount points to create
-MOUNT_POINTS=("homelab" "backups" "immich" "nextcloud")
+log_output() { echo -e "$1" | tee -a "$LOG_FILE"; }
 
-# Helper function to log output
-log_output() {
-  local message=$1
-  echo -e "$message" | tee -a "$LOG_FILE"
-}
-
-# Helper function to run remote SSH command
 run_remote_command() {
   local command=$1
   local description=$2
@@ -48,49 +38,21 @@ run_remote_command() {
     log_output "${GREEN}✓ Success${NC}"
     return 0
   else
-    log_output "${RED}✗ Failed${NC}"
-    log_output "${RED}Error: $output${NC}"
-
-    if [ "$fail_on_error" = "true" ]; then
-      return 1
-    else
-      return 0
-    fi
+    log_output "${RED}✗ Failed: $output${NC}"
+    [ "$fail_on_error" = "true" ] && return 1 || return 0
   fi
 }
 
 log_output "${BLUE}=== NAS Mount Setup ===${NC}\n"
-
-# Check if config file exists
-if [ ! -f "$CONFIG_FILE" ]; then
-  log_output "${RED}✗ Error: Configuration file not found at $CONFIG_FILE${NC}"
-  exit 1
-fi
-
-# Load SSH configuration
-log_output "${YELLOW}Loading SSH configuration...${NC}"
-if ! load_ssh_config "$CONFIG_FILE"; then
-  log_output "${RED}✗ Failed to load SSH configuration${NC}"
-  exit 1
-fi
-
-log_output "${GREEN}✓ SSH configuration loaded${NC}"
-
-# Load NAS configuration
-log_output "${YELLOW}Loading NAS configuration...${NC}"
-if ! load_nas_config "$CONFIG_FILE"; then
-  log_output "${RED}✗ Failed to load NAS configuration${NC}"
-  exit 1
-fi
-
-log_output "${GREEN}✓ NAS configuration loaded${NC}"
-log_output "  NAS IP: ${BLUE}$NAS_IP${NC}"
+log_output "  NAS IP:     ${BLUE}$NAS_IP${NC}"
 log_output "  Base Share: ${BLUE}$NAS_BASE_SHARE${NC}"
 log_output "  Base Mount: ${BLUE}$NAS_BASE_MOUNT${NC}\n"
 
 # Step 1: Test NAS connectivity
 log_output "${YELLOW}Step 1: Testing NAS Connectivity${NC}"
-if run_remote_command "timeout 5 showmount -e $NAS_IP 2>/dev/null | head -1" "  Checking NAS availability..." false; then
+if run_remote_command \
+  "timeout 5 showmount -e $NAS_IP 2>/dev/null | head -1" \
+  "  Checking NAS availability..." false; then
   log_output "${GREEN}✓ NAS is reachable${NC}\n"
 else
   log_output "${YELLOW}⚠ Could not verify NAS (continuing anyway)${NC}\n"
@@ -98,26 +60,19 @@ fi
 
 # Step 2: Create mount directories
 log_output "${YELLOW}Step 2: Creating Mount Directories${NC}"
-for mount_point in "${MOUNT_POINTS[@]}"; do
-  mount_path="$NAS_BASE_MOUNT/$mount_point"
-  run_remote_command "sudo mkdir -p $mount_path" "  Creating $mount_path..." || true
+for mp in "${MOUNT_POINTS[@]}"; do
+  run_remote_command "sudo mkdir -p $NAS_BASE_MOUNT/$mp" "  Creating $NAS_BASE_MOUNT/$mp..." || true
 done
 log_output ""
 
-# Step 3: Update fstab with NFS entries
+# Step 3: Update fstab
 log_output "${YELLOW}Step 3: Updating /etc/fstab${NC}"
-
-# NFS mount options
-NFS_OPTIONS="defaults,_netdev,nofail,x-systemd.automount,x-systemd.mount-timeout=10"
-
-for mount_point in "${MOUNT_POINTS[@]}"; do
-  nfs_source="$NAS_IP:$NAS_BASE_SHARE/$mount_point"
-  mount_path="$NAS_BASE_MOUNT/$mount_point"
+for mp in "${MOUNT_POINTS[@]}"; do
+  nfs_source="$NAS_IP:$NAS_BASE_SHARE/$mp"
+  mount_path="$NAS_BASE_MOUNT/$mp"
   fstab_entry="$nfs_source    $mount_path    nfs    $NFS_OPTIONS    0    0"
 
-  log_output "  Checking $mount_point entry..."
-
-  # Check if this exact entry already exists in fstab
+  log_output "  Checking $mp entry..."
   entry_exists=$(ssh \
     -o ConnectTimeout=$SSH_TIMEOUT \
     -o StrictHostKeyChecking=no \
@@ -130,28 +85,27 @@ for mount_point in "${MOUNT_POINTS[@]}"; do
     log_output "    ${YELLOW}→ Already in fstab, skipping${NC}"
   else
     log_output "    ${YELLOW}→ Adding to fstab${NC}"
-    # Add entry to fstab
-    run_remote_command "echo '$fstab_entry' | sudo tee -a /etc/fstab > /dev/null" "    Writing entry..." || true
+    run_remote_command \
+      "echo '$fstab_entry' | sudo tee -a /etc/fstab > /dev/null" \
+      "    Writing entry..." || true
   fi
 done
 log_output ""
 
-# Step 4: Create /etc/fstab backup
+# Step 4: Backup fstab
 log_output "${YELLOW}Step 4: Backing up /etc/fstab${NC}"
-run_remote_command "sudo cp /etc/fstab /etc/fstab.backup.$(date +%Y%m%d_%H%M%S)" "  Creating backup..." || true
+run_remote_command \
+  "sudo cp /etc/fstab /etc/fstab.backup.$(date +%Y%m%d_%H%M%S)" \
+  "  Creating backup..." || true
 log_output ""
 
 # Step 5: Mount filesystems
 log_output "${YELLOW}Step 5: Mounting NFS Filesystems${NC}"
-
-# First reload systemd daemon to pick up new mount units
 run_remote_command "sudo systemctl daemon-reload" "  Reloading systemd..." || true
 
-for mount_point in "${MOUNT_POINTS[@]}"; do
-  mount_path="$NAS_BASE_MOUNT/$mount_point"
-  nfs_source="$NAS_IP:$NAS_BASE_SHARE/$mount_point"
+for mp in "${MOUNT_POINTS[@]}"; do
+  mount_path="$NAS_BASE_MOUNT/$mp"
 
-  # Check if already mounted
   is_mounted=$(ssh \
     -o ConnectTimeout=$SSH_TIMEOUT \
     -o StrictHostKeyChecking=no \
@@ -163,9 +117,8 @@ for mount_point in "${MOUNT_POINTS[@]}"; do
   if [[ "$is_mounted" == "mounted" ]]; then
     log_output "  ${GREEN}✓ $mount_path already mounted${NC}"
   else
-    run_remote_command "sudo mount -a -t nfs" "  Mounting $mount_point..." || true
+    run_remote_command "sudo mount -a -t nfs" "  Mounting $mp..." || true
 
-    # Verify mount succeeded
     verify=$(ssh \
       -o ConnectTimeout=$SSH_TIMEOUT \
       -o StrictHostKeyChecking=no \
@@ -177,7 +130,7 @@ for mount_point in "${MOUNT_POINTS[@]}"; do
     if [[ "$verify" == "mounted" ]]; then
       log_output "  ${GREEN}✓ $mount_path mounted successfully${NC}"
     else
-      log_output "  ${YELLOW}⚠ Could not verify mount for $mount_point${NC}"
+      log_output "  ${YELLOW}⚠ Could not verify mount for $mp${NC}"
     fi
   fi
 done
@@ -187,23 +140,16 @@ log_output ""
 log_output "${YELLOW}Step 6: Current Mount Status${NC}\n"
 
 log_output "${BLUE}NFS Mounts:${NC}"
-ssh \
-  -o ConnectTimeout=$SSH_TIMEOUT \
-  -o StrictHostKeyChecking=no \
-  -o UserKnownHostsFile=/dev/null \
-  -o LogLevel=QUIET \
+ssh -o ConnectTimeout=$SSH_TIMEOUT -o StrictHostKeyChecking=no \
+  -o UserKnownHostsFile=/dev/null -o LogLevel=QUIET \
   "$SSH_USER@$SERVER_IP" \
   "mount | grep nfs" 2>&1 | tee -a "$LOG_FILE"
 
 log_output ""
 log_output "${BLUE}Disk Space:${NC}"
-ssh \
-  -o ConnectTimeout=$SSH_TIMEOUT \
-  -o StrictHostKeyChecking=no \
-  -o UserKnownHostsFile=/dev/null \
-  -o LogLevel=QUIET \
+ssh -o ConnectTimeout=$SSH_TIMEOUT -o StrictHostKeyChecking=no \
+  -o UserKnownHostsFile=/dev/null -o LogLevel=QUIET \
   "$SSH_USER@$SERVER_IP" \
   "df -h | grep $NAS_BASE_MOUNT" 2>&1 | tee -a "$LOG_FILE"
 
 log_output "\n${GREEN}=== ✓ NAS Mount Setup Complete ===${NC}\n"
-log_output "${BLUE}Log saved to: $LOG_FILE${NC}\n"

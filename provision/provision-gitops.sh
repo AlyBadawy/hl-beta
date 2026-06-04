@@ -4,9 +4,7 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-CONFIG_FILE="$PROJECT_DIR/config/secrets.yaml"
 LOG_FILE="$PROJECT_DIR/provision.log"
-K8S_DIR="$PROJECT_DIR/k8s"
 
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -20,40 +18,22 @@ SSH_OPTS="-o ConnectTimeout=$SSH_TIMEOUT -o StrictHostKeyChecking=no -o UserKnow
 NGINX_CHART_VERSION="4.11.0"
 ARGOCD_CHART_VERSION="7.6.0"
 
-source "$SCRIPT_DIR/lib/config.sh"
+source "$SCRIPT_DIR/lib/defaults.sh"
+require_server_ip
 
 log_output() {
   echo -e "$1" | tee -a "$LOG_FILE"
 }
 
 echo -e "${GREEN}=== GitOps Bootstrap ===${NC}\n"
+log_output "${GREEN}✓ SSH config: ${SSH_USER}@${SERVER_IP}${NC}\n"
 
 # ─────────────────────────────────────────────────────────────────
-# Preflight
+# Git URL prompt (default from defaults.sh, overridable)
 # ─────────────────────────────────────────────────────────────────
-if [ ! -f "$CONFIG_FILE" ]; then
-  echo -e "${RED}✗ config/secrets.yaml not found. Run provision-server.sh first.${NC}"
-  exit 1
-fi
-
-log_output "${YELLOW}Loading SSH configuration...${NC}"
-if ! load_ssh_config "$CONFIG_FILE"; then
-  log_output "${RED}✗ Failed to load SSH configuration${NC}"
-  exit 1
-fi
-log_output "${GREEN}✓ SSH config loaded (${SSH_USER}@${SERVER_IP})${NC}\n"
-
-# ─────────────────────────────────────────────────────────────────
-# Git URL prompt
-# ─────────────────────────────────────────────────────────────────
-while true; do
-  read -p "$(echo -e "${YELLOW}Enter git repo URL (https:// or git@):${NC} ")" GIT_URL
-  GIT_URL="${GIT_URL// /}"
-  if [[ "$GIT_URL" =~ ^(https://|git@) ]]; then
-    break
-  fi
-  echo -e "${RED}✗ Invalid URL. Must start with https:// or git@${NC}"
-done
+read -p "$(echo -e "${YELLOW}Enter git repo URL [${GIT_REPO}]:${NC} ")" INPUT_GIT_URL
+GIT_URL="${INPUT_GIT_URL:-$GIT_REPO}"
+GIT_URL="${GIT_URL// /}"
 log_output "${GREEN}✓ Git repo: $GIT_URL${NC}\n"
 
 # ─────────────────────────────────────────────────────────────────
