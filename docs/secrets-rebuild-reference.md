@@ -97,6 +97,18 @@ kubectl get secret vaultwarden-admin -n secrets \
 
 ---
 
+## Offline Credentials Checklist
+
+These values must be saved somewhere safe and **offline** (e.g., a local password manager, printed paper in a secure location). They cannot be recovered from the cluster alone after a rebuild:
+
+- [ ] **Vaultwarden admin token** — the `ADMIN_TOKEN` used to access `/admin`. Stored in `secrets/vaultwarden-admin`.
+- [ ] **Vaultwarden user master password** — the master password for your Vaultwarden user account (`alybadawy@icloud.com`). This is the key that unlocks the entire vault and all secrets stored inside it. Without it, all credentials in Vaultwarden are inaccessible even if the server is running.
+- [ ] **Cloudflare API token** — needed to re-seed `cloudflare-api-token` if the cert-manager secret is lost.
+
+> The Vaultwarden master password is never stored anywhere in the cluster — it exists only in your memory and your offline backup. Losing it means losing access to everything stored in the vault.
+
+---
+
 ## Rebuild Order
 
 Create secrets in this order to avoid dependency failures:
@@ -107,7 +119,7 @@ Create secrets in this order to avoid dependency failures:
 3. ./provision/provision-gitops.sh    # prompts for Cloudflare token, bootstraps ArgoCD
 ```
 
-Once Vaultwarden is running, store all credentials there. Future application secrets (SMTP, API keys, etc.) are added to Vaultwarden and seeded into the `secrets` namespace via `bw` CLI — see `docs/vaultwarden-secrets-management.md`.
+Once Vaultwarden is running, log in with your master password and resume storing credentials there. Future application secrets (SMTP, API keys, etc.) are added to Vaultwarden and seeded into the `secrets` namespace via `bw` CLI — see `docs/vaultwarden-secrets-management.md`.
 
 ---
 
