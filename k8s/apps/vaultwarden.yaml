@@ -28,5 +28,6 @@ spec:
   ignoreDifferences:
     - group: apps
       kind: StatefulSet
-      jsonPointers:
-        - /spec/persistentVolumeClaimRetentionPolicy
+      jqPathExpressions:
+        - .spec.persistentVolumeClaimRetentionPolicy
+        - .spec.updateStrategy.rollingUpdate.partition
