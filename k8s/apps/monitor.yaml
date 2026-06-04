@@ -25,3 +25,16 @@ spec:
     syncOptions:
       - CreateNamespace=true
       - ServerSideApply=true
+  ignoreDifferences:
+    - group: ""
+      kind: Secret
+      name: prometheus-grafana
+      namespace: monitor
+      jsonPointers:
+        - /data/admin-password
+    - group: apps
+      kind: Deployment
+      name: prometheus-grafana
+      namespace: monitor
+      jqPathExpressions:
+        - .spec.template.metadata.annotations["checksum/secret"]
