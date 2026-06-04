@@ -109,21 +109,33 @@ bw login
 export BW_SESSION=$(bw unlock --raw)
 ```
 
-Seed a secret into the `secrets` namespace. The pattern — pull the value from Vaultwarden, create or update a k8s `Secret`:
+Seed a secret into the `secrets` namespace. Always fetch the item once with `bw get item` and parse locally with `jq` — this avoids session expiry between multiple `bw` calls and works for all field types:
 
 ```bash
 # Secure Note item (e.g., an API token stored in the Notes field)
+ITEM=$(bw get item 'cloudflare-api-token' --session $BW_SESSION)
 kubectl create secret generic cloudflare-api-token \
   --namespace=secrets \
-  --from-literal=api-token="$(bw get notes 'cloudflare-api-token' --session $BW_SESSION)" \
+  --from-literal=api-token="$(echo $ITEM | jq -r '.notes')" \
   --save-config \
   --dry-run=client -o yaml | kubectl apply -f -
 
-# Login item (username + password)
+# Login item — username + password only
+ITEM=$(bw get item 'smtp-credentials' --session $BW_SESSION)
 kubectl create secret generic smtp-credentials \
   --namespace=secrets \
-  --from-literal=username="$(bw get username 'smtp-credentials' --session $BW_SESSION)" \
-  --from-literal=password="$(bw get password 'smtp-credentials' --session $BW_SESSION)" \
+  --from-literal=username="$(echo $ITEM | jq -r '.login.username')" \
+  --from-literal=password="$(echo $ITEM | jq -r '.login.password')" \
+  --save-config \
+  --dry-run=client -o yaml | kubectl apply -f -
+
+# Login item — username, password, plus a custom field
+ITEM=$(bw get item 'postgres-secret' --session $BW_SESSION)
+kubectl create secret generic postgres-secret \
+  --namespace=secrets \
+  --from-literal=POSTGRES_USER="$(echo $ITEM | jq -r '.login.username')" \
+  --from-literal=POSTGRES_PASSWORD="$(echo $ITEM | jq -r '.login.password')" \
+  --from-literal=POSTGRES_DB="$(echo $ITEM | jq -r '.fields[] | select(.name=="POSTGRES_DB") | .value')" \
   --save-config \
   --dry-run=client -o yaml | kubectl apply -f -
 ```
