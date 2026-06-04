@@ -1,32 +1,33 @@
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: immich
-  namespace: immich
+  name: nextcloud
+  namespace: cloud
   labels:
-    app.kubernetes.io/name: immich
-    homelab/stack: immich
+    app.kubernetes.io/name: nextcloud
+    homelab/stack: cloud
   annotations:
     cert-manager.io/cluster-issuer: letsencrypt-prod
     nginx.ingress.kubernetes.io/ssl-redirect: "true"
     nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
-    nginx.ingress.kubernetes.io/proxy-body-size: "50g"
+    nginx.ingress.kubernetes.io/backend-protocol: "HTTPS"
+    nginx.ingress.kubernetes.io/proxy-body-size: "10g"
     nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
     nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
 spec:
   ingressClassName: nginx
   tls:
     - hosts:
-        - photos.in.alybadawy.com
-      secretName: immich-tls
+        - cloud.in.alybadawy.com
+      secretName: nextcloud-tls
   rules:
-    - host: photos.in.alybadawy.com
+    - host: cloud.in.alybadawy.com
       http:
         paths:
           - path: /
             pathType: Prefix
             backend:
               service:
-                name: immich-server
+                name: nextcloud
                 port:
-                  number: 2283
+                  number: 443

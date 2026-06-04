@@ -1,0 +1,110 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: nextcloud-data-lh
+  namespace: cloud
+  labels:
+    app.kubernetes.io/name: nextcloud
+    homelab/stack: cloud
+    longhorn.io/pvc-name: nextcloud-data-lh
+    longhorn.io/pvc-namespace: cloud
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: longhorn
+  resources:
+    requests:
+      storage: 10Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nextcloud
+  namespace: cloud
+  labels:
+    app.kubernetes.io/name: nextcloud
+    homelab/stack: cloud
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: nextcloud
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: nextcloud
+    spec:
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: nextcloud
+          image: lscr.io/linuxserver/nextcloud:latest
+          ports:
+            - containerPort: 443
+          env:
+            - name: PUID
+              value: "1000"
+            - name: PGID
+              value: "1000"
+            - name: TZ
+              value: UTC
+            - name: DB_TYPE
+              value: pgsql
+            - name: DB_HOST
+              value: postgres.db.svc.cluster.local
+            - name: DB_NAME
+              value: nextcloud
+            - name: DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: nextcloud-secret
+                  key: database_user
+            - name: DB_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: nextcloud-secret
+                  key: database_password
+          volumeMounts:
+            - name: config
+              mountPath: /config
+            - name: data
+              mountPath: /data
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 1000m
+              memory: 1Gi
+          readinessProbe:
+            tcpSocket:
+              port: 443
+            initialDelaySeconds: 30
+            periodSeconds: 10
+      volumes:
+        - name: config
+          persistentVolumeClaim:
+            claimName: nextcloud-data-lh
+        - name: data
+          hostPath:
+            path: /mnt/nas/nextcloud
+            type: Directory
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nextcloud
+  namespace: cloud
+  labels:
+    app.kubernetes.io/name: nextcloud
+    homelab/stack: cloud
+spec:
+  selector:
+    app.kubernetes.io/name: nextcloud
+  ports:
+    - name: https
+      port: 443
+      targetPort: 443
+    - name: http
+      port: 80
+      targetPort: 80
