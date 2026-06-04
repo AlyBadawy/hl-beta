@@ -14,7 +14,7 @@ spec:
   source:
     repoURL: https://github.com/AlyBadawy/hl-beta
     targetRevision: main
-    path: apps
+    path: k8s/apps
     directory:
       recurse: true
   destination:

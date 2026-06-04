@@ -12,7 +12,7 @@ spec:
   source:
     repoURL: https://github.com/AlyBadawy/hl-beta
     targetRevision: main
-    path: components/ingress-nginx
+    path: k8s/components/ingress-nginx
   destination:
     server: https://kubernetes.default.svc
     namespace: ingress-nginx

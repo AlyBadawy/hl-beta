@@ -16,7 +16,7 @@ spec:
   source:
     repoURL: https://github.com/AlyBadawy/hl-beta
     targetRevision: main
-    path: components/argocd
+    path: k8s/components/argocd
   destination:
     server: https://kubernetes.default.svc
     namespace: argocd

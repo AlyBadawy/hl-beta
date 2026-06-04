@@ -12,7 +12,7 @@ spec:
   source:
     repoURL: https://github.com/AlyBadawy/hl-beta
     targetRevision: main
-    path: components/cert-manager
+    path: k8s/components/cert-manager
   destination:
     server: https://kubernetes.default.svc
     namespace: cert-manager

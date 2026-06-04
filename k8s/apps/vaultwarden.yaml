@@ -14,7 +14,7 @@ spec:
   source:
     repoURL: https://github.com/AlyBadawy/hl-beta
     targetRevision: main
-    path: components/vaultwarden
+    path: k8s/components/vaultwarden
   destination:
     server: https://kubernetes.default.svc
     namespace: vaultwarden
