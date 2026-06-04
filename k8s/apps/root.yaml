@@ -1,23 +1,11 @@
-# Self-management Application for the root "app of apps" itself.
-#
-# bootstrap.sh applies root/root-app.yaml imperatively to kick everything off,
-# but nothing tracks that Application — so changes to it would never reach the
-# cluster. This child app tracks root/ and adopts the running root Application
-# with no diff (same self-adoption trick as apps/argocd.yaml). From here on the
-# root app manages ITSELF: edit root/root-app.yaml and `git push`.
-#
-# Note: this Application is named "root-self" (not "root") on purpose — its
-# managed resource is the "root" Application object, and the two must be
-# distinct objects in the argocd namespace. The result is a small cycle: the
-# root app creates root-self (from apps/), and root-self manages root (from
-# root/). Both render identically to what is running, so they converge cleanly.
+# The "app of apps" root Application. Watches k8s/apps/ and creates one child
+# Application per manifest — including this file itself, so root is self-managing.
+# Apply this file imperatively once during bootstrap; GitOps takes over from there.
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: root-self
+  name: root
   namespace: argocd
-  annotations:
-    argocd.argoproj.io/sync-wave: "0"
   finalizers:
     - resources-finalizer.argocd.argoproj.io
 spec:
@@ -25,7 +13,9 @@ spec:
   source:
     repoURL: https://github.com/AlyBadawy/hl-beta
     targetRevision: main
-    path: k8s/root
+    path: k8s/apps
+    directory:
+      recurse: true
   destination:
     server: https://kubernetes.default.svc
     namespace: argocd

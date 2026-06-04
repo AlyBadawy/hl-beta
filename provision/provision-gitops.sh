@@ -63,7 +63,7 @@ kubectl -n cert-manager create secret generic cloudflare-api-token \
 # --- 4. Apply the root app -------------------------------------------------
 log "Applying the root 'app of apps' Application"
 sed -e "s|^\( *targetRevision: \).*|\1$REPO_REVISION|g" \
-    k8s/root/root-app.yaml \
+    k8s/apps/root.yaml \
   | kubectl apply -f -
 
 # --- 5. Done ---------------------------------------------------------------
