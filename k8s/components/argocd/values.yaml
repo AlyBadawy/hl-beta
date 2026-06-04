@@ -17,7 +17,7 @@ server:
   ingress:
     enabled: true
     ingressClassName: nginx
-    hostname: argocd.example.com # PLACEHOLDER: replace with your hostname
+    hostname: argo.in.alybadawy.com
     annotations:
       cert-manager.io/cluster-issuer: letsencrypt-prod
       nginx.ingress.kubernetes.io/backend-protocol: HTTP

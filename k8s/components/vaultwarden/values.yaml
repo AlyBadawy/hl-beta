@@ -2,7 +2,7 @@
 # Docs: https://github.com/guerzon/vaultwarden/tree/main/charts/vaultwarden
 
 # Full external URL of the instance (must match the ingress hostname, https).
-domain: "https://vault.example.com" # PLACEHOLDER: replace with your hostname
+domain: "https://vault.in.alybadawy.com"
 
 # Admin panel token. The chart ships with a PUBLIC example argon2 hash — leaving
 # it as-is is insecure. Replace it before exposing the instance. Prefer wiring
@@ -31,5 +31,5 @@ ingress:
   additionalAnnotations:
     cert-manager.io/cluster-issuer: letsencrypt-prod
   tls: true
-  hostname: "vault.example.com" # PLACEHOLDER: replace with your hostname
+  hostname: "vault.in.alybadawy.com"
   tlsSecret: "vaultwarden-tls" # cert-manager writes the issued cert here
