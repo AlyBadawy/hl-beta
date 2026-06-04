@@ -116,7 +116,7 @@ Seed a secret into the `secrets` namespace. Always fetch the item once with `bw 
 ITEM=$(bw get item 'cloudflare-api-token' --session $BW_SESSION)
 kubectl create secret generic cloudflare-api-token \
   --namespace=secrets \
-  --from-literal=api-token="$(echo $ITEM | jq -r '.notes')" \
+  --from-literal=api-token="$(echo "$ITEM" | jq -r '.notes')" \
   --save-config \
   --dry-run=client -o yaml | kubectl apply -f -
 
@@ -124,8 +124,8 @@ kubectl create secret generic cloudflare-api-token \
 ITEM=$(bw get item 'smtp-credentials' --session $BW_SESSION)
 kubectl create secret generic smtp-credentials \
   --namespace=secrets \
-  --from-literal=username="$(echo $ITEM | jq -r '.login.username')" \
-  --from-literal=password="$(echo $ITEM | jq -r '.login.password')" \
+  --from-literal=username="$(echo "$ITEM" | jq -r '.login.username')" \
+  --from-literal=password="$(echo "$ITEM" | jq -r '.login.password')" \
   --save-config \
   --dry-run=client -o yaml | kubectl apply -f -
 
@@ -133,9 +133,9 @@ kubectl create secret generic smtp-credentials \
 ITEM=$(bw get item 'postgres-secret' --session $BW_SESSION)
 kubectl create secret generic postgres-secret \
   --namespace=secrets \
-  --from-literal=POSTGRES_USER="$(echo $ITEM | jq -r '.login.username')" \
-  --from-literal=POSTGRES_PASSWORD="$(echo $ITEM | jq -r '.login.password')" \
-  --from-literal=POSTGRES_DB="$(echo $ITEM | jq -r '.fields[] | select(.name=="POSTGRES_DB") | .value')" \
+  --from-literal=POSTGRES_USER="$(echo "$ITEM" | jq -r '.login.username')" \
+  --from-literal=POSTGRES_PASSWORD="$(echo "$ITEM" | jq -r '.login.password')" \
+  --from-literal=POSTGRES_DB="$(echo "$ITEM" | jq -r '.fields[] | select(.name=="POSTGRES_DB") | .value')" \
   --save-config \
   --dry-run=client -o yaml | kubectl apply -f -
 ```
