@@ -12,6 +12,7 @@ namespace: longhorn-system
 resources:
   - backup-target.yaml
   - recurring-jobs.yaml
+  - prometheus-rule.yaml
 
 helmCharts:
   - name: longhorn

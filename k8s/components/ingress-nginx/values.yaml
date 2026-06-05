@@ -17,3 +17,12 @@ controller:
   # Surface real client IPs through ServiceLB.
   config:
     use-forwarded-headers: "true"
+    # TLS hardening
+    ssl-protocols: "TLSv1.2 TLSv1.3"
+    ssl-ciphers: "ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384"
+    # Security headers
+    add-headers: "ingress-nginx/security-headers"
+    # Limits and timeouts
+    proxy-read-timeout: "60"
+    proxy-send-timeout: "60"
+    client-max-body-size: "100m"

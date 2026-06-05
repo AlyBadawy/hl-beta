@@ -1,0 +1,41 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: postgres-logical-backup
+  namespace: db
+spec:
+  schedule: "0 2 * * *" # 2 AM daily, before Longhorn backup at 6 AM
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: pg-dump
+              image: postgres:14-alpine
+              envFrom:
+                - secretRef:
+                    name: postgres-secret
+              command: ["/bin/sh", "-c"]
+              args:
+                - |
+                  set -e
+                  DATE=$(date +%Y%m%d-%H%M)
+                  for DB in authentik immich nextcloud; do
+                    echo "Dumping $DB..."
+                    pg_dump -h postgres -U $POSTGRES_USER -d $DB \
+                      -Fc -Z 5 -f /backup/${DB}-${DATE}.dump
+                  done
+                  # Prune dumps older than 30 days
+                  find /backup -name "*.dump" -mtime +30 -delete
+                  echo "Done. Current backups:"
+                  ls -lh /backup/
+              volumeMounts:
+                - name: backup
+                  mountPath: /backup
+          volumes:
+            - name: backup
+              hostPath:
+                path: /mnt/nas/backups/postgres
+                type: DirectoryOrCreate

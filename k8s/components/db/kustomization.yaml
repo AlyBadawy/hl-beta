@@ -7,3 +7,4 @@ resources:
   - ingress.yaml
   - external-secrets.yaml
   - init-job.yaml
+  - pg-dump-cronjob.yaml

@@ -14,3 +14,4 @@ helmCharts:
 
 resources:
   - cluster-issuer.yaml
+  - prometheus-rule.yaml

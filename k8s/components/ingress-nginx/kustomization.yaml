@@ -11,3 +11,6 @@ helmCharts:
     namespace: networking
     valuesFile: values.yaml
     includeCRDs: true
+
+resources:
+  - security-headers.yaml
