@@ -1,0 +1,56 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: aly
+  namespace: websites
+  labels:
+    app.kubernetes.io/name: aly
+    homelab/stack: aly
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: aly
+  template:
+    metadata:
+      labels:
+        app: aly
+    spec:
+      containers:
+        - name: aly
+          image: ghcr.io/alybadawy/aly:latest
+          ports:
+            - containerPort: 80
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 64Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: aly
+  namespace: websites
+  labels:
+    app.kubernetes.io/name: aly
+    homelab/stack: aly
+spec:
+  selector:
+    app: aly
+  ports:
+    - port: 80
+      targetPort: 80
