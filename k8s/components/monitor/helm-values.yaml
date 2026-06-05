@@ -1,6 +1,3 @@
-# Retrieve Grafana admin password after deploy:
-#   kubectl get secret prometheus-grafana -n monitor \
-#     -o jsonpath="{.data.admin-password}" | base64 -d; echo
 prometheusOperator:
   admissionWebhooks:
     enabled: false
@@ -9,7 +6,10 @@ prometheusOperator:
 
 grafana:
   enabled: true
-  adminPassword: ""
+  admin:
+    existingSecret: grafana-admin
+    userKey: admin-user
+    passwordKey: admin-password
   resources:
     requests:
       cpu: 50m

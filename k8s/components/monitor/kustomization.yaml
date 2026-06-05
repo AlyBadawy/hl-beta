@@ -13,3 +13,4 @@ helmCharts:
 
 resources:
   - ingress.yaml
+  - external-secret.yaml
