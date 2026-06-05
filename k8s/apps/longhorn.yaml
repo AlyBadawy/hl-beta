@@ -10,6 +10,8 @@ metadata:
     argocd.argoproj.io/sync-wave: "1"  # after infra (wave 0), before stateful apps
   finalizers:
     - resources-finalizer.argocd.argoproj.io
+    - pre-delete-finalizer.argocd.argoproj.io
+    - pre-delete-finalizer.argocd.argoproj.io/cleanup
 spec:
   project: default
   source:
