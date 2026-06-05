@@ -6,7 +6,7 @@ helmCharts:
     repo: https://charts.external-secrets.io
     version: 2.5.0 # verify latest stable before bootstrapping
     releaseName: external-secrets
-    namespace: external-secrets
+    namespace: security
     valuesFile: values.yaml
     includeCRDs: true
 
