@@ -10,6 +10,7 @@ kind: Kustomization
 namespace: longhorn-system
 
 resources:
+  - namespace.yaml
   - backup-target.yaml
   - recurring-jobs.yaml
   - prometheus-rule.yaml

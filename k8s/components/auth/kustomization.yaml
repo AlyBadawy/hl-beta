@@ -4,6 +4,7 @@ kind: Kustomization
 namespace: security
 
 resources:
+  - namespace.yaml
   - authentik.yaml
   - configmap.yaml
   - external-secret.yaml

@@ -13,4 +13,5 @@ helmCharts:
     includeCRDs: true
 
 resources:
+  - namespace.yaml
   - security-headers.yaml

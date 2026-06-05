@@ -12,5 +12,6 @@ helmCharts:
     includeCRDs: true
 
 resources:
+  - namespace.yaml
   - ingress.yaml
   - external-secret.yaml
