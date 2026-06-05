@@ -50,11 +50,11 @@ log "Waiting for ArgoCD to become ready"
 kubectl -n "$ARGOCD_NAMESPACE" rollout status deploy/argocd-server      --timeout=300s
 kubectl -n "$ARGOCD_NAMESPACE" rollout status deploy/argocd-repo-server --timeout=300s
 
-# --- 3. Create cert-manager Cloudflare token secret ------------------------
-log "Creating cert-manager namespace and Cloudflare API token secret"
-kubectl get namespace cert-manager >/dev/null 2>&1 \
-  || kubectl create namespace cert-manager
-kubectl -n cert-manager create secret generic cloudflare-api-token \
+# --- 3. Create networking namespace + Cloudflare token secret --------------
+log "Creating networking namespace and Cloudflare API token secret"
+kubectl get namespace networking >/dev/null 2>&1 \
+  || kubectl create namespace networking
+kubectl -n networking create secret generic cloudflare-api-token \
   --from-literal=api-token="$CLOUDFLARE_API_TOKEN" \
   --dry-run=client -o yaml | kubectl apply -f -
 

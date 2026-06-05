@@ -2,7 +2,7 @@ apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   name: authentik-data-lh
-  namespace: auth
+  namespace: security
   labels:
     app.kubernetes.io/name: authentik
     homelab/stack: auth
@@ -17,7 +17,7 @@ apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   name: authentik-templates-lh
-  namespace: auth
+  namespace: security
   labels:
     app.kubernetes.io/name: authentik
     homelab/stack: auth
@@ -32,7 +32,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: authentik-server
-  namespace: auth
+  namespace: security
   labels:
     app.kubernetes.io/name: authentik
     app.kubernetes.io/component: server
@@ -101,7 +101,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: authentik-worker
-  namespace: auth
+  namespace: security
   labels:
     app.kubernetes.io/name: authentik
     app.kubernetes.io/component: worker
@@ -156,7 +156,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: authentik-server
-  namespace: auth
+  namespace: security
   labels:
     app.kubernetes.io/name: authentik
     homelab/stack: auth

@@ -17,7 +17,7 @@ spec:
     path: k8s/components/vaultwarden
   destination:
     server: https://kubernetes.default.svc
-    namespace: vaultwarden
+    namespace: security
   syncPolicy:
     automated:
       prune: true

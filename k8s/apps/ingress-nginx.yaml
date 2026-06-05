@@ -15,7 +15,7 @@ spec:
     path: k8s/components/ingress-nginx
   destination:
     server: https://kubernetes.default.svc
-    namespace: ingress-nginx
+    namespace: networking
   syncPolicy:
     automated:
       prune: true

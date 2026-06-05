@@ -2,7 +2,7 @@ apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: authentik
-  namespace: auth
+  namespace: security
   labels:
     app.kubernetes.io/name: authentik
     homelab/stack: auth

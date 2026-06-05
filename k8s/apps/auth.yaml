@@ -15,7 +15,7 @@ spec:
     path: k8s/components/auth
   destination:
     server: https://kubernetes.default.svc
-    namespace: auth
+    namespace: security
   syncPolicy:
     automated:
       prune: true

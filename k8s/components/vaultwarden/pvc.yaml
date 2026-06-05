@@ -2,7 +2,7 @@ apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   name: vaultwarden-data-lh
-  namespace: vaultwarden
+  namespace: security
   labels:
     app.kubernetes.io/name: vaultwarden
     homelab/stack: vaultwarden
