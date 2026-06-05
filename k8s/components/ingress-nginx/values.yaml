@@ -13,6 +13,7 @@ controller:
   # only ingress controller binding :80/:443.
   service:
     type: LoadBalancer
+    externalTrafficPolicy: Local
 
   # Surface real client IPs through ServiceLB.
   config:
