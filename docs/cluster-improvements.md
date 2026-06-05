@@ -3,33 +3,30 @@
 **Date:** 2026-06-05  
 **Last updated:** 2026-06-05
 
-| # | Improvement | Status |
-|---|-------------|--------|
-| 1 | inotify kernel tuning | ✅ Done (applied on server) |
-| 2 | AlertManager notification receivers | ⏳ Pending |
-| 3 | ingress-nginx TLS hardening + security headers | ✅ Done |
-| 4 | Certificate expiry PrometheusRule | ✅ Done |
-| 5 | Longhorn backup/health PrometheusRule | ✅ Done |
-| 6 | PostgreSQL logical backup CronJob | ✅ Done |
+| #   | Improvement                                    | Status                      |
+| --- | ---------------------------------------------- | --------------------------- |
+| 1   | inotify kernel tuning                          | ✅ Done                     |
+| 2   | AlertManager notification receivers            | ⏳ Pending                  |
+| 3   | ingress-nginx TLS hardening + security headers | ✅ Done                     |
+| 4   | Certificate expiry PrometheusRule              | ✅ Done                     |
+| 5   | Longhorn backup/health PrometheusRule          | ✅ Done                     |
+| 6   | PostgreSQL logical backup CronJob              | ✅ Done                     |
 
 ---
 
-## 1. inotify Kernel Limits ✅ Done
+## 1. inotify Kernel Tuning ✅ Done
 
 **Symptom:** Many pods logged `fsnotify watcher: too many open files`.
 
-**Applied on server** (not git-tracked — add to `provision/scripts/configure-cluster` for future rebuilds):
+**Applied on server** and codified in `provision/scripts/configure-cluster` (Step 4) for future rebuilds:
 
-```bash
-sudo tee /etc/sysctl.d/99-k8s-tuning.conf <<'EOF'
+```
 fs.inotify.max_user_watches = 524288
 fs.inotify.max_user_instances = 512
 vm.max_map_count = 262144
-EOF
-sudo sysctl --system
 ```
 
-**To make this permanent in provisioning:** Add the above block to `provision/scripts/configure-cluster` after the cluster-config namespace/resources are created.
+Written to `/etc/sysctl.d/99-k8s-tuning.conf` and applied via `sysctl --system`.
 
 ---
 
@@ -46,11 +43,11 @@ alertmanager:
     # ... existing resources block ...
     config:
       global:
-        smtp_smarthost: 'smtp.resend.com:587'
-        smtp_from: 'noreply@alybadawy.com'
+        smtp_smarthost: "smtp.resend.com:587"
+        smtp_from: "noreply@alybadawy.com"
         smtp_require_tls: true
       route:
-        receiver: 'email'
+        receiver: "email"
         group_wait: 30s
         group_interval: 5m
         repeat_interval: 4h
@@ -59,9 +56,9 @@ alertmanager:
               - severity = critical
             repeat_interval: 1h
       receivers:
-        - name: 'email'
+        - name: "email"
           email_configs:
-            - to: 'alybadawy@icloud.com'
+            - to: "alybadawy@icloud.com"
               send_resolved: true
 ```
 
@@ -74,11 +71,13 @@ SMTP username/password should be injected via an `alertmanagerConfigSecret` Exte
 ## 3. ingress-nginx TLS Hardening + Security Headers ✅ Done
 
 **Applied in:**
+
 - `k8s/components/ingress-nginx/values.yaml` — TLS hardening, security header reference, timeouts, `client-max-body-size: "100m"` global default
 - `k8s/components/ingress-nginx/security-headers.yaml` — ConfigMap with `X-Frame-Options`, `X-XSS-Protection`, `X-Content-Type-Options`, `Referrer-Policy`, `Strict-Transport-Security`
 - `k8s/components/ingress-nginx/kustomization.yaml` — added `security-headers.yaml` to resources
 
 **Media app overrides** (already present, values adjusted to `5g`):
+
 - `k8s/components/cloud/ingress.yaml` — `proxy-body-size: "5g"`, `proxy-read-timeout: "3600"`, `proxy-send-timeout: "3600"`
 - `k8s/components/immich/ingress.yaml` — `proxy-body-size: "5g"`, `proxy-read-timeout: "3600"`, `proxy-send-timeout: "3600"`
 
@@ -89,6 +88,7 @@ SMTP username/password should be injected via an `alertmanagerConfigSecret` Exte
 ## 4. Certificate Expiry PrometheusRule ✅ Done
 
 **Applied in:**
+
 - `k8s/components/cert-manager/prometheus-rule.yaml` — alerts for `CertificateExpiringSoon` (< 14 days) and `CertificateNotReady`
 - `k8s/components/cert-manager/kustomization.yaml` — added to resources
 
@@ -99,6 +99,7 @@ SMTP username/password should be injected via an `alertmanagerConfigSecret` Exte
 ## 5. Longhorn Backup Monitoring PrometheusRule ✅ Done
 
 **Applied in:**
+
 - `k8s/components/longhorn/prometheus-rule.yaml` — alerts for `LonghornVolumeUnhealthy`, `LonghornBackupFailed`, and `LonghornDiskPressure` (> 85%)
 - `k8s/components/longhorn/kustomization.yaml` — added to resources
 
@@ -111,6 +112,7 @@ SMTP username/password should be injected via an `alertmanagerConfigSecret` Exte
 **Problem:** Longhorn snapshots are crash-consistent at the filesystem level, not safe point-in-time backups for a running PostgreSQL instance.
 
 **Applied in:**
+
 - `k8s/components/db/pg-dump-cronjob.yaml` — daily `pg_dump` CronJob at 2 AM for `authentik`, `immich`, `nextcloud` databases; writes compressed `.dump` files to `/mnt/nas/backups/postgres`; prunes dumps older than 30 days
 - `k8s/components/db/kustomization.yaml` — added to resources
 
