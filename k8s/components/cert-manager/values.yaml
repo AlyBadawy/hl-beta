@@ -12,5 +12,5 @@ crds:
 # network DNS (AdGuard/Pi-hole) resolves *.in.alybadawy.com internally and
 # never returns the Cloudflare ACME TXT records.
 extraArgs:
-  - --dns01-recursive-nameservers=1.1.1.1:53,8.8.8.8:53
+  - --dns01-recursive-nameservers=10.43.0.10:53
   - --dns01-recursive-nameservers-only
