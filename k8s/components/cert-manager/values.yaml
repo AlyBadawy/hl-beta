@@ -6,3 +6,11 @@
 crds:
   enabled: true
   keep: true
+
+# Force cert-manager to use public recursive resolvers for DNS-01 propagation
+# checks instead of the cluster's internal DNS. Required because the local
+# network DNS (AdGuard/Pi-hole) resolves *.in.alybadawy.com internally and
+# never returns the Cloudflare ACME TXT records.
+extraArgs:
+  - --dns01-recursive-nameservers=1.1.1.1:53,8.8.8.8:53
+  - --dns01-recursive-nameservers-only
