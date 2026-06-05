@@ -11,15 +11,10 @@ adminToken:
   existingSecret: vaultwarden-admin
   existingSecretKey: ADMIN_TOKEN
 
-# Persistent storage for the SQLite DB + attachments. Uses the k3s default
-# StorageClass (local-path) unless `class` is set.
+# Persistent storage on Longhorn — pre-created PVC managed by kustomization.yaml.
 storage:
-  data:
-    name: "vaultwarden-data"
-    size: "5Gi"
-    # class: "local-path"
-    accessMode: "ReadWriteOnce"
-    keepPvc: true
+  existingVolumeClaim:
+    claimName: vaultwarden-data-lh
 
 # TLS-terminated ingress via nginx, certificate issued by cert-manager.
 ingress:
