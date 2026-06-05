@@ -1,0 +1,45 @@
+# =============================================================================
+# k8s/infrastructure/longhorn/recurring-jobs.yaml — Longhorn backup schedule
+# =============================================================================
+# Two recurring jobs in the "default" group:
+#   snapshot  — local crash-consistent snapshot every 6h, keep 30
+#   backup    — NFS-exported backup every 6h, keep 30
+#
+# All Longhorn PVCs with the annotation
+#   recurring-job-group.longhorn.io/default: enabled
+# are enrolled automatically. This annotation is applied to each -lh PVC by
+# 10-apply-stacks.sh after Longhorn is ready.
+#
+# Backup target (NFS) is set in helm-values.yaml:
+#   nfs://<NAS_IP>:<NAS_BASE_EXPORT>/backups/k3s-longhorn
+# =============================================================================
+apiVersion: longhorn.io/v1beta2
+kind: RecurringJob
+metadata:
+  name: snapshot-every-6h
+  namespace: longhorn-system
+spec:
+  name: snapshot-every-6h
+  cron: "0 */6 * * *"
+  task: snapshot
+  groups:
+    - default
+  retain: 30
+  concurrency: 2
+  labels: {}
+---
+apiVersion: longhorn.io/v1beta2
+kind: RecurringJob
+metadata:
+  name: backup-every-6h
+  namespace: longhorn-system
+spec:
+  name: backup-every-6h
+  # Offset by 30 min from snapshots so they don't race
+  cron: "30 */6 * * *"
+  task: backup
+  groups:
+    - default
+  retain: 30
+  concurrency: 1
+  labels: {}

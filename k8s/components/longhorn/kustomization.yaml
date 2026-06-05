@@ -11,6 +11,7 @@ namespace: longhorn-system
 
 resources:
   - backup-target.yaml
+  - recurring-jobs.yaml
 
 helmCharts:
   - name: longhorn
