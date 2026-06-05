@@ -25,7 +25,10 @@ metadata:
 spec:
   replicas: 1
   strategy:
-    type: Recreate
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
   selector:
     matchLabels:
       app.kubernetes.io/name: pgadmin
@@ -53,6 +56,12 @@ spec:
           volumeMounts:
             - name: data
               mountPath: /var/lib/pgadmin
+          readinessProbe:
+            httpGet:
+              path: /misc/ping
+              port: 80
+            initialDelaySeconds: 15
+            periodSeconds: 10
           resources:
             requests:
               cpu: 200m

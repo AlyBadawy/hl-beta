@@ -8,6 +8,11 @@ metadata:
     homelab/stack: whoami
 spec:
   replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
   selector:
     matchLabels:
       app: whoami
@@ -21,6 +26,12 @@ spec:
           image: traefik/whoami:latest
           ports:
             - containerPort: 80
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 80
+            initialDelaySeconds: 3
+            periodSeconds: 10
           resources:
             requests:
               cpu: 10m
