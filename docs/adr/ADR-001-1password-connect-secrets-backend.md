@@ -1,4 +1,4 @@
-# ADR-001: Use 1Password Connect as the ESO Secrets Backend
+# ADR-001: Use HashiCorp Vault as the ESO Secrets Backend
 
 **Date:** 2026-06-06  
 **Status:** Accepted  
@@ -20,88 +20,125 @@ Vaultwarden (web UI) → bw CLI (manual) → k8s Secret in `secrets` ns → ESO 
 
 This works but has two significant problems:
 
-1. **Manual seeding on every change.** Adding a new secret or rotating an existing one requires a human to run `bw get item ... | kubectl apply ...`. ESO's `refreshInterval` only refreshes the *destination* — it cannot detect that the source Secret changed on its own; that change still had to be made manually first.
+1. **Manual seeding on every change.** Adding a new secret or rotating an existing one requires a human to run `bw get item ... | kubectl apply ...`. ESO's `refreshInterval` only refreshes the *destination* — it cannot detect that the source changed on its own.
 
-2. **Manual seeding on every rebuild.** A new node requires seeding 9+ secrets into the `secrets` namespace before ArgoCD can sync any application. This is error-prone and must be done before the cluster is usable.
+2. **Manual seeding on every rebuild.** A new node requires seeding 9+ secrets into the `secrets` namespace before ArgoCD can sync any application. This is error-prone and a prerequisite gate before the cluster is usable.
 
 ### Why not keep Vaultwarden as the backend directly?
 
-Vaultwarden implements the Bitwarden **password manager** API. ESO has no native Vaultwarden/Bitwarden password manager provider. The only way to bridge them is the manual `bw` CLI step described above. Bitwarden's **Secrets Manager** product (a separate, cloud-hosted API) does have ESO support, but Vaultwarden does not implement that API and it cannot be self-hosted.
+Vaultwarden implements the Bitwarden **password manager** API. ESO has no native Vaultwarden/Bitwarden password manager provider. The only bridge is the manual `bw` CLI step above. Bitwarden's **Secrets Manager** product does have an ESO provider, but it is a separate cloud-hosted product — Vaultwarden does not implement that API.
 
-### Why not HashiCorp Vault?
+### Why not 1Password Connect?
 
-HashiCorp Vault (OSS) is the industry-standard self-hosted secrets backend and ESO supports it natively. It was considered and rejected for this homelab because:
+1Password Connect is a self-hosted server that exposes a local HTTP API over a 1Password cloud vault. ESO has an official provider for it. It was evaluated and rejected because:
 
-- Vault requires an **unseal** operation after every restart. On a single-node cluster, a node reboot leaves the cluster unable to distribute any secret until Vault is manually unsealed, creating a hard operational dependency.
-- Vault is a complex, stateful service with its own HA, storage backend, policy engine, and audit log — substantial operational overhead for a personal cluster.
-- The homelab already has Vaultwarden for human-facing credential storage. Running both Vault and Vaultwarden would mean managing two secret stores.
+- The **primary storage** is 1Password's cloud (1password.com). Secrets live externally by design. For a self-hosted homelab, this is an undesirable external dependency for infrastructure credentials.
+- **Cost:** 1Password Connect (Secrets Automation) may require a Teams plan (~$20/month) rather than the Personal plan (~$3/month). This requires verification and is a recurring cost.
+- If 1password.com is unreachable, Connect can serve cached values but cannot accept new secrets or rotations until connectivity is restored.
+- Introduces a cloud vendor dependency for a cluster whose goal is self-hosted operation.
 
 ### Why not Sealed Secrets?
 
-Sealed Secrets encrypt secrets and commit them to git, which solves the "secrets in git" problem differently. It was rejected because:
+Sealed Secrets encrypt secrets and commit them to git. Rejected because:
 
-- Rotation requires re-sealing and committing to git, which is more friction than updating a value in a password manager.
-- The sealed key pair is stored in the cluster — losing the cluster means losing the ability to decrypt without a key backup.
-- It does not integrate with a human-facing password manager, so there is still no single source of truth.
+- Rotation requires re-sealing and committing to git — more friction than updating a value in a secrets store.
+- The sealed key pair lives in the cluster — losing the cluster means losing the ability to decrypt without a separate key backup.
+- No live sync; no single human-facing UI to manage values.
 
 ---
 
 ## Decision
 
-Use **1Password Connect** as the ESO secrets backend.
+Use **HashiCorp Vault (OSS)** as the ESO secrets backend, deployed as a StatefulSet in the cluster.
 
-1Password Connect is a self-hosted server (two containers: `connect-api` + `connect-sync`) that exposes a local HTTP API over your 1Password vault. ESO has an official, well-maintained 1Password provider that reads from it directly.
+Vault's KV v2 secrets engine stores secrets as **key/value pairs** under organized paths, making it a natural fit for how application secrets are structured. ESO has an official, well-maintained Vault provider that reads directly from it.
 
 The new flow:
 
 ```
-1Password (app / web UI) → 1Password Connect (in-cluster) → ESO → app namespace
+Vault UI / CLI (in-cluster) → ESO (vault provider) → app namespace
 ```
 
-When a secret value is updated in the 1Password app or web UI, ESO picks it up automatically on the next `refreshInterval` cycle (default: 1 hour). No `bw` CLI, no manual `kubectl` commands.
+### Resolving the unseal problem
+
+Vault's primary objection for single-node homelabs is that it must be unsealed after every restart, otherwise ESO cannot sync secrets and apps cannot start. This is solved with two design choices:
+
+1. **Initialize with a single unseal key** (`-key-shares=1 -key-threshold=1`). One key is sufficient for a single-node cluster where the goal is operational simplicity, not multi-party key custody.
+
+2. **Auto-unseal via Kubernetes CronJob.** The unseal key is stored in a Kubernetes Secret (encrypted at rest by k3s). A CronJob runs every minute, checks Vault's seal status, and unseals automatically if needed. After a reboot, the worst-case delay before Vault is unsealed is ~60 seconds. During that window, ESO cannot refresh secrets, but existing Secret resources in application namespaces remain intact — pods do not restart.
+
+```
+@reboot (k3s restarts) → Vault pod starts (sealed) → CronJob fires within 60s
+→ reads unseal key from k8s Secret → vault operator unseal → ESO resumes syncing
+```
+
+The unseal key in the k8s Secret is protected by k3s's at-rest encryption. This is meaningfully more secure than a plaintext file on disk and acceptable for a homelab threat model.
+
+### Secrets structure
+
+All secrets are stored in Vault's KV v2 engine under the `secret/` mount as flat key/value pairs. Each logical secret group is one Vault path with multiple keys:
+
+```
+secret/postgres-secret       → POSTGRES_USER, POSTGRES_PASSWORD, POSTGRES_DB
+secret/authentik-db          → username, password
+secret/authentik-secret      → secret_key
+secret/immich-db             → username, password
+secret/nextcloud-db          → username, password
+secret/pgadmin-secret        → PGADMIN_DEFAULT_EMAIL, PGADMIN_DEFAULT_PASSWORD
+secret/resend-smtp           → host, port, username, password, from_address, use_tls
+secret/grafana-admin         → admin-user, admin-password
+secret/vaultwarden-admin     → ADMIN_TOKEN
+```
 
 ### What changes
 
 | Concern | Before | After |
 |---|---|---|
-| ESO backend | `kubernetes` provider → `secrets` namespace | `onepassword` provider → in-cluster Connect server |
-| Manual seeding (new secrets) | `bw CLI` + `kubectl apply` | Update item in 1Password app only |
-| Manual seeding (rotation) | `bw CLI` + `kubectl apply` | Update item in 1Password app only |
-| Rebuild bootstrap secrets | 9 manual `kubectl` commands | 1 secret (`onepassword-credentials`) + 1 token |
+| ESO backend | `kubernetes` provider → `secrets` namespace | `vault` provider → in-cluster Vault server |
+| Secret format | k8s Secrets manually seeded | Vault KV v2 key/value pairs |
+| Manual seeding (new secrets) | `bw CLI` + `kubectl apply` | `vault kv put secret/<path> key=value` |
+| Manual seeding (rotation) | `bw CLI` + `kubectl apply` | `vault kv patch secret/<path> key=newvalue` |
+| Rebuild bootstrap | 9 manual `kubectl` commands | Vault init (one-time) + unseal key secret |
+| Auto-unseal | None — fully manual | Kubernetes CronJob reads from k8s Secret |
 | `secrets` namespace | Required | Removed |
-| ESO RBAC (ServiceAccount, Role, RoleBinding) | Required | Removed |
-| Vaultwarden | Stays — used for personal passwords | Unchanged |
+| ESO RBAC (SA, Role, RoleBinding) | Required | Replaced by Vault Kubernetes auth |
+| Vaultwarden | Used for human-facing passwords | Unchanged — personal vault only |
+| Cost | $0 | $0 |
 
 ### What does not change
 
-- All `ExternalSecret` manifests (field references may need minor name alignment)
-- The `ClusterSecretStore` name (`k8s-secrets`) — kept the same to avoid touching every ExternalSecret
+- All `ExternalSecret` manifests — only `remoteRef.key` format changes (Vault path instead of k8s Secret name)
+- The `ClusterSecretStore` name (`k8s-secrets`) — kept the same to minimize ExternalSecret changes
 - ESO itself — only the provider block in the ClusterSecretStore changes
-- All application manifests — they consume ESO-created Secrets the same way
+- All application manifests — they consume ESO-created Secrets identically
 
 ### Tradeoffs accepted
 
 | Tradeoff | Mitigation |
 |---|---|
-| 1Password is a paid external service (~$3/month) | Cost is negligible; the operational benefit outweighs it |
-| 1Password Connect pod must be healthy for ESO to sync | ESO caches the last-known secret values; apps do not restart if Connect is briefly unavailable |
-| On a rebuild, 1Password Connect must start before ESO can sync any app | The `onepassword` ArgoCD app is assigned sync-wave `-1` so it deploys first |
-| 1Password `1password-credentials.json` must be seeded once on a rebuild | This is a single, stable credential that never rotates unless explicitly revoked — far simpler than the current 9-secret bootstrap |
+| Vault must be initialized once manually after first install | One-time step; documented in migration plan |
+| Up to 60s window after reboot where Vault is sealed | Existing app Secrets remain intact; pods do not restart; CronJob unseals automatically |
+| Unseal key stored in a k8s Secret on the same cluster | k3s encrypts secrets at rest; acceptable for homelab threat model |
+| Vault is another stateful service to manage | Longhorn backs its storage; single-node standalone mode is simple to operate |
+| Seeding secrets requires `vault` CLI instead of `kubectl` | `vault kv put` is simpler than the current `bw` + `kubectl` two-step |
 
 ---
 
 ## Consequences
 
 **Positive:**
-- Secret rotation is now a one-step operation: update the value in 1Password.
-- New cluster rebuilds require seeding exactly one credential file instead of nine secrets.
-- ESO auto-refreshes all app secrets within one `refreshInterval` cycle of any change.
-- The `secrets` namespace and associated RBAC are removed, simplifying the cluster.
-- The rebuild guide (`docs/rebuild-guide.md`) becomes significantly shorter.
+- Secrets are stored entirely within the cluster — no cloud dependency, no external vendor.
+- Key/value pair storage is explicit, auditable, and directly readable via `vault kv get`.
+- Secret rotation is a single `vault kv patch` command; ESO picks it up on the next `refreshInterval`.
+- Rebuild bootstrap is reduced to: initialize Vault + seed the unseal key k8s Secret.
+- No subscription cost.
+- Vault's policy engine enables fine-grained access control if needed in the future.
+- Vault UI (`vault.in.alybadawy.com`) provides a human-readable view of all secrets and their versions.
 
 **Negative:**
-- The cluster now depends on 1Password's cloud availability for the initial Connect authentication. Once Connect is running and authenticated, it caches credentials and operates independently of the 1Password cloud for the duration of the session.
-- A 1Password subscription is required.
+- Vault initialization is a one-time manual step that must be done before GitOps can sync apps.
+- The unseal key must be preserved offline — losing it means Vault cannot be unsealed after a full data loss.
+- Vault adds one more stateful service to the cluster (mitigated by Longhorn storage).
 
 ---
 
@@ -110,7 +147,7 @@ When a secret value is updated in the 1Password app or web UI, ESO picks it up a
 | Alternative | Reason rejected |
 |---|---|
 | Keep current `kubernetes` provider | Does not eliminate manual seeding — the core problem |
-| HashiCorp Vault (OSS) | Unseal dependency on single-node cluster; high operational complexity |
-| Bitwarden Secrets Manager (cloud) | Separate product from Vaultwarden; cloud-hosted only; additional cost |
-| Sealed Secrets | Rotation still requires git commits; no live sync |
-| AWS Secrets Manager | Cloud-only; incompatible with self-hosted homelab goals |
+| 1Password Connect | Secrets stored in 1password.com cloud; potential Teams-plan cost; external cloud dependency |
+| Bitwarden Secrets Manager | Cloud-hosted only; Vaultwarden does not implement the API |
+| Sealed Secrets | Rotation requires git commits; no live sync |
+| AWS Secrets Manager | Cloud-only; external dependency; cost |
