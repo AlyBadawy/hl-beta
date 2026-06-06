@@ -11,5 +11,4 @@ helmCharts:
     includeCRDs: true
 
 resources:
-  - namespace.yaml
   - cluster-secret-store.yaml
