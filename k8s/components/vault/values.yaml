@@ -1,0 +1,53 @@
+# Helm values for the hashicorp/vault chart.
+# Docs: https://developer.hashicorp.com/vault/docs/platform/k8s/helm/configuration
+
+server:
+  standalone:
+    enabled: true
+    config: |
+      ui = true
+
+      listener "tcp" {
+        tls_disable = 1
+        address     = "[::]:8200"
+        cluster_address = "[::]:8201"
+      }
+
+      storage "file" {
+        path = "/vault/data"
+      }
+
+  # PVC is managed separately in pvc.yaml (vault-data-lh) so we can apply
+  # Longhorn labels and recurring-backup annotations consistently.
+  dataStorage:
+    enabled: false
+
+  # Mount the Longhorn-backed PVC at the storage path expected by the config above.
+  volumes:
+    - name: data
+      persistentVolumeClaim:
+        claimName: vault-data-lh
+
+  volumeMounts:
+    - name: data
+      mountPath: /vault/data
+
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 250m
+      memory: 256Mi
+
+  # Ingress is managed via ingress.yaml to stay consistent with the rest of
+  # the cluster (standalone nginx Ingress resource + cert-manager annotation).
+  ingress:
+    enabled: false
+
+ui:
+  enabled: true
+
+# The sidecar injector is not needed — ESO handles all secret distribution.
+injector:
+  enabled: false

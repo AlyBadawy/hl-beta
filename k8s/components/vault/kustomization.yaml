@@ -1,0 +1,17 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: security
+
+helmCharts:
+  - name: vault
+    repo: https://helm.releases.hashicorp.com
+    version: 0.29.1
+    releaseName: vault
+    namespace: security
+    valuesFile: values.yaml
+
+resources:
+  - pvc.yaml
+  - ingress.yaml
+  - auto-unseal-cronjob.yaml

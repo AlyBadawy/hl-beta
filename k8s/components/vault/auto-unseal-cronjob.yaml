@@ -1,0 +1,46 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: vault-auto-unseal
+  namespace: security
+  labels:
+    app.kubernetes.io/name: vault
+    homelab/stack: security
+spec:
+  schedule: "*/1 * * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 1
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: unseal
+              image: hashicorp/vault:latest
+              command: ["/bin/sh", "-c"]
+              args:
+                - |
+                  STATUS=$(vault status -format=json 2>/dev/null | jq -r '.sealed // "true"')
+                  if [ "$STATUS" = "true" ]; then
+                    echo "Vault is sealed — unsealing"
+                    vault operator unseal "$UNSEAL_KEY"
+                  else
+                    echo "Vault is already unsealed — nothing to do"
+                  fi
+              env:
+                - name: VAULT_ADDR
+                  value: http://vault.security.svc.cluster.local:8200
+                - name: UNSEAL_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: vault-unseal-key
+                      key: key
+              resources:
+                requests:
+                  cpu: 10m
+                  memory: 16Mi
+                limits:
+                  cpu: 50m
+                  memory: 32Mi
