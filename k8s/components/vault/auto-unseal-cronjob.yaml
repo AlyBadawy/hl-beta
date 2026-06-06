@@ -31,7 +31,7 @@ spec:
                   fi
               env:
                 - name: VAULT_ADDR
-                  value: http://vault.security.svc.cluster.local:8200
+                  value: http://vault-0.vault-internal.security.svc.cluster.local:8200
                 - name: UNSEAL_KEY
                   valueFrom:
                     secretKeyRef:
