@@ -22,8 +22,8 @@ spec:
               command: ["/bin/sh", "-c"]
               args:
                 - |
-                  STATUS=$(vault status -format=json 2>/dev/null | jq -r '.sealed // "true"')
-                  if [ "$STATUS" = "true" ]; then
+                  vault status 2>/dev/null
+                  if [ $? -eq 2 ]; then
                     echo "Vault is sealed — unsealing"
                     vault operator unseal "$UNSEAL_KEY"
                   else
