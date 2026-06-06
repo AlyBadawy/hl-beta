@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Migrate PVCs from old namespaces (vaultwarden, auth) to the security namespace
+# Migrate PVCs from old namespaces (auth) to the security namespace
 # by rebinding existing Longhorn PVs — no data is copied or restored from backup.
 #
 # Run AFTER the namespace refactor has been pushed and ArgoCD has synced
@@ -14,14 +14,13 @@
 #   5. ArgoCD selfHeal rescales the apps automatically once PVCs are bound
 #
 # After this script succeeds, delete old namespaces:
-#   kubectl delete namespace vaultwarden auth cert-manager ingress-nginx whoami
+#   kubectl delete namespace auth cert-manager ingress-nginx whoami
 set -euo pipefail
 
 TARGET_NS="security"
 
 # "old-namespace:pvc-name:size"
 PVCS=(
-  "vaultwarden:vaultwarden-data-lh:5Gi"
   "auth:authentik-data-lh:5Gi"
   "auth:authentik-templates-lh:1Gi"
 )
@@ -36,10 +35,10 @@ for bin in kubectl; do
 done
 kubectl cluster-info >/dev/null 2>&1 || fail "Cannot reach cluster (check KUBECONFIG)."
 
-log "PVC migration: vaultwarden + auth namespaces → $TARGET_NS"
+log "PVC migration: auth namespace → $TARGET_NS"
 echo
 echo "This script will:"
-echo "  1. Scale down apps in vaultwarden, auth, and security namespaces"
+echo "  1. Scale down apps in auth and security namespaces"
 echo "  2. Rebind the existing Longhorn PVs to new PVCs in 'security'"
 echo "  No data is copied — the underlying Longhorn volumes are reused directly."
 echo
@@ -49,7 +48,7 @@ read -r CONFIRM
 
 # --- 1. Scale down apps in all affected namespaces ----------------------------
 log "Scaling down deployments in old namespaces and $TARGET_NS"
-for ns in vaultwarden auth "$TARGET_NS"; do
+for ns in auth "$TARGET_NS"; do
   if kubectl get namespace "$ns" >/dev/null 2>&1; then
     if kubectl get deploy -n "$ns" --no-headers 2>/dev/null | grep -q .; then
       kubectl scale deploy -n "$ns" --all --replicas=0
@@ -59,7 +58,7 @@ for ns in vaultwarden auth "$TARGET_NS"; do
 done
 
 log "Waiting for pods to terminate (up to 2 minutes)..."
-for ns in vaultwarden auth "$TARGET_NS"; do
+for ns in auth "$TARGET_NS"; do
   kubectl wait pod --all -n "$ns" --for=delete --timeout=120s 2>/dev/null || true
 done
 
@@ -167,5 +166,5 @@ Monitor progress:
   kubectl get pods -n security -w
 
 Once apps are healthy, delete the old orphaned namespaces:
-  kubectl delete namespace vaultwarden auth cert-manager ingress-nginx whoami
+  kubectl delete namespace auth cert-manager ingress-nginx whoami
 EOF

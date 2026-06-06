@@ -1,6 +1,6 @@
 # Secrets Rebuild Reference
 
-This document lists every secret that must be manually created after a full cluster rebuild. All other secrets (TLS certificates, Helm-generated passwords, ESO-distributed copies) are created automatically.
+This document lists every secret that must be manually created after a full cluster rebuild. All other secrets (TLS certificates, Helm-generated passwords, ESO-distributed copies) are created automatically once Vault is running and unsealed.
 
 ---
 
@@ -32,7 +32,7 @@ kubectl get secret <name> -n <namespace> \
 | **Type** | `Opaque` |
 | **Key** | `api-token` |
 | **Used by** | cert-manager `ClusterIssuer` (both `letsencrypt-prod` and `letsencrypt-staging`) for DNS-01 TLS challenges |
-| **Created by** | `provision/provision-gitops.sh` (prompts at runtime) |
+| **Created by** | `provision/bootstrap-argocd.sh` (prompts at runtime) |
 
 The Cloudflare API token must have **Zone → DNS → Edit** permission for the `alybadawy.com` zone.
 
@@ -51,39 +51,35 @@ kubectl get secret cloudflare-api-token -n cert-manager \
   -o jsonpath="{.data.api-token}" | base64 -d; echo
 ```
 
-> This secret is created automatically when you run `provision/provision-gitops.sh`. You only need the command above if you are seeding it manually outside of the provisioning script.
-
 ---
 
-## Secret 2 — `vaultwarden-admin`
+## Secret 2 — `vault-unseal-key`
 
 | Field | Value |
 |---|---|
-| **Namespace** | `secrets` |
+| **Namespace** | `vault` |
 | **Type** | `Opaque` |
-| **Key** | `ADMIN_TOKEN` |
-| **Used by** | Vaultwarden — ESO reads this from the `secrets` namespace and distributes it to the `vaultwarden` namespace |
-| **Created by** | Manually — must exist before ArgoCD syncs the `vaultwarden` app |
+| **Key** | `key` |
+| **Used by** | `vault-auto-unseal` CronJob — unseals Vault within 60s of a reboot |
+| **Created by** | Manually — must exist before ArgoCD syncs the `vault` app |
 
-This is a pure bootstrap secret. It must be seeded before the cluster syncs. Store the token value offline (e.g., in your local password manager) since this is also what you'll use to log into Vaultwarden once it starts.
+The unseal key is generated once during initial Vault initialization and must be stored offline. On a rebuild, it is seeded manually before Phase 8 so the CronJob can unseal the restored Vault automatically.
 
 **Create:**
 ```bash
-kubectl create namespace secrets --dry-run=client -o yaml | kubectl apply -f -
+kubectl create namespace vault --dry-run=client -o yaml | kubectl apply -f -
 
-kubectl create secret generic vaultwarden-admin \
-  --namespace=secrets \
-  --from-literal=ADMIN_TOKEN="$(openssl rand -base64 48)" \
+kubectl create secret generic vault-unseal-key \
+  --namespace=vault \
+  --from-literal=key="<UNSEAL_KEY_FROM_OFFLINE_BACKUP>" \
   --save-config \
   --dry-run=client -o yaml | kubectl apply -f -
 ```
 
-> Save the generated token before running — you cannot recover it without `kubectl` after this point.
-
 **Retrieve:**
 ```bash
-kubectl get secret vaultwarden-admin -n secrets \
-  -o jsonpath="{.data.ADMIN_TOKEN}" | base64 -d; echo
+kubectl get secret vault-unseal-key -n vault \
+  -o jsonpath="{.data.key}" | base64 -d; echo
 ```
 
 ---
@@ -92,8 +88,8 @@ kubectl get secret vaultwarden-admin -n secrets \
 
 | Secret | Namespace | Keys | Who creates it |
 |---|---|---|---|
-| `cloudflare-api-token` | `cert-manager` | `api-token` | `provision-gitops.sh` (or manually) |
-| `vaultwarden-admin` | `secrets` | `ADMIN_TOKEN` | Manually — must be done before first ArgoCD sync |
+| `cloudflare-api-token` | `cert-manager` | `api-token` | `bootstrap-argocd.sh` (or manually) |
+| `vault-unseal-key` | `vault` | `key` | Manually — seeded from offline backup before Phase 8 |
 
 ---
 
@@ -101,11 +97,9 @@ kubectl get secret vaultwarden-admin -n secrets \
 
 These values must be saved somewhere safe and **offline** (e.g., a local password manager, printed paper in a secure location). They cannot be recovered from the cluster alone after a rebuild:
 
-- [ ] **Vaultwarden admin token** — the `ADMIN_TOKEN` used to access `/admin`. Stored in `secrets/vaultwarden-admin`.
-- [ ] **Vaultwarden user master password** — the master password for your Vaultwarden user account (`alybadawy@icloud.com`). This is the key that unlocks the entire vault and all secrets stored inside it. Without it, all credentials in Vaultwarden are inaccessible even if the server is running.
+- [ ] **Vault unseal key** — needed if the `vault-unseal-key` k8s Secret is ever lost. Without it, Vault will start sealed and all ESO-backed secrets will fail to sync.
+- [ ] **Vault root token** — the bootstrap admin credential. Keep as a break-glass key after rotating to a non-root token.
 - [ ] **Cloudflare API token** — needed to re-seed `cloudflare-api-token` if the cert-manager secret is lost.
-
-> The Vaultwarden master password is never stored anywhere in the cluster — it exists only in your memory and your offline backup. Losing it means losing access to everything stored in the vault.
 
 ---
 
@@ -114,12 +108,14 @@ These values must be saved somewhere safe and **offline** (e.g., a local passwor
 Create secrets in this order to avoid dependency failures:
 
 ```
-1. kubectl create namespace secrets
-2. kubectl create secret generic vaultwarden-admin -n secrets ...   ← save the token offline
-3. ./provision/provision-gitops.sh    # prompts for Cloudflare token, bootstraps ArgoCD
+1. ./provision/provision-server.sh              # Phases 2–6
+2. kubectl create secret generic vault-unseal-key -n vault ...   ← from offline backup
+3. ./provision/bootstrap-argocd.sh              # Phase 7: installs ArgoCD, seeds cloudflare-api-token
+4. ./provision/restore-volumes.sh               # Phase 8: installs Longhorn, restores PVC backups
+5. ./provision/activate-gitops.sh               # Phase 9: Vault (wave -1) starts → CronJob unseals → ESO syncs all secrets → apps start
 ```
 
-Once Vaultwarden is running, log in with your master password and resume storing credentials there. Future application secrets (SMTP, API keys, etc.) are added to Vaultwarden and seeded into the `secrets` namespace via `bw` CLI — see `docs/vaultwarden-secrets-management.md`.
+On a rebuild, Vault's data volume is restored from its Longhorn backup — Vault is already initialized. Only the unseal key secret needs to be manually seeded.
 
 ---
 
@@ -131,10 +127,10 @@ These are created automatically — do not create them manually:
 |---|---|---|
 | `argocd-initial-admin-secret` | `argocd` | ArgoCD Helm chart |
 | `prometheus-grafana` | `monitor` | kube-prometheus-stack Helm chart |
-| `vaultwarden-admin` (copy) | `vaultwarden` | ESO (synced from `secrets` ns) |
-| `*-tls` (grafana, prometheus, alertmanager, whoami, vaultwarden, argocd) | various | cert-manager |
+| `*-tls` (grafana, prometheus, alertmanager, whoami, argocd, vault) | various | cert-manager |
 | `letsencrypt-*-account-key` | `cert-manager` | cert-manager |
+| All app secrets (postgres, authentik, immich, etc.) | various | ESO (reads from Vault) |
 
 ---
 
-**Last Updated:** 2026-06-04
+**Last Updated:** 2026-06-06

@@ -30,8 +30,8 @@ hl-beta/
 │   │   ├── ingress-nginx.yaml
 │   │   ├── cert-manager.yaml
 │   │   ├── external-secrets.yaml
+│   │   ├── vault.yaml
 │   │   ├── db.yaml
-│   │   ├── vaultwarden.yaml
 │   │   ├── monitor.yaml
 │   │   └── whoami.yaml
 │   └── components/               # Helm chart values + Kustomize overlays
@@ -39,9 +39,9 @@ hl-beta/
 │       ├── longhorn/             # Longhorn Helm values (bootstrapped + GitOps-managed)
 │       ├── ingress-nginx/
 │       ├── cert-manager/
-│       ├── external-secrets/
+│       ├── external-secrets/     # ClusterSecretStore — ESO reads from Vault
+│       ├── vault/                # HashiCorp Vault — secrets backend (wave -1)
 │       ├── db/
-│       ├── vaultwarden/
 │       ├── monitor/
 │       └── whoami/
 ├── docs/                         # Architecture and decision documentation
@@ -170,12 +170,18 @@ to ArgoCD. After this, Git (main branch) is the sole source of truth.
 
 - ArgoCD discovers all child apps in `k8s/apps/`
 - Adopts the imperatively-installed ArgoCD and Longhorn with no diff (self-managing)
-- Deploys ingress-nginx, cert-manager, external-secrets, and all application stacks
+- Deploys ingress-nginx, cert-manager, external-secrets, vault, and all application stacks
+- Vault (sync-wave `-1`) starts first; the auto-unseal CronJob unseals it within 60s
+- ESO connects to Vault and syncs all ExternalSecrets; apps start with their secrets populated
 - Stateful apps bind to PVCs pre-created in Phase 8
 
 **Access ArgoCD UI (once ingress-nginx syncs):**
 - https://argo.in.alybadawy.com
 - Username: `admin` — rotate the password on first login
+
+**Access Vault UI:**
+- https://vault.in.alybadawy.com
+- Before ingress is live: `kubectl port-forward -n vault svc/vault 8200:8200` → http://localhost:8200
 
 ## Key Design Decisions
 
@@ -202,6 +208,21 @@ See Architecture Decision Records in `docs/ADR-*.md` for detailed rationale.
    to a specific restored Longhorn volume. When apps deploy, they bind to existing PVCs
    instead of triggering dynamic provisioning. Namespace must exist before PVC creation.
 
+### Secrets Design
+
+7. **HashiCorp Vault as the ESO secrets backend** — All application secrets are stored in
+   Vault KV v2 under `secret/`. ESO reads from Vault via the `ClusterSecretStore/k8s-secrets`
+   (Vault provider, Kubernetes auth). No secrets are stored in git or in a `secrets` namespace.
+   Vault runs in the `vault` namespace as a StatefulSet backed by a Longhorn PVC.
+
+8. **Auto-unseal CronJob** — A CronJob runs every minute and unseals Vault if it finds it
+   sealed (e.g., after a pod restart). The unseal key is stored in `vault-unseal-key` Secret
+   in the `vault` namespace. On a rebuild, this is the only secret that must be seeded manually.
+
+9. **Rebuild requires only one manual secret** — After restoring Longhorn backups (which
+   include Vault's data PVC), only `vault-unseal-key` needs to be seeded before GitOps runs.
+   Everything else flows automatically: Vault unseals → ESO syncs → apps start.
+
 ## Running the Provisioning
 
 ### Initial Setup
@@ -210,10 +231,17 @@ See Architecture Decision Records in `docs/ADR-*.md` for detailed rationale.
 # Server setup
 ./provision/provision-server.sh   # Phases 2–6
 
+# Seed the Vault unseal key (from offline backup) before GitOps runs
+kubectl create namespace vault --dry-run=client -o yaml | kubectl apply -f -
+kubectl create secret generic vault-unseal-key -n vault \
+  --from-literal=key="<UNSEAL_KEY_FROM_OFFLINE_BACKUP>"
+
 # GitOps bootstrap — run in order:
 ./provision/bootstrap-argocd.sh   # Phase 7: install ArgoCD
-./provision/restore-volumes.sh    # Phase 8: install Longhorn + restore PVCs
+./provision/restore-volumes.sh    # Phase 8: install Longhorn + restore PVCs (includes Vault data)
 ./provision/activate-gitops.sh    # Phase 9: apply app-of-apps, GitOps takes over
+                                  #   → Vault starts (wave -1), CronJob unseals it
+                                  #   → ESO syncs all secrets from Vault → apps start
 ```
 
 Scripts prompt only for what varies at runtime. Everything else is hardcoded in `provision/lib/defaults.sh`.
@@ -270,5 +298,5 @@ export SMTP_FROM=alerts@mycompany.com
 
 ---
 
-**Last Updated:** 2026-06-04  
-**Phase:** Phase 9 Complete — GitOps active
+**Last Updated:** 2026-06-06  
+**Phase:** Phase 9 Complete — GitOps active, HashiCorp Vault is the secrets backend

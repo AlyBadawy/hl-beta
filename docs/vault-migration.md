@@ -41,7 +41,6 @@ All secrets are stored in Vault KV v2 under the `secret/` mount as key/value pai
 
 | Vault Path | Key | Value (example / description) |
 |---|---|---|
-| `secret/vaultwarden-admin` | `ADMIN_TOKEN` | Vaultwarden admin panel token |
 | `secret/postgres-secret` | `POSTGRES_USER` | PostgreSQL superuser name |
 | `secret/postgres-secret` | `POSTGRES_PASSWORD` | PostgreSQL superuser password |
 | `secret/postgres-secret` | `POSTGRES_DB` | Default database name |
@@ -378,9 +377,6 @@ With Vault configured, write all secrets as key/value pairs. Each `vault kv put`
 export VAULT_ADDR=http://localhost:8200
 export VAULT_TOKEN="$ROOT_TOKEN"
 
-vault kv put secret/vaultwarden-admin \
-  ADMIN_TOKEN="<value>"
-
 vault kv put secret/postgres-secret \
   POSTGRES_USER="<value>" \
   POSTGRES_PASSWORD="<value>" \
@@ -549,4 +545,3 @@ Store these safely offline — local password manager, printed paper, or equival
 - [ ] **Vault unseal key** — needed if the `vault-unseal-key` k8s Secret is lost
 - [ ] **Vault root token** — bootstrap admin credential; keep as a break-glass key after rotating
 - [ ] **Cloudflare API token** — still needed for cert-manager DNS-01 bootstrap
-- [ ] **Vaultwarden master password** — unchanged; required to access the personal vault
