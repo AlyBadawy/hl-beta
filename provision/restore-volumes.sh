@@ -145,14 +145,18 @@ echo
 # --- 7. Restore each volume -----------------------------------------------
 declare -a RESTORED=()
 
-while IFS= read -r BACKUP_VOL; do
+# Use mapfile + for-loop instead of while-read-from-herestring so that stdin
+# remains connected to the terminal for the interactive read prompts below.
+mapfile -t BACKUP_VOLUME_ARRAY <<< "$BACKUP_VOLUME_NAMES"
+
+for BACKUP_VOL in "${BACKUP_VOLUME_ARRAY[@]}"; do
   [[ -z "$BACKUP_VOL" ]] && continue
 
   log "Restoring: $BACKUP_VOL"
 
   # Get the latest backup URL for this volume
-  LATEST_BACKUP=$(curl -s "${LONGHORN_API}/backupvolumes/${BACKUP_VOL}/backups" \
-    | jq -r '.data | sort_by(.created) | last | .url')
+  BACKUP_RESP=$(curl -s "${LONGHORN_API}/backupvolumes/${BACKUP_VOL}/backups") || BACKUP_RESP="{}"
+  LATEST_BACKUP=$(echo "$BACKUP_RESP" | jq -r '.data | sort_by(.created) | last | .url // empty' 2>/dev/null) || LATEST_BACKUP=""
   if [[ -z "$LATEST_BACKUP" || "$LATEST_BACKUP" == "null" ]]; then
     warn "  No backups found for $BACKUP_VOL — skipping"
     continue
@@ -160,14 +164,14 @@ while IFS= read -r BACKUP_VOL; do
 
   # Calculate size in Gi (round up, minimum 1Gi)
   SIZE_BYTES=$(echo "$BACKUP_VOLUMES_JSON" \
-    | jq -r --arg n "$BACKUP_VOL" '.data[] | select(.name==$n) | .size')
+    | jq -r --arg n "$BACKUP_VOL" '.data[] | select(.name==$n) | .size' 2>/dev/null) || SIZE_BYTES=0
   SIZE_GI=$(( (SIZE_BYTES + 1073741823) / 1073741824 ))
   [[ $SIZE_GI -lt 1 ]] && SIZE_GI=1
 
   # Ask where this PVC should live
-  printf '  Namespace for "%s" [e.g. vaultwarden]: ' "$BACKUP_VOL"
+  printf '  Namespace for "%s": ' "$BACKUP_VOL"
   read -r TARGET_NS
-  printf '  PVC name for "%s" [e.g. vaultwarden-data]: ' "$BACKUP_VOL"
+  printf '  PVC name for "%s": ' "$BACKUP_VOL"
   read -r PVC_NAME
   if [[ -z "$TARGET_NS" || -z "$PVC_NAME" ]]; then
     warn "  Skipping $BACKUP_VOL — no namespace/PVC name provided"
@@ -244,7 +248,7 @@ spec:
 MANIFEST
 
   RESTORED+=("$TARGET_NS/$PVC_NAME  →  longhorn volume: $LONGHORN_VOL_NAME")
-done <<< "$BACKUP_VOLUME_NAMES"
+done
 
 # --- 8. Summary -----------------------------------------------------------
 cat <<EOF

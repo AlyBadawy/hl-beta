@@ -252,11 +252,11 @@ Use these answers (must match the PVC names in the manifests exactly):
 
 | Backup volume name (from NAS) | Namespace | PVC name |
 |---|---|---|
-| `vault-data-lh` | `vault` | `vault-data-lh` |
+| `vault-data-lh` | `security` | `vault-data-lh` |
 | `postgres-data-lh` | `db` | `postgres-data-lh` |
 | `nextcloud-data-lh` | `cloud` | `nextcloud-data-lh` |
-| `authentik-media-lh` | `auth` | `authentik-media-lh` |
-| `authentik-templates-lh` | `auth` | `authentik-templates-lh` |
+| `authentik-media-lh` | `security` | `authentik-media-lh` |
+| `authentik-templates-lh` | `security` | `authentik-templates-lh` |
 
 > If a backup volume name in the NAS does not match the table above (e.g., due to a rename), check the actual PVC names in the manifests: `grep -r "claimName" k8s/components/ --include="*.yaml"`.
 
