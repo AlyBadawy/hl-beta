@@ -22,21 +22,20 @@ spec:
               command: ["/bin/sh", "-c"]
               args:
                 - |
-                  vault status 2>/dev/null; STATUS=$?
-                  if [ "$STATUS" -eq 2 ]; then
+                  HTTP=$(curl -s -o /dev/null -w "%{http_code}" --max-time 5 \
+                    "${VAULT_ADDR}/v1/sys/health" 2>/dev/null)
+                  if [ "$HTTP" = "503" ]; then
                     echo "Vault is sealed — unsealing"
                     vault operator unseal "$UNSEAL_KEY"
-                  elif [ "$STATUS" -eq 0 ]; then
-                    echo "Vault is already unsealed — nothing to do"
+                  elif [ "$HTTP" = "200" ] || [ "$HTTP" = "429" ] || [ "$HTTP" = "473" ]; then
+                    echo "Vault is unsealed (HTTP $HTTP) — nothing to do"
                   else
-                    echo "Vault unreachable (exit $STATUS) — will retry next minute"
+                    echo "Vault unreachable or not ready (HTTP $HTTP) — will retry next minute"
                     exit 1
                   fi
               env:
                 - name: VAULT_ADDR
                   value: http://vault-0.vault-internal.security.svc.cluster.local:8200
-                - name: VAULT_CLIENT_TIMEOUT
-                  value: "5"
                 - name: UNSEAL_KEY
                   valueFrom:
                     secretKeyRef:
