@@ -148,7 +148,7 @@ Only **two secrets** require manual intervention on a rebuild. Everything else i
 
 | Secret | Namespace | How it's created | Why it's needed |
 |---|---|---|---|
-| `vault-unseal-key` | `vault` | Manually — Phase 3 above | CronJob unseals Vault within 60s of each pod restart |
+| `vault-unseal-key` | `security` | Manually — Phase 3 above | CronJob unseals Vault within 60s of each pod restart |
 | `cloudflare-api-token` | `networking` | `bootstrap-argocd.sh` prompt — Phase 5 | DNS-01 TLS challenges for `*.in.alybadawy.com` via cert-manager |
 
 **All other app secrets** (postgres credentials, authentik secret key, immich credentials, nextcloud credentials, SMTP, grafana admin, etc.) are stored in Vault's KV store at `secret/`. ESO reads them from Vault and distributes copies into each app namespace automatically. Because Vault's data PVC is part of the Longhorn backup, no manual seeding of these secrets is required.
@@ -230,37 +230,41 @@ The script will ask:
 - Answer **`n`** (default) to restore from NAS backups — this is what you want for a rebuild.
 - Answer **`y`** only on a first-ever install with no existing data.
 
-### What happens in restore mode
+### What the script does
 
 1. Installs Longhorn from `k8s/components/longhorn`
-2. Port-forwards the Longhorn API on `localhost:9000`
-3. Syncs the backup target (`nfs://172.20.20.2:/var/nfs/shared/backups/pvcs`)
-4. Lists all available backup volumes on the NAS
-5. For each volume, prompts for the target namespace and PVC name
-6. Creates a Longhorn volume from the latest backup, then creates a pre-bound PV + PVC
+2. Waits for Longhorn to be ready
+3. Applies the BackupTarget (pointing at `nfs://172.20.20.2:/var/nfs/shared/backups/pvcs`) and RecurringJob resources
+4. Opens the Longhorn UI via port-forward on `http://localhost:9000`
+5. **Waits for you to restore volumes manually through the UI**
+6. Exits once you confirm the restore is complete
 
-### Prompted values for each backup volume
+### Manual restore steps (in the Longhorn UI)
 
-The script will show you each available volume name and ask:
+With `http://localhost:9000` open in your browser:
 
-```
-Namespace for "<volume>": <answer>
-PVC name for "<volume>": <answer>
-```
+1. Click **Backup** in the left sidebar
+2. If no backup volumes appear, click the sync icon to refresh from the NAS
+3. For each backup volume, select the latest backup entry and click **Restore**
+4. When prompted for a volume name, use the **PVC name** from the table below
+5. After restoring all volumes, go to **Volume** and confirm each shows state **Detached**
+6. For each restored volume, click **Create PV/PVC** — set the correct **namespace** and **PVC name** from the table
 
-Use these answers (must match the PVC names in the manifests exactly):
+### Volume → namespace/PVC mapping
 
-| Backup volume name (from NAS) | Namespace | PVC name |
+| Backup volume (shown in UI) | Namespace | PVC name |
 |---|---|---|
-| `vault-data-lh` | `security` | `vault-data-lh` |
-| `postgres-data-lh` | `db` | `postgres-data-lh` |
-| `nextcloud-data-lh` | `cloud` | `nextcloud-data-lh` |
-| `authentik-media-lh` | `security` | `authentik-media-lh` |
-| `authentik-templates-lh` | `security` | `authentik-templates-lh` |
+| `pvc-cc69b622-...` (vault) | `security` | `vault-data-lh` |
+| `pvc-156223fb-...` (postgres) | `db` | `postgres-data-lh` |
+| `pvc-6b246721-...` (nextcloud) | `cloud` | `nextcloud-data-lh` |
+| `pvc-fa03ae85-...` (authentik media) | `security` | `authentik-media-lh` |
+| `pvc-5081ced2-...` (authentik templates) | `security` | `authentik-templates-lh` |
 
-> If a backup volume name in the NAS does not match the table above (e.g., due to a rename), check the actual PVC names in the manifests: `grep -r "claimName" k8s/components/ --include="*.yaml"`.
+> The backup volume names in the UI are the internal Longhorn IDs (long UUIDs). The `lastBackupName` field and the Longhorn UI label can help you identify which is which by size. If unsure, check the `volumeName` shown in each backup volume's detail page.
 
-After the restore completes, verify the PVCs exist:
+Once all PVCs are created, press **Enter** in the terminal to let the script confirm and exit.
+
+After the script exits, verify the PVCs exist:
 
 ```bash
 kubectl get pvc -A | grep -E "lh$"
@@ -537,8 +541,8 @@ For a clean rebuild, run these commands in order (filling in the values at each 
 ./provision/provision-server.sh   # prompted: server IP only
 
 # 3. Seed the Vault unseal key (from offline backup — must exist before GitOps)
-kubectl create namespace vault --dry-run=client -o yaml | kubectl apply -f -
-kubectl create secret generic vault-unseal-key -n vault \
+kubectl create namespace security --dry-run=client -o yaml | kubectl apply -f -
+kubectl create secret generic vault-unseal-key -n security \
   --from-literal=key="<UNSEAL_KEY_FROM_OFFLINE_BACKUP>" \
   --save-config --dry-run=client -o yaml | kubectl apply -f -
 

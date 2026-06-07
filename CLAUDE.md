@@ -152,9 +152,9 @@ Installs Longhorn distributed storage and optionally restores PVC backups from N
 - Exits; volumes are created automatically on first use
 
 **Cluster rebuild mode** (restoring from backup):
-- Installs Longhorn, then port-forwards the Longhorn REST API
-- Syncs the backup target and lists available backup volumes
-- For each volume: restores from the latest backup, creates a pre-bound PV + PVC
+- Installs Longhorn, then opens the Longhorn UI via port-forward on `localhost:9000`
+- Operator manually restores each volume from the UI (Backup → Restore) and creates PV/PVCs
+- Script waits for operator confirmation, then exits
 - When Phase 9 deploys stateful apps, they bind to the restored PVCs
 
 **Access Longhorn UI (once ingress-nginx and cert-manager are live):**

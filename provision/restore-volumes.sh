@@ -5,11 +5,11 @@
 # Fresh cluster:  installs Longhorn, configures the NAS backup target, exits.
 #                 Volumes will be created automatically when apps first deploy.
 #
-# Cluster rebuild: restores each backed-up volume from NAS and pre-creates PVCs
-#                  so stateful apps bind to existing data instead of new empties.
+# Cluster rebuild: installs Longhorn, opens the UI via port-forward, and waits
+#                  for the operator to manually restore volumes through the UI.
+#                  Once confirmed, the script exits and Phase 9 can proceed.
 #
-# The Longhorn API is accessed via a temporary port-forward on localhost:9000.
-# Backup target is the NFS share at NAS_IP/NAS_BASE_SHARE/backups (defaults.sh).
+# Backup target is the NFS share at NAS_IP/NAS_BASE_SHARE/backups/pvcs (defaults.sh).
 #
 # Prerequisite: open-iscsi must be installed on the node (added to
 #   update-dependencies in Phase 3). Longhorn uses it for block storage.
@@ -18,8 +18,7 @@
 set -euo pipefail
 
 LONGHORN_NAMESPACE="longhorn-system"
-LONGHORN_API_PORT=9000
-LONGHORN_API="http://localhost:${LONGHORN_API_PORT}/v1"
+LONGHORN_UI_PORT=9000
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 repo_root="$(cd "$script_dir/.." && pwd)"
@@ -35,7 +34,7 @@ fail() { printf '\033[1;31mERROR:\033[0m %s\n' "$*" >&2; exit 1; }
 BACKUP_TARGET="nfs://${NAS_IP}:${NAS_BASE_SHARE}/backups/pvcs"
 
 # --- Preflight -------------------------------------------------------------
-for bin in kubectl kustomize helm curl jq; do
+for bin in kubectl kustomize helm; do
   command -v "$bin" >/dev/null 2>&1 || fail "'$bin' is required but not on PATH."
 done
 kubectl cluster-info >/dev/null 2>&1 || fail "Cannot reach a Kubernetes cluster (check KUBECONFIG)."
@@ -78,199 +77,64 @@ read -r FRESH_CLUSTER
 if [[ "$FRESH_CLUSTER" =~ ^[Yy]$ ]]; then
   cat <<EOF
 
-$(log "Longhorn installed (fresh mode). No volumes restored.")
+$(log "Longhorn installed (fresh mode). No volumes to restore.")
 
 Volumes will be created automatically when apps are first deployed.
 Backup target configured: $BACKUP_TARGET
-
-Access Longhorn UI:
-  kubectl port-forward -n $LONGHORN_NAMESPACE svc/longhorn-frontend $LONGHORN_API_PORT:80
-  open http://localhost:$LONGHORN_API_PORT
 
 Next step: provision/activate-gitops.sh
 EOF
   exit 0
 fi
 
-# --- 4. Start Longhorn API port-forward ------------------------------------
-log "Starting Longhorn API port-forward on localhost:${LONGHORN_API_PORT}"
+# --- 4. Open Longhorn UI for manual restore --------------------------------
+log "Starting Longhorn UI port-forward on http://localhost:${LONGHORN_UI_PORT}"
 kubectl port-forward -n "$LONGHORN_NAMESPACE" \
-  svc/longhorn-frontend "${LONGHORN_API_PORT}:80" &
+  svc/longhorn-frontend "${LONGHORN_UI_PORT}:80" &
 PF_PID=$!
 trap 'kill "$PF_PID" 2>/dev/null || true' EXIT
 
-# Wait for the port-forward to be ready
+# Wait for the port-forward to be reachable
 for i in $(seq 1 15); do
-  curl -sf "${LONGHORN_API}/volumes" >/dev/null 2>&1 && break
+  curl -sf "http://localhost:${LONGHORN_UI_PORT}/v1/volumes" >/dev/null 2>&1 && break
   sleep 2
 done
-curl -sf "${LONGHORN_API}/volumes" >/dev/null 2>&1 \
-  || fail "Longhorn API not reachable at ${LONGHORN_API} — is Longhorn fully up?"
+curl -sf "http://localhost:${LONGHORN_UI_PORT}/v1/volumes" >/dev/null 2>&1 \
+  || fail "Longhorn UI not reachable at http://localhost:${LONGHORN_UI_PORT} — is Longhorn fully up?"
 
-# --- 5. Sync backup target ------------------------------------------------
-log "Syncing backup target: $BACKUP_TARGET"
-curl -s -X POST "${LONGHORN_API}/backuptargets/default?action=syncBackupTarget" \
-  -H "Content-Type: application/json" -d '{}' >/dev/null || true
-
-# --- 6. List available backup volumes -------------------------------------
-# Poll until volumes appear or we time out (up to 3 minutes).
-log "Waiting for backup catalog to load from NFS..."
-BACKUP_VOLUMES_JSON=""
-BACKUP_VOLUME_NAMES=""
-for i in $(seq 1 18); do
-  BACKUP_VOLUMES_JSON=$(curl -s "${LONGHORN_API}/backupvolumes")
-  BACKUP_VOLUME_NAMES=$(echo "$BACKUP_VOLUMES_JSON" | jq -r '.data[].name // empty')
-  [[ -n "$BACKUP_VOLUME_NAMES" ]] && break
-  printf '  attempt %d/18 — no volumes yet, retrying in 10s...\n' "$i"
-  sleep 10
-done
-
-if [[ -z "$BACKUP_VOLUME_NAMES" ]]; then
-  warn "No backup volumes found at $BACKUP_TARGET after 3 minutes."
-  warn "Check the Longhorn UI: kubectl port-forward -n $LONGHORN_NAMESPACE svc/longhorn-frontend 9001:80"
-  warn "Verify the backup target is reachable and backups exist on the NAS share."
-  exit 1
-fi
-
-log "Found backup volumes:"
-while IFS= read -r bvol; do
-  SIZE=$(echo "$BACKUP_VOLUMES_JSON" \
-    | jq -r --arg n "$bvol" '.data[] | select(.name==$n) | .size')
-  SIZE_GI=$(( (SIZE + 1073741823) / 1073741824 ))
-  [[ $SIZE_GI -lt 1 ]] && SIZE_GI=1
-  printf '  %-40s  %sGi\n' "$bvol" "$SIZE_GI"
-done <<< "$BACKUP_VOLUME_NAMES"
-echo
-
-# --- 7. Restore each volume -----------------------------------------------
-declare -a RESTORED=()
-
-# The while loop reads volume names from a herestring, which redirects stdin.
-# Interactive read prompts inside the loop use </dev/tty to read from the
-# terminal directly, bypassing the stdin redirection.
-while IFS= read -r BACKUP_VOL; do
-  [[ -z "$BACKUP_VOL" ]] && continue
-
-  log "Restoring: $BACKUP_VOL"
-
-  # Get the latest backup URL for this volume
-  BACKUP_RESP=$(curl -s "${LONGHORN_API}/backupvolumes/${BACKUP_VOL}/backups") || BACKUP_RESP="{}"
-  LATEST_BACKUP=$(echo "$BACKUP_RESP" | jq -r '.data | sort_by(.created) | last | .url // empty' 2>/dev/null) || LATEST_BACKUP=""
-  if [[ -z "$LATEST_BACKUP" || "$LATEST_BACKUP" == "null" ]]; then
-    warn "  No backups found for $BACKUP_VOL — skipping"
-    continue
-  fi
-
-  # Calculate size in Gi (round up, minimum 1Gi)
-  SIZE_BYTES=$(echo "$BACKUP_VOLUMES_JSON" \
-    | jq -r --arg n "$BACKUP_VOL" '.data[] | select(.name==$n) | .size' 2>/dev/null) || SIZE_BYTES=0
-  SIZE_GI=$(( (SIZE_BYTES + 1073741823) / 1073741824 ))
-  [[ $SIZE_GI -lt 1 ]] && SIZE_GI=1
-
-  # Ask where this PVC should live (read from /dev/tty — stdin is the herestring)
-  printf '  Namespace for "%s": ' "$BACKUP_VOL"
-  read -r TARGET_NS < /dev/tty
-  printf '  PVC name for "%s": ' "$BACKUP_VOL"
-  read -r PVC_NAME < /dev/tty
-  if [[ -z "$TARGET_NS" || -z "$PVC_NAME" ]]; then
-    warn "  Skipping $BACKUP_VOL — no namespace/PVC name provided"
-    continue
-  fi
-
-  LONGHORN_VOL_NAME="${PVC_NAME}-restored"
-  PV_NAME="${PVC_NAME}-pv"
-
-  # Create Longhorn volume from backup
-  log "  Creating Longhorn volume '$LONGHORN_VOL_NAME' from backup"
-  curl -s -X POST "${LONGHORN_API}/volumes" \
-    -H "Content-Type: application/json" \
-    -d "{
-      \"name\": \"$LONGHORN_VOL_NAME\",
-      \"fromBackup\": \"$LATEST_BACKUP\",
-      \"numberOfReplicas\": 1
-    }" >/dev/null
-
-  # Wait for restore to reach 'detached' state (up to 5 minutes)
-  log "  Waiting for restore to complete..."
-  RESTORE_DONE=false
-  for i in $(seq 1 60); do
-    STATE=$(curl -s "${LONGHORN_API}/volumes/${LONGHORN_VOL_NAME}" \
-      | jq -r '.state // "unknown"')
-    if [[ "$STATE" == "detached" ]]; then
-      RESTORE_DONE=true
-      break
-    fi
-    sleep 5
-  done
-  if [[ "$RESTORE_DONE" != "true" ]]; then
-    warn "  Restore of $LONGHORN_VOL_NAME did not complete in time — skipping PVC creation"
-    continue
-  fi
-
-  # Create namespace if needed
-  kubectl get namespace "$TARGET_NS" >/dev/null 2>&1 \
-    || kubectl create namespace "$TARGET_NS"
-
-  # Create PV + PVC pre-bound to the restored Longhorn volume
-  log "  Creating PV '$PV_NAME' and PVC '$PVC_NAME' in namespace '$TARGET_NS'"
-  kubectl apply -f - <<MANIFEST
-apiVersion: v1
-kind: PersistentVolume
-metadata:
-  name: $PV_NAME
-spec:
-  capacity:
-    storage: ${SIZE_GI}Gi
-  volumeMode: Filesystem
-  accessModes:
-    - ReadWriteOnce
-  persistentVolumeReclaimPolicy: Retain
-  storageClassName: longhorn
-  csi:
-    driver: driver.longhorn.io
-    fsType: ext4
-    volumeHandle: $LONGHORN_VOL_NAME
----
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  name: $PVC_NAME
-  namespace: $TARGET_NS
-spec:
-  accessModes:
-    - ReadWriteOnce
-  storageClassName: longhorn
-  volumeName: $PV_NAME
-  resources:
-    requests:
-      storage: ${SIZE_GI}Gi
-MANIFEST
-
-  RESTORED+=("$TARGET_NS/$PVC_NAME  →  longhorn volume: $LONGHORN_VOL_NAME")
-done <<< "$BACKUP_VOLUME_NAMES"
-
-# --- 8. Summary -----------------------------------------------------------
 cat <<EOF
 
-$(log "Longhorn restore complete.")
+$(log "Longhorn UI is ready.")
 
-Restored PVCs:
+  open http://localhost:${LONGHORN_UI_PORT}
+
+Restore volumes from the UI:
+  1. Go to "Backup" in the left sidebar.
+  2. The backup target is already configured: $BACKUP_TARGET
+     If no backups appear, click the sync icon to refresh from the NAS.
+  3. For each backup volume, select the latest backup and click "Restore".
+     When prompted for a volume name, use the PVC name the app expects
+     (see docs/rebuild-guide.md for the full mapping table).
+  4. After all volumes are restored, go to "Volume" and confirm each
+     volume shows state "Detached" (restore complete).
+  5. For each restored volume, click "Create PV/PVC" and set the correct
+     namespace and PVC name so apps can bind to them automatically.
+
+Volume → namespace/PVC mapping:
+  pvc-cc69b622-...  →  security / vault-data-lh
+  pvc-156223fb-...  →  db       / postgres-data-lh
+  pvc-6b246721-...  →  cloud    / nextcloud-data-lh
+  pvc-fa03ae85-...  →  security / authentik-media-lh
+  pvc-5081ced2-...  →  security / authentik-templates-lh
+
 EOF
-if [[ ${#RESTORED[@]} -eq 0 ]]; then
-  echo "  (none)"
-else
-  for entry in "${RESTORED[@]}"; do
-    echo "  $entry"
-  done
-fi
+
+printf 'Press Enter once all volumes are restored and PVCs are created: '
+read -r < /dev/tty
+
 cat <<EOF
 
-These PVCs are pre-bound. When GitOps deploys stateful apps they will attach
-to the restored data instead of creating new empty volumes.
-
-Access Longhorn UI:
-  kubectl port-forward -n $LONGHORN_NAMESPACE svc/longhorn-frontend $LONGHORN_API_PORT:80
-  open http://localhost:$LONGHORN_API_PORT
+$(log "Volume restore confirmed. Longhorn is ready.")
 
 Next step: provision/activate-gitops.sh
 EOF
