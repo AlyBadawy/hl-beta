@@ -29,9 +29,9 @@ spec:
             - containerPort: 443
           env:
             - name: PUID
-              value: "988"
+              value: "1000"
             - name: PGID
-              value: "988"
+              value: "1000"
             - name: TZ
               value: UTC
             - name: DB_TYPE
