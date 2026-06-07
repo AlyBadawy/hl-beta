@@ -83,7 +83,7 @@ spec:
                   kubectl rollout restart deploy/external-secrets \
                     deploy/external-secrets-webhook \
                     deploy/external-secrets-cert-controller \
-                    -n external-secrets
+                    -n security
               resources:
                 requests:
                   cpu: 10m
