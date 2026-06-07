@@ -29,7 +29,7 @@ spec:
         runAsUser: 0
       containers:
         - name: authentik
-          image: ghcr.io/goauthentik/server:2026.2.2
+          image: ghcr.io/goauthentik/server:2026.5.2
           args: ["worker"]
           envFrom:
             - configMapRef:
