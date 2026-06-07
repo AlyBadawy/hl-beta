@@ -8,14 +8,15 @@ metadata:
     homelab/stack: security
 spec:
   schedule: "*/1 * * * *"
-  concurrencyPolicy: Forbid
+  concurrencyPolicy: Replace
   successfulJobsHistoryLimit: 1
   failedJobsHistoryLimit: 1
   jobTemplate:
     spec:
+      activeDeadlineSeconds: 50
       template:
         spec:
-          restartPolicy: OnFailure
+          restartPolicy: Never
           containers:
             - name: unseal
               image: hashicorp/vault:latest
