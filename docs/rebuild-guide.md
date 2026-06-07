@@ -13,9 +13,9 @@ Step-by-step instructions for rebuilding the entire cluster on a new node and re
 
 | Data | Backup mechanism | Restored in phase |
 |---|---|---|
-| Vaultwarden vault data | Longhorn PVC backup → NAS | Phase 5 |
-| PostgreSQL databases (authentik, immich, nextcloud) | Daily `pg_dump` → NAS (`/mnt/nas/backups/postgres`) | Phase 7 (manual) |
-| Longhorn volumes (all `-lh` PVCs) | Longhorn backup every 6h → NAS | Phase 5 |
+| Vault KV secrets (all app credentials) | Longhorn PVC backup (`vault-data-lh`) → NAS | Phase 6 |
+| PostgreSQL databases (authentik, immich, nextcloud) | Daily `pg_dump` → NAS (`/mnt/nas/backups/postgres`) | Phase 8 (manual) |
+| Longhorn volumes (all `-lh` PVCs) | Longhorn backup every 6h → NAS | Phase 6 |
 | Immich photos | NAS (`/mnt/nas/immich`) — live, not backed up separately | Available immediately after NAS mounts |
 | Nextcloud files | NAS (`/mnt/nas/nextcloud`) — live, not backed up separately | Available immediately after NAS mounts |
 | Grafana dashboards | `local-path` PVC — NOT backed up by Longhorn | Must be re-imported manually |
@@ -29,10 +29,8 @@ These values are never stored in git and must be supplied from your offline back
 |---|---|
 | New node IP address | All provisioning scripts |
 | SSH private key for `homelab` user | Your local `~/.ssh/` |
-| Cloudflare API token (Zone:DNS:Edit) | `bootstrap-argocd.sh` prompt |
-| SMTP username + password | `provision-server.sh` prompt (Phase 6) |
-| Vaultwarden master password | Unlocking vault after restore |
-| All secrets listed in the [Secrets Seeding](#phase-4-seed-secrets) section | Before GitOps activates |
+| Vault unseal key (from offline backup) | Phase 3 — before GitOps activates |
+| Cloudflare API token (Zone:DNS:Edit) | Phase 5 — `bootstrap-argocd.sh` prompt |
 
 ### Required tools on your local machine
 
@@ -42,7 +40,6 @@ kubectl version --client
 kustomize version
 helm version
 jq --version
-bw --version    # Bitwarden CLI — brew install bitwarden-cli
 ```
 
 ---
@@ -102,8 +99,6 @@ cd ~/hl-beta
 
 When prompted:
 - **Server IP:** enter the new node's IP
-- **SMTP username:** your Resend (or other SMTP) username
-- **SMTP password:** your SMTP password
 
 This runs through five internal phases:
 
@@ -113,7 +108,7 @@ This runs through five internal phases:
 | 3 | `update-dependencies` | `apt upgrade`, installs packages incl. `open-iscsi`, disables swap |
 | 4 | `mount-nas` | Creates `/mnt/nas/{homelab,backups,immich,nextcloud}`, adds NFS fstab entries |
 | 5 | `install-k3s` | Installs k3s v1.36.1 (Traefik disabled), copies kubeconfig to `~/.kube/config` |
-| 6 | `configure-cluster` | Creates `cluster-config` namespace, ConfigMap, Secret, applies kernel tuning |
+| 6 | `configure-cluster` | Creates `cluster-config` namespace and ConfigMap, applies kernel tuning |
 
 When complete, verify:
 
@@ -122,230 +117,71 @@ kubectl get nodes
 # Expected: node in Ready state
 
 kubectl get configmap cluster-config -n cluster-config
-# Expected: configmap with domain, NAS paths, SMTP config
+# Expected: configmap with domain, NAS paths, admin email, server IP
 ```
 
 ---
 
-## Phase 3: Create the `secrets` Namespace
+## Phase 3: Seed the Vault Unseal Key
 
-The `secrets` namespace is the internal source of truth that ESO reads from. It must exist and be populated **before** ArgoCD deploys any application — otherwise ExternalSecrets will fail to sync and apps will not start.
+The Vault unseal key must exist before ArgoCD runs. When GitOps activates (Phase 7), Vault starts first (sync-wave `-1`) and the `vault-auto-unseal` CronJob uses this secret to unseal it within 60 seconds. Without it, Vault stays sealed, ESO cannot sync, and all apps fail to start.
 
-```bash
-kubectl create namespace secrets
-```
-
----
-
-## Phase 4: Seed Secrets
-
-All secrets below go into the `secrets` namespace. ESO reads them and distributes copies into application namespaces automatically.
-
-**How to apply each secret** — the pattern used throughout this section:
+On a rebuild, Vault's data volume (`vault-data-lh`) is restored from the Longhorn backup — so all KV secrets are already inside Vault. You only need to provide the unseal key to let the CronJob open it.
 
 ```bash
-kubectl create secret generic <name> \
-  --namespace=secrets \
-  --from-literal=<KEY>="<value>" \
-  [--from-literal=<KEY2>="<value2>" ...] \
+kubectl create namespace vault --dry-run=client -o yaml | kubectl apply -f -
+
+kubectl create secret generic vault-unseal-key \
+  --namespace=vault \
+  --from-literal=key="<UNSEAL_KEY_FROM_OFFLINE_BACKUP>" \
   --save-config \
   --dry-run=client -o yaml | kubectl apply -f -
 ```
 
-Using `--dry-run=client -o yaml | kubectl apply -f -` makes each command idempotent and safe to re-run.
+> The unseal key was generated during the initial `vault operator init` run. It must be stored offline (password manager, printed copy). Without it, Vault cannot be unsealed on restart.
 
 ---
 
-### 4.1 Vaultwarden admin token
+## Phase 4: Required Secrets Reference
 
-This must be seeded **first**. The Vaultwarden app will not start without it.
+Only **two secrets** require manual intervention on a rebuild. Everything else is either seeded automatically or lives inside Vault (which is restored from the Longhorn backup in Phase 6).
 
-If you have the previous `ADMIN_TOKEN` from your offline backup, use it. If not, generate a new one (you will need to use this token to log into Vaultwarden's `/admin` panel after restore).
+| Secret | Namespace | How it's created | Why it's needed |
+|---|---|---|---|
+| `vault-unseal-key` | `vault` | Manually — Phase 3 above | CronJob unseals Vault within 60s of each pod restart |
+| `cloudflare-api-token` | `networking` | `bootstrap-argocd.sh` prompt — Phase 5 | DNS-01 TLS challenges for `*.in.alybadawy.com` via cert-manager |
+
+**All other app secrets** (postgres credentials, authentik secret key, immich credentials, nextcloud credentials, SMTP, grafana admin, etc.) are stored in Vault's KV store at `secret/`. ESO reads them from Vault and distributes copies into each app namespace automatically. Because Vault's data PVC is part of the Longhorn backup, no manual seeding of these secrets is required.
+
+### 4.1 vault-unseal-key
+
+Already created in Phase 3. Verify it exists before continuing:
 
 ```bash
-# Option A: Use your saved token
-ADMIN_TOKEN="<your-saved-admin-token>"
+kubectl get secret vault-unseal-key -n vault
+```
 
-# Option B: Generate a new one (save it before running)
-ADMIN_TOKEN="$(openssl rand -base64 48)"
-echo "SAVE THIS: $ADMIN_TOKEN"
+### 4.2 cloudflare-api-token
 
-kubectl create secret generic vaultwarden-admin \
-  --namespace=secrets \
-  --from-literal=ADMIN_TOKEN="$ADMIN_TOKEN" \
-  --save-config \
+Created automatically by `bootstrap-argocd.sh` in Phase 5 — it prompts you for the token and runs:
+
+```bash
+# For reference (bootstrap-argocd.sh runs this automatically):
+kubectl -n networking create secret generic cloudflare-api-token \
+  --from-literal=api-token="<CLOUDFLARE_API_TOKEN>" \
   --dry-run=client -o yaml | kubectl apply -f -
 ```
 
-> Save the `ADMIN_TOKEN` to your local password manager before continuing.
+The token must have **Zone → DNS → Edit** permission for the `alybadawy.com` zone.
 
----
+### 4.3 Verify after Phase 5
 
-### 4.2 Unlock Vaultwarden (if restoring from backup)
-
-If the Vaultwarden Longhorn PVC backup contains your existing vault data, you can log in with your master password after Phase 6 completes. Use the bw CLI to pull remaining secrets from Vaultwarden and seed them into the cluster.
-
-If Vaultwarden is unavailable (first-ever build, or vault data lost), seed all secrets manually using the commands in sections 4.3–4.11 with values from your offline backup.
+After `bootstrap-argocd.sh` completes, confirm both secrets are present:
 
 ```bash
-# Configure bw CLI to point at your instance
-bw config server https://vault.in.alybadawy.com
-
-# Login and unlock (run after Phase 6 if Vaultwarden is already running)
-bw login
-export BW_SESSION=$(bw unlock --raw)
+kubectl get secret vault-unseal-key -n vault
+kubectl get secret cloudflare-api-token -n networking
 ```
-
----
-
-### 4.3 PostgreSQL master credentials
-
-```bash
-# From Vaultwarden:
-ITEM=$(bw get item 'postgres-secret' --session $BW_SESSION)
-kubectl create secret generic postgres-secret \
-  --namespace=secrets \
-  --from-literal=POSTGRES_USER="$(echo "$ITEM" | jq -r '.login.username')" \
-  --from-literal=POSTGRES_PASSWORD="$(echo "$ITEM" | jq -r '.login.password')" \
-  --from-literal=POSTGRES_DB="$(echo "$ITEM" | jq -r '.fields[] | select(.name=="POSTGRES_DB") | .value')" \
-  --save-config --dry-run=client -o yaml | kubectl apply -f -
-
-# Or manually:
-kubectl create secret generic postgres-secret \
-  --namespace=secrets \
-  --from-literal=POSTGRES_USER="postgres" \
-  --from-literal=POSTGRES_PASSWORD="<your-postgres-password>" \
-  --from-literal=POSTGRES_DB="postgres" \
-  --save-config --dry-run=client -o yaml | kubectl apply -f -
-```
-
----
-
-### 4.4 Authentik database credentials
-
-```bash
-# From Vaultwarden:
-ITEM=$(bw get item 'authentik-db' --session $BW_SESSION)
-kubectl create secret generic authentik-db \
-  --namespace=secrets \
-  --from-literal=username="$(echo "$ITEM" | jq -r '.login.username')" \
-  --from-literal=password="$(echo "$ITEM" | jq -r '.login.password')" \
-  --save-config --dry-run=client -o yaml | kubectl apply -f -
-```
-
----
-
-### 4.5 Authentik secret key
-
-This is a cryptographic key that signs Authentik sessions. If you use a different value than the original, all sessions are invalidated (users must log in again) but no data is lost.
-
-```bash
-# From Vaultwarden:
-ITEM=$(bw get item 'authentik-secret' --session $BW_SESSION)
-kubectl create secret generic authentik-secret \
-  --namespace=secrets \
-  --from-literal=secret_key="$(echo "$ITEM" | jq -r '.notes')" \
-  --save-config --dry-run=client -o yaml | kubectl apply -f -
-
-# Or generate a new one (sessions will be invalidated, data is safe):
-kubectl create secret generic authentik-secret \
-  --namespace=secrets \
-  --from-literal=secret_key="$(openssl rand -hex 50)" \
-  --save-config --dry-run=client -o yaml | kubectl apply -f -
-```
-
----
-
-### 4.6 Immich database credentials
-
-```bash
-ITEM=$(bw get item 'immich-db' --session $BW_SESSION)
-kubectl create secret generic immich-db \
-  --namespace=secrets \
-  --from-literal=username="$(echo "$ITEM" | jq -r '.login.username')" \
-  --from-literal=password="$(echo "$ITEM" | jq -r '.login.password')" \
-  --save-config --dry-run=client -o yaml | kubectl apply -f -
-```
-
----
-
-### 4.7 Nextcloud database credentials
-
-```bash
-ITEM=$(bw get item 'nextcloud-db' --session $BW_SESSION)
-kubectl create secret generic nextcloud-db \
-  --namespace=secrets \
-  --from-literal=username="$(echo "$ITEM" | jq -r '.login.username')" \
-  --from-literal=password="$(echo "$ITEM" | jq -r '.login.password')" \
-  --save-config --dry-run=client -o yaml | kubectl apply -f -
-```
-
----
-
-### 4.8 pgAdmin credentials
-
-```bash
-ITEM=$(bw get item 'pgadmin-secret' --session $BW_SESSION)
-kubectl create secret generic pgadmin-secret \
-  --namespace=secrets \
-  --from-literal=PGADMIN_DEFAULT_EMAIL="$(echo "$ITEM" | jq -r '.login.username')" \
-  --from-literal=PGADMIN_DEFAULT_PASSWORD="$(echo "$ITEM" | jq -r '.login.password')" \
-  --save-config --dry-run=client -o yaml | kubectl apply -f -
-```
-
----
-
-### 4.9 SMTP credentials (Resend)
-
-```bash
-ITEM=$(bw get item 'resend-smtp' --session $BW_SESSION)
-kubectl create secret generic resend-smtp \
-  --namespace=secrets \
-  --from-literal=host="$(echo "$ITEM" | jq -r '.fields[] | select(.name=="host") | .value')" \
-  --from-literal=port="$(echo "$ITEM" | jq -r '.fields[] | select(.name=="port") | .value')" \
-  --from-literal=username="$(echo "$ITEM" | jq -r '.login.username')" \
-  --from-literal=password="$(echo "$ITEM" | jq -r '.login.password')" \
-  --from-literal=from_address="$(echo "$ITEM" | jq -r '.fields[] | select(.name=="from_address") | .value')" \
-  --from-literal=use_tls="$(echo "$ITEM" | jq -r '.fields[] | select(.name=="use_tls") | .value')" \
-  --save-config --dry-run=client -o yaml | kubectl apply -f -
-```
-
----
-
-### 4.10 Grafana admin credentials
-
-```bash
-ITEM=$(bw get item 'grafana-admin' --session $BW_SESSION)
-kubectl create secret generic grafana-admin \
-  --namespace=secrets \
-  --from-literal=admin-user="$(echo "$ITEM" | jq -r '.login.username')" \
-  --from-literal=admin-password="$(echo "$ITEM" | jq -r '.login.password')" \
-  --save-config --dry-run=client -o yaml | kubectl apply -f -
-```
-
----
-
-### 4.11 Verify all secrets are present
-
-```bash
-kubectl get secrets -n secrets
-```
-
-Expected output — confirm all of these exist:
-
-```
-vaultwarden-admin
-postgres-secret
-authentik-db
-authentik-secret
-immich-db
-nextcloud-db
-pgadmin-secret
-resend-smtp
-grafana-admin
-```
-
-If any are missing, seed them before proceeding.
 
 ---
 
@@ -361,7 +197,7 @@ When prompted:
 This script:
 1. Installs ArgoCD from `k8s/components/argocd` via Kustomize + Helm
 2. Waits for `argocd-server` and `argocd-repo-server` to be ready
-3. Creates the `networking` namespace and seeds the `cloudflare-api-token` secret
+3. Creates the `networking` namespace and seeds `cloudflare-api-token` into it (used by cert-manager for DNS-01 challenges)
 
 Verify ArgoCD is up:
 
@@ -415,11 +251,11 @@ Use these answers (must match the PVC names in the manifests exactly):
 
 | Backup volume name (from NAS) | Namespace | PVC name |
 |---|---|---|
-| `vaultwarden-data-lh` | `security` | `vaultwarden-data-lh` |
+| `vault-data-lh` | `vault` | `vault-data-lh` |
 | `postgres-data-lh` | `db` | `postgres-data-lh` |
 | `nextcloud-data-lh` | `cloud` | `nextcloud-data-lh` |
-| `authentik-media-lh` | `security` | `authentik-media-lh` |
-| `authentik-templates-lh` | `security` | `authentik-templates-lh` |
+| `authentik-media-lh` | `auth` | `authentik-media-lh` |
+| `authentik-templates-lh` | `auth` | `authentik-templates-lh` |
 
 > If a backup volume name in the NAS does not match the table above (e.g., due to a rename), check the actual PVC names in the manifests: `grep -r "claimName" k8s/components/ --include="*.yaml"`.
 
@@ -454,15 +290,15 @@ kubectl port-forward -n argocd svc/argocd-server 8080:80
 
 **Expected sync order** (ArgoCD respects sync-wave annotations):
 
-1. `external-secrets` — ESO operator deploys; ClusterSecretStore becomes Ready
-2. `cert-manager` — cert-manager deploys; ClusterIssuers created
-3. `ingress-nginx` — nginx controller gets an IP; TLS challenges can now complete
-4. `db` — PostgreSQL and Redis deploy with restored PVCs
-5. `auth` — Authentik deploys with restored media PVC
-6. `vaultwarden` — Vaultwarden deploys with restored data PVC
-7. `cloud` — Nextcloud deploys with restored config PVC
-8. `immich` — Immich deploys; photos are immediately available from NAS
-9. `monitor` — Prometheus + Grafana deploy
+1. `vault` — Vault StatefulSet starts (wave `-1`); CronJob unseals it within 60s using `vault-unseal-key`
+2. `external-secrets` — ESO operator deploys; `ClusterSecretStore/k8s-secrets` connects to Vault and becomes Ready
+3. `cert-manager` — cert-manager deploys; ClusterIssuers created; TLS certs begin issuing via DNS-01
+4. `ingress-nginx` — nginx controller gets an external IP; ingress routes become active
+5. `db` — PostgreSQL deploys with restored `postgres-data-lh` PVC; ESO syncs credentials from Vault
+6. `auth` — Authentik deploys with restored media PVCs; ESO syncs SMTP and secret key from Vault
+7. `cloud` — Nextcloud deploys with restored `nextcloud-data-lh` PVC
+8. `immich` — Immich deploys; photos immediately available from NAS mount
+9. `monitor` — Prometheus + Grafana deploy; ESO syncs Grafana admin password from Vault
 10. `aly`, `whoami` — static sites deploy
 
 Allow 10–15 minutes for all apps to reach `Synced / Healthy`.
@@ -562,7 +398,7 @@ kubectl get externalsecrets -A
 | Service | URL | What to check |
 |---|---|---|
 | ArgoCD | `https://argo.in.alybadawy.com` | Login with admin; all apps green |
-| Vaultwarden | `https://vault.in.alybadawy.com` | Login with master password; vault items present |
+| Vault | `https://vault.in.alybadawy.com` | UI loads; status shows unsealed |
 | Authentik | `https://auth.in.alybadawy.com` | Login; users and flows intact |
 | Immich | `https://immich.in.alybadawy.com` | Login; photos visible |
 | Nextcloud | `https://cloud.in.alybadawy.com` | Login; files accessible |
@@ -697,38 +533,36 @@ For a clean rebuild, run these commands in order (filling in the values at each 
 # 1. On the new server — create homelab user, configure sudo, install SSH key
 
 # 2. From your local machine (repo root):
-./provision/provision-server.sh
+./provision/provision-server.sh   # prompted: server IP only
 
-# 3. Create secrets namespace
-kubectl create namespace secrets
-
-# 4. Seed all secrets (run bw CLI or manual kubectl commands — see Phase 4)
-#    Minimum required before continuing:
-kubectl create secret generic vaultwarden-admin --namespace=secrets \
-  --from-literal=ADMIN_TOKEN="$(openssl rand -base64 48)" \
+# 3. Seed the Vault unseal key (from offline backup — must exist before GitOps)
+kubectl create namespace vault --dry-run=client -o yaml | kubectl apply -f -
+kubectl create secret generic vault-unseal-key -n vault \
+  --from-literal=key="<UNSEAL_KEY_FROM_OFFLINE_BACKUP>" \
   --save-config --dry-run=client -o yaml | kubectl apply -f -
-#   ... plus all remaining secrets in Phase 4
 
-# 5. Bootstrap ArgoCD
+# 4. (Reference) Only 2 manual secrets needed — see Phase 4 for details
+#    vault-unseal-key is done above; cloudflare-api-token is handled in step 5.
+
+# 5. Bootstrap ArgoCD (prompted: Cloudflare API token — seeds cloudflare-api-token automatically)
 ./provision/bootstrap-argocd.sh
 
-# 6. Restore Longhorn volumes
+# 6. Restore Longhorn volumes (includes vault-data-lh, postgres-data-lh, etc.)
 ./provision/restore-volumes.sh
 
-# 7. Activate GitOps
+# 7. Activate GitOps (Vault starts → CronJob unseals → ESO syncs all secrets → apps start)
 ./provision/activate-gitops.sh
 
 # 8. Watch and wait
 kubectl get applications -n argocd -w
 
-# 9. Verify (Phase 8–9 above)
+# 9. Verify (Phases 8–9 above)
 ```
 
 ---
 
 ## Related Documents
 
-- `docs/secrets-rebuild-reference.md` — complete secret inventory and `kubectl` commands
-- `docs/vaultwarden-secrets-management.md` — how to add/rotate secrets via bw CLI
+- `docs/secrets-rebuild-reference.md` — complete secret inventory, offline checklist, and `kubectl` commands
 - `provision/README.md` — provisioning script reference
 - `CLAUDE.md` — project overview and phase descriptions

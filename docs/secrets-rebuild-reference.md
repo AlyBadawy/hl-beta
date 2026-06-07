@@ -28,7 +28,7 @@ kubectl get secret <name> -n <namespace> \
 
 | Field | Value |
 |---|---|
-| **Namespace** | `cert-manager` |
+| **Namespace** | `networking` |
 | **Type** | `Opaque` |
 | **Key** | `api-token` |
 | **Used by** | cert-manager `ClusterIssuer` (both `letsencrypt-prod` and `letsencrypt-staging`) for DNS-01 TLS challenges |
@@ -38,16 +38,14 @@ The Cloudflare API token must have **Zone → DNS → Edit** permission for the 
 
 **Create:**
 ```bash
-kubectl create secret generic cloudflare-api-token \
-  --namespace=cert-manager \
+kubectl -n networking create secret generic cloudflare-api-token \
   --from-literal=api-token="<YOUR_CLOUDFLARE_API_TOKEN>" \
-  --save-config \
   --dry-run=client -o yaml | kubectl apply -f -
 ```
 
 **Retrieve:**
 ```bash
-kubectl get secret cloudflare-api-token -n cert-manager \
+kubectl get secret cloudflare-api-token -n networking \
   -o jsonpath="{.data.api-token}" | base64 -d; echo
 ```
 
@@ -88,8 +86,8 @@ kubectl get secret vault-unseal-key -n vault \
 
 | Secret | Namespace | Keys | Who creates it |
 |---|---|---|---|
-| `cloudflare-api-token` | `cert-manager` | `api-token` | `bootstrap-argocd.sh` (or manually) |
-| `vault-unseal-key` | `vault` | `key` | Manually — seeded from offline backup before Phase 8 |
+| `cloudflare-api-token` | `networking` | `api-token` | `bootstrap-argocd.sh` (or manually) |
+| `vault-unseal-key` | `vault` | `key` | Manually — seeded from offline backup before Phase 5 |
 
 ---
 
