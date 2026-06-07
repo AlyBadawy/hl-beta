@@ -55,7 +55,7 @@ kubectl get secret cloudflare-api-token -n networking \
 
 | Field | Value |
 |---|---|
-| **Namespace** | `vault` |
+| **Namespace** | `security` |
 | **Type** | `Opaque` |
 | **Key** | `key` |
 | **Used by** | `vault-auto-unseal` CronJob — unseals Vault within 60s of a reboot |
@@ -65,10 +65,10 @@ The unseal key is generated once during initial Vault initialization and must be
 
 **Create:**
 ```bash
-kubectl create namespace vault --dry-run=client -o yaml | kubectl apply -f -
+kubectl create namespace security --dry-run=client -o yaml | kubectl apply -f -
 
 kubectl create secret generic vault-unseal-key \
-  --namespace=vault \
+  --namespace=security \
   --from-literal=key="<UNSEAL_KEY_FROM_OFFLINE_BACKUP>" \
   --save-config \
   --dry-run=client -o yaml | kubectl apply -f -
@@ -76,7 +76,7 @@ kubectl create secret generic vault-unseal-key \
 
 **Retrieve:**
 ```bash
-kubectl get secret vault-unseal-key -n vault \
+kubectl get secret vault-unseal-key -n security \
   -o jsonpath="{.data.key}" | base64 -d; echo
 ```
 
@@ -87,7 +87,7 @@ kubectl get secret vault-unseal-key -n vault \
 | Secret | Namespace | Keys | Who creates it |
 |---|---|---|---|
 | `cloudflare-api-token` | `networking` | `api-token` | `bootstrap-argocd.sh` (or manually) |
-| `vault-unseal-key` | `vault` | `key` | Manually — seeded from offline backup before Phase 5 |
+| `vault-unseal-key` | `security` | `key` | Manually — seeded from offline backup before Phase 5 |
 
 ---
 

@@ -129,10 +129,10 @@ The Vault unseal key must exist before ArgoCD runs. When GitOps activates (Phase
 On a rebuild, Vault's data volume (`vault-data-lh`) is restored from the Longhorn backup — so all KV secrets are already inside Vault. You only need to provide the unseal key to let the CronJob open it.
 
 ```bash
-kubectl create namespace vault --dry-run=client -o yaml | kubectl apply -f -
+kubectl create namespace security --dry-run=client -o yaml | kubectl apply -f -
 
 kubectl create secret generic vault-unseal-key \
-  --namespace=vault \
+  --namespace=security \
   --from-literal=key="<UNSEAL_KEY_FROM_OFFLINE_BACKUP>" \
   --save-config \
   --dry-run=client -o yaml | kubectl apply -f -
@@ -158,7 +158,7 @@ Only **two secrets** require manual intervention on a rebuild. Everything else i
 Already created in Phase 3. Verify it exists before continuing:
 
 ```bash
-kubectl get secret vault-unseal-key -n vault
+kubectl get secret vault-unseal-key -n security
 ```
 
 ### 4.2 cloudflare-api-token
@@ -179,7 +179,7 @@ The token must have **Zone → DNS → Edit** permission for the `alybadawy.com`
 After `bootstrap-argocd.sh` completes, confirm both secrets are present:
 
 ```bash
-kubectl get secret vault-unseal-key -n vault
+kubectl get secret vault-unseal-key -n security
 kubectl get secret cloudflare-api-token -n networking
 ```
 

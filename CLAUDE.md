@@ -181,7 +181,7 @@ to ArgoCD. After this, Git (main branch) is the sole source of truth.
 
 **Access Vault UI:**
 - https://vault.in.alybadawy.com
-- Before ingress is live: `kubectl port-forward -n vault svc/vault 8200:8200` → http://localhost:8200
+- Before ingress is live: `kubectl port-forward -n security svc/vault 8200:8200` → http://localhost:8200
 
 ## Key Design Decisions
 
@@ -213,11 +213,11 @@ See Architecture Decision Records in `docs/ADR-*.md` for detailed rationale.
 7. **HashiCorp Vault as the ESO secrets backend** — All application secrets are stored in
    Vault KV v2 under `secret/`. ESO reads from Vault via the `ClusterSecretStore/k8s-secrets`
    (Vault provider, Kubernetes auth). No secrets are stored in git or in a `secrets` namespace.
-   Vault runs in the `vault` namespace as a StatefulSet backed by a Longhorn PVC.
+   Vault runs in the `security` namespace as a StatefulSet backed by a Longhorn PVC.
 
 8. **Auto-unseal CronJob** — A CronJob runs every minute and unseals Vault if it finds it
    sealed (e.g., after a pod restart). The unseal key is stored in `vault-unseal-key` Secret
-   in the `vault` namespace. On a rebuild, this is the only secret that must be seeded manually.
+   in the `security` namespace. On a rebuild, this is the only secret that must be seeded manually.
 
 9. **Rebuild requires only one manual secret** — After restoring Longhorn backups (which
    include Vault's data PVC), only `vault-unseal-key` needs to be seeded before GitOps runs.
@@ -232,8 +232,8 @@ See Architecture Decision Records in `docs/ADR-*.md` for detailed rationale.
 ./provision/provision-server.sh   # Phases 2–6
 
 # Seed the Vault unseal key (from offline backup) before GitOps runs
-kubectl create namespace vault --dry-run=client -o yaml | kubectl apply -f -
-kubectl create secret generic vault-unseal-key -n vault \
+kubectl create namespace security --dry-run=client -o yaml | kubectl apply -f -
+kubectl create secret generic vault-unseal-key -n security \
   --from-literal=key="<UNSEAL_KEY_FROM_OFFLINE_BACKUP>"
 
 # GitOps bootstrap — run in order:
