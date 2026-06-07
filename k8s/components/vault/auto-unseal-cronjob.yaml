@@ -22,16 +22,21 @@ spec:
               command: ["/bin/sh", "-c"]
               args:
                 - |
-                  vault status 2>/dev/null
-                  if [ $? -eq 2 ]; then
+                  vault status 2>/dev/null; STATUS=$?
+                  if [ "$STATUS" -eq 2 ]; then
                     echo "Vault is sealed — unsealing"
                     vault operator unseal "$UNSEAL_KEY"
-                  else
+                  elif [ "$STATUS" -eq 0 ]; then
                     echo "Vault is already unsealed — nothing to do"
+                  else
+                    echo "Vault unreachable (exit $STATUS) — will retry next minute"
+                    exit 1
                   fi
               env:
                 - name: VAULT_ADDR
                   value: http://vault-0.vault-internal.security.svc.cluster.local:8200
+                - name: VAULT_CLIENT_TIMEOUT
+                  value: "5"
                 - name: UNSEAL_KEY
                   valueFrom:
                     secretKeyRef:
