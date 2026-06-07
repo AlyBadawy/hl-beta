@@ -118,7 +118,7 @@ log "Waiting for backup catalog to load from NFS..."
 BACKUP_VOLUMES_JSON=""
 BACKUP_VOLUME_NAMES=""
 for i in $(seq 1 18); do
-  BACKUP_VOLUMES_JSON=$(curl -sf "${LONGHORN_API}/backupvolumes")
+  BACKUP_VOLUMES_JSON=$(curl -s "${LONGHORN_API}/backupvolumes")
   BACKUP_VOLUME_NAMES=$(echo "$BACKUP_VOLUMES_JSON" | jq -r '.data[].name // empty')
   [[ -n "$BACKUP_VOLUME_NAMES" ]] && break
   printf '  attempt %d/18 — no volumes yet, retrying in 10s...\n' "$i"
@@ -151,7 +151,7 @@ while IFS= read -r BACKUP_VOL; do
   log "Restoring: $BACKUP_VOL"
 
   # Get the latest backup URL for this volume
-  LATEST_BACKUP=$(curl -sf "${LONGHORN_API}/backupvolumes/${BACKUP_VOL}/backups" \
+  LATEST_BACKUP=$(curl -s "${LONGHORN_API}/backupvolumes/${BACKUP_VOL}/backups" \
     | jq -r '.data | sort_by(.created) | last | .url')
   if [[ -z "$LATEST_BACKUP" || "$LATEST_BACKUP" == "null" ]]; then
     warn "  No backups found for $BACKUP_VOL — skipping"
@@ -179,7 +179,7 @@ while IFS= read -r BACKUP_VOL; do
 
   # Create Longhorn volume from backup
   log "  Creating Longhorn volume '$LONGHORN_VOL_NAME' from backup"
-  curl -sf -X POST "${LONGHORN_API}/volumes" \
+  curl -s -X POST "${LONGHORN_API}/volumes" \
     -H "Content-Type: application/json" \
     -d "{
       \"name\": \"$LONGHORN_VOL_NAME\",
@@ -191,7 +191,7 @@ while IFS= read -r BACKUP_VOL; do
   log "  Waiting for restore to complete..."
   RESTORE_DONE=false
   for i in $(seq 1 60); do
-    STATE=$(curl -sf "${LONGHORN_API}/volumes/${LONGHORN_VOL_NAME}" \
+    STATE=$(curl -s "${LONGHORN_API}/volumes/${LONGHORN_VOL_NAME}" \
       | jq -r '.state // "unknown"')
     if [[ "$STATE" == "detached" ]]; then
       RESTORE_DONE=true
