@@ -29,7 +29,7 @@ kubectl cluster-info >/dev/null 2>&1 || fail "Cannot reach a Kubernetes cluster 
 
 kubectl -n "$ARGOCD_NAMESPACE" get deploy/argocd-server >/dev/null 2>&1 \
   || fail "ArgoCD not found in namespace '$ARGOCD_NAMESPACE'. Run bootstrap-argocd.sh first."
-kubectl -n longhorn-system get deploy/longhorn-manager >/dev/null 2>&1 \
+kubectl -n longhorn-system get daemonset/longhorn-manager >/dev/null 2>&1 \
   || fail "Longhorn not found in namespace 'longhorn-system'. Run restore-volumes.sh first."
 
 # --- Apply root app-of-apps -----------------------------------------------

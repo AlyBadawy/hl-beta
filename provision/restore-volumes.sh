@@ -53,10 +53,13 @@ kubectl get namespace "$LONGHORN_NAMESPACE" >/dev/null 2>&1 \
 log "Installing Longhorn from k8s/components/longhorn (Kustomize + Helm)"
 kustomize build --enable-helm k8s/components/longhorn \
   | python3 -c "
-import sys
+import sys, re
 docs = sys.stdin.read().split('\n---\n')
 skip = {'BackupTarget', 'RecurringJob', 'PrometheusRule'}
-print('\n---\n'.join(d for d in docs if not any('kind: ' + k in d for k in skip)))
+def top_kind(doc):
+    m = re.search(r'^kind:\s+(\S+)', doc, re.MULTILINE)
+    return m.group(1) if m else None
+print('\n---\n'.join(d for d in docs if top_kind(d) not in skip))
 " | kubectl apply --server-side --force-conflicts -f -
 
 # --- 2. Wait for Longhorn --------------------------------------------------
@@ -93,19 +96,30 @@ EOF
   exit 0
 fi
 
-# --- 4. Open Longhorn UI for manual restore --------------------------------
+# --- 4. Pre-create target namespaces ---------------------------------------
+# Longhorn needs these namespaces to exist before PVCs can be placed there.
+# ArgoCD normally creates them during Phase 9 — we pre-create them here so
+# the UI restore can proceed without "namespace not found" errors.
+log "Pre-creating target namespaces for restored PVCs"
+for ns in security db cloud; do
+  kubectl get namespace "$ns" >/dev/null 2>&1 \
+    || kubectl create namespace "$ns"
+done
+
+# --- 5. Open Longhorn UI for manual restore --------------------------------
 log "Starting Longhorn UI port-forward on http://localhost:${LONGHORN_UI_PORT}"
 kubectl port-forward -n "$LONGHORN_NAMESPACE" \
   svc/longhorn-frontend "${LONGHORN_UI_PORT}:80" &
 PF_PID=$!
 trap 'kill "$PF_PID" 2>/dev/null || true' EXIT
 
-# Wait for the port-forward to be reachable
+# Wait for the port-forward to be reachable (check root path — the frontend
+# serves static files at / and may proxy /v1 to the manager on a different port)
 for i in $(seq 1 15); do
-  curl -sf "http://localhost:${LONGHORN_UI_PORT}/v1/volumes" >/dev/null 2>&1 && break
+  curl -sf "http://localhost:${LONGHORN_UI_PORT}/" >/dev/null 2>&1 && break
   sleep 2
 done
-curl -sf "http://localhost:${LONGHORN_UI_PORT}/v1/volumes" >/dev/null 2>&1 \
+curl -sf "http://localhost:${LONGHORN_UI_PORT}/" >/dev/null 2>&1 \
   || fail "Longhorn UI not reachable at http://localhost:${LONGHORN_UI_PORT} — is Longhorn fully up?"
 
 cat <<EOF
