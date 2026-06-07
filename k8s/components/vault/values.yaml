@@ -38,7 +38,7 @@ server:
       memory: 128Mi
     limits:
       cpu: 250m
-      memory: 256Mi
+      memory: 128Mi
 
   # Ingress is managed via ingress.yaml to stay consistent with the rest of
   # the cluster (standalone nginx Ingress resource + cert-manager annotation).

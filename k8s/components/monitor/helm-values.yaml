@@ -18,7 +18,7 @@ grafana:
       memory: 256Mi
     limits:
       cpu: 200m
-      memory: 1Gi
+      memory: 640Mi
   persistence:
     enabled: true
     storageClassName: local-path
