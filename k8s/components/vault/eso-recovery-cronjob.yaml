@@ -5,42 +5,23 @@ metadata:
   namespace: security
 
 ---
-# Read pod status in security namespace (to check vault-0 readiness)
-apiVersion: rbac.authorization.k8s.io/v1
-kind: Role
-metadata:
-  name: eso-recovery
-  namespace: security
-rules:
-  - apiGroups: [""]
-    resources: ["pods"]
-    verbs: ["get"]
-
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: RoleBinding
-metadata:
-  name: eso-recovery
-  namespace: security
-subjects:
-  - kind: ServiceAccount
-    name: eso-recovery
-    namespace: security
-roleRef:
-  kind: Role
-  name: eso-recovery
-  apiGroup: rbac.authorization.k8s.io
-
----
-# Read ClusterSecretStore status (cluster-scoped resource)
+# ClusterRole avoids namespace-transformer conflicts: kustomize's top-level
+# `namespace: security` overrides namespace-scoped Role namespaces, causing
+# ID conflicts when a single file has Roles in multiple namespaces.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
   name: eso-recovery
 rules:
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get"]
   - apiGroups: ["external-secrets.io"]
     resources: ["clustersecretstores"]
     verbs: ["get"]
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    verbs: ["get", "patch"]
 
 ---
 apiVersion: rbac.authorization.k8s.io/v1
@@ -53,33 +34,6 @@ subjects:
     namespace: security
 roleRef:
   kind: ClusterRole
-  name: eso-recovery
-  apiGroup: rbac.authorization.k8s.io
-
----
-# Restart ESO deployments in external-secrets namespace
-apiVersion: rbac.authorization.k8s.io/v1
-kind: Role
-metadata:
-  name: eso-recovery
-  namespace: external-secrets
-rules:
-  - apiGroups: ["apps"]
-    resources: ["deployments"]
-    verbs: ["get", "patch"]
-
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: RoleBinding
-metadata:
-  name: eso-recovery
-  namespace: external-secrets
-subjects:
-  - kind: ServiceAccount
-    name: eso-recovery
-    namespace: security
-roleRef:
-  kind: Role
   name: eso-recovery
   apiGroup: rbac.authorization.k8s.io
 
