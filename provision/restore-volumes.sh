@@ -109,8 +109,8 @@ curl -sf "${LONGHORN_API}/volumes" >/dev/null 2>&1 \
 
 # --- 5. Sync backup target ------------------------------------------------
 log "Syncing backup target: $BACKUP_TARGET"
-curl -sf -X POST "${LONGHORN_API}/backuptargets/default?action=syncBackupTarget" \
-  -H "Content-Type: application/json" -d '{}' >/dev/null
+curl -s -X POST "${LONGHORN_API}/backuptargets/default?action=syncBackupTarget" \
+  -H "Content-Type: application/json" -d '{}' >/dev/null || true
 
 # --- 6. List available backup volumes -------------------------------------
 # Poll until volumes appear or we time out (up to 3 minutes).
