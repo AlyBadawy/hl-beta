@@ -65,7 +65,13 @@ log "Waiting for Longhorn manager to become ready (this may take a few minutes)"
 kubectl -n "$LONGHORN_NAMESPACE" rollout status daemonset/longhorn-manager --timeout=300s
 kubectl -n "$LONGHORN_NAMESPACE" rollout status deploy/longhorn-ui         --timeout=120s
 
-# Longhorn CRDs are now established — apply the custom resources directly.
+# Wait for Longhorn CRDs to reach Established — rollout status on the manager
+# DaemonSet does not guarantee the CRDs are registered in the API server yet.
+log "Waiting for Longhorn CRDs to be established"
+kubectl wait --for=condition=Established crd/backuptargets.longhorn.io --timeout=120s
+kubectl wait --for=condition=Established crd/recurringjobs.longhorn.io --timeout=120s
+
+# CRDs are established — apply the custom resources directly.
 # PrometheusRule is intentionally skipped (see comment above).
 log "Applying Longhorn custom resources (BackupTarget, RecurringJob)"
 kubectl apply -f k8s/components/longhorn/backup-target.yaml
