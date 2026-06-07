@@ -29,12 +29,15 @@ spec:
                     echo "Vault port not reachable — will retry next minute"
                     exit 1
                   fi
-                  vault status 2>/dev/null; STATUS=$?
+                  timeout 5 vault status 2>/dev/null; STATUS=$?
                   if [ "$STATUS" -eq 2 ]; then
                     echo "Vault is sealed — unsealing"
                     vault operator unseal "$UNSEAL_KEY"
-                  else
+                  elif [ "$STATUS" -eq 0 ]; then
                     echo "Vault is unsealed — nothing to do"
+                  else
+                    echo "Vault not ready yet (status $STATUS) — will retry next minute"
+                    exit 1
                   fi
               env:
                 - name: VAULT_ADDR
