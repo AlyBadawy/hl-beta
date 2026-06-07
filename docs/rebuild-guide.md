@@ -167,6 +167,7 @@ Created automatically by `bootstrap-argocd.sh` in Phase 5 — it prompts you for
 
 ```bash
 # For reference (bootstrap-argocd.sh runs this automatically):
+kubectl create namespace networking --dry-run=client -o yaml | kubectl apply -f -
 kubectl -n networking create secret generic cloudflare-api-token \
   --from-literal=api-token="<CLOUDFLARE_API_TOKEN>" \
   --dry-run=client -o yaml | kubectl apply -f -

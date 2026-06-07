@@ -38,6 +38,7 @@ The Cloudflare API token must have **Zone → DNS → Edit** permission for the 
 
 **Create:**
 ```bash
+kubectl create namespace networking --dry-run=client -o yaml | kubectl apply -f -
 kubectl -n networking create secret generic cloudflare-api-token \
   --from-literal=api-token="<YOUR_CLOUDFLARE_API_TOKEN>" \
   --dry-run=client -o yaml | kubectl apply -f -
