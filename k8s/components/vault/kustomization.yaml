@@ -15,3 +15,4 @@ resources:
   - pvc.yaml
   - ingress.yaml
   - auto-unseal-cronjob.yaml
+  - eso-recovery-cronjob.yaml

@@ -1,0 +1,139 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: eso-recovery
+  namespace: security
+
+---
+# Read pod status in security namespace (to check vault-0 readiness)
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: eso-recovery
+  namespace: security
+rules:
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: eso-recovery
+  namespace: security
+subjects:
+  - kind: ServiceAccount
+    name: eso-recovery
+    namespace: security
+roleRef:
+  kind: Role
+  name: eso-recovery
+  apiGroup: rbac.authorization.k8s.io
+
+---
+# Read ClusterSecretStore status (cluster-scoped resource)
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: eso-recovery
+rules:
+  - apiGroups: ["external-secrets.io"]
+    resources: ["clustersecretstores"]
+    verbs: ["get"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: eso-recovery
+subjects:
+  - kind: ServiceAccount
+    name: eso-recovery
+    namespace: security
+roleRef:
+  kind: ClusterRole
+  name: eso-recovery
+  apiGroup: rbac.authorization.k8s.io
+
+---
+# Restart ESO deployments in external-secrets namespace
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: eso-recovery
+  namespace: external-secrets
+rules:
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    verbs: ["get", "patch"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: eso-recovery
+  namespace: external-secrets
+subjects:
+  - kind: ServiceAccount
+    name: eso-recovery
+    namespace: security
+roleRef:
+  kind: Role
+  name: eso-recovery
+  apiGroup: rbac.authorization.k8s.io
+
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: eso-recovery
+  namespace: security
+  labels:
+    app.kubernetes.io/name: vault
+    homelab/stack: security
+spec:
+  schedule: "*/1 * * * *"
+  concurrencyPolicy: Replace
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 1
+  jobTemplate:
+    spec:
+      activeDeadlineSeconds: 50
+      template:
+        spec:
+          restartPolicy: Never
+          serviceAccountName: eso-recovery
+          containers:
+            - name: recovery
+              image: bitnami/kubectl:latest
+              command: ["/bin/sh", "-c"]
+              args:
+                - |
+                  # Vault's readiness probe fails when sealed, so ready=true means unsealed.
+                  VAULT_READY=$(kubectl get pod vault-0 -n security \
+                    -o jsonpath='{.status.containerStatuses[0].ready}' 2>/dev/null || echo "false")
+                  if [ "$VAULT_READY" != "true" ]; then
+                    echo "Vault pod not ready (sealed or starting) — skipping"
+                    exit 0
+                  fi
+
+                  STORE_READY=$(kubectl get clustersecretstore k8s-secrets \
+                    -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' 2>/dev/null || echo "")
+                  if [ "$STORE_READY" = "True" ]; then
+                    echo "ESO store is healthy — nothing to do"
+                    exit 0
+                  fi
+
+                  echo "Vault is unsealed but ESO store is degraded — restarting ESO to clear backoff"
+                  kubectl rollout restart deploy/external-secrets \
+                    deploy/external-secrets-webhook \
+                    deploy/external-secrets-cert-controller \
+                    -n external-secrets
+              resources:
+                requests:
+                  cpu: 10m
+                  memory: 16Mi
+                limits:
+                  cpu: 50m
+                  memory: 64Mi
