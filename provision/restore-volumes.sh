@@ -45,14 +45,25 @@ log "Creating namespace '$LONGHORN_NAMESPACE'"
 kubectl get namespace "$LONGHORN_NAMESPACE" >/dev/null 2>&1 \
   || kubectl create namespace "$LONGHORN_NAMESPACE"
 
-log "Installing Longhorn from k8s/components/longhorn (Kustomize + Helm)"
+# First pass: installs the Helm chart and Longhorn CRDs. Custom resources
+# (BackupTarget, RecurringJob) will fail here because their CRDs are bundled
+# in the same apply — that's expected and handled by the second pass below.
+# PrometheusRule CRDs are installed by the monitoring stack in Phase 9 (ArgoCD);
+# those errors are also expected and ArgoCD will apply the rule on first sync.
+log "Installing Longhorn from k8s/components/longhorn (Kustomize + Helm) — pass 1"
 kustomize build --enable-helm k8s/components/longhorn \
-  | kubectl apply --server-side --force-conflicts -f -
+  | kubectl apply --server-side --force-conflicts -f - || true
 
 # --- 2. Wait for Longhorn --------------------------------------------------
 log "Waiting for Longhorn manager to become ready (this may take a few minutes)"
 kubectl -n "$LONGHORN_NAMESPACE" rollout status deploy/longhorn-manager --timeout=300s
 kubectl -n "$LONGHORN_NAMESPACE" rollout status deploy/longhorn-ui      --timeout=120s
+
+# Second pass: Longhorn CRDs are now established. BackupTarget and RecurringJob
+# apply successfully. PrometheusRule still fails (no monitoring CRDs yet) — ignored.
+log "Applying Longhorn custom resources — pass 2 (CRDs now available)"
+kustomize build --enable-helm k8s/components/longhorn \
+  | kubectl apply --server-side --force-conflicts -f - || true
 
 # --- 3. Fresh or restore? --------------------------------------------------
 printf '\nIs this a fresh cluster with no backups to restore? [y/N] '
