@@ -145,11 +145,10 @@ echo
 # --- 7. Restore each volume -----------------------------------------------
 declare -a RESTORED=()
 
-# Use mapfile + for-loop instead of while-read-from-herestring so that stdin
-# remains connected to the terminal for the interactive read prompts below.
-mapfile -t BACKUP_VOLUME_ARRAY <<< "$BACKUP_VOLUME_NAMES"
-
-for BACKUP_VOL in "${BACKUP_VOLUME_ARRAY[@]}"; do
+# The while loop reads volume names from a herestring, which redirects stdin.
+# Interactive read prompts inside the loop use </dev/tty to read from the
+# terminal directly, bypassing the stdin redirection.
+while IFS= read -r BACKUP_VOL; do
   [[ -z "$BACKUP_VOL" ]] && continue
 
   log "Restoring: $BACKUP_VOL"
@@ -168,11 +167,11 @@ for BACKUP_VOL in "${BACKUP_VOLUME_ARRAY[@]}"; do
   SIZE_GI=$(( (SIZE_BYTES + 1073741823) / 1073741824 ))
   [[ $SIZE_GI -lt 1 ]] && SIZE_GI=1
 
-  # Ask where this PVC should live
+  # Ask where this PVC should live (read from /dev/tty — stdin is the herestring)
   printf '  Namespace for "%s": ' "$BACKUP_VOL"
-  read -r TARGET_NS
+  read -r TARGET_NS < /dev/tty
   printf '  PVC name for "%s": ' "$BACKUP_VOL"
-  read -r PVC_NAME
+  read -r PVC_NAME < /dev/tty
   if [[ -z "$TARGET_NS" || -z "$PVC_NAME" ]]; then
     warn "  Skipping $BACKUP_VOL — no namespace/PVC name provided"
     continue
@@ -248,7 +247,7 @@ spec:
 MANIFEST
 
   RESTORED+=("$TARGET_NS/$PVC_NAME  →  longhorn volume: $LONGHORN_VOL_NAME")
-done
+done <<< "$BACKUP_VOLUME_NAMES"
 
 # --- 8. Summary -----------------------------------------------------------
 cat <<EOF
