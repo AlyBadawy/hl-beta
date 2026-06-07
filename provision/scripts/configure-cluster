@@ -21,23 +21,6 @@ log_output() { echo -e "$1" | tee -a "$LOG_FILE"; }
 
 log_output "${BLUE}=== Cluster Configuration ===${NC}\n"
 
-# Prompt for SMTP credentials (the only values not hardcoded)
-while true; do
-  read -p "$(echo -e "${YELLOW}Enter SMTP username:${NC} ")" SMTP_USERNAME
-  SMTP_USERNAME="${SMTP_USERNAME// /}"
-  [ -n "$SMTP_USERNAME" ] && break
-  echo -e "${RED}✗ SMTP username cannot be empty${NC}"
-done
-
-while true; do
-  read -s -p "$(echo -e "${YELLOW}Enter SMTP password:${NC} ")" SMTP_PASSWORD
-  echo
-  [ -n "$SMTP_PASSWORD" ] && break
-  echo -e "${RED}✗ SMTP password cannot be empty${NC}"
-done
-
-log_output "${GREEN}✓ SMTP credentials captured${NC}\n"
-
 # Step 1: Create cluster-config namespace
 log_output "${YELLOW}Step 1: Creating cluster-config namespace${NC}"
 
@@ -83,9 +66,6 @@ data:
   NAS_BACKUPS_PATH: "$NAS_BASE_MOUNT/backups"
   NAS_IMMICH_PATH: "$NAS_BASE_MOUNT/immich"
   NAS_NEXTCLOUD_PATH: "$NAS_BASE_MOUNT/nextcloud"
-  SMTP_SERVER: "$SMTP_SERVER"
-  SMTP_PORT: "$SMTP_PORT"
-  SMTP_FROM: "$SMTP_FROM"
   ADMIN_EMAIL: "$ADMIN_EMAIL"
   SERVER_IP: "$SERVER_IP"
 EOF
@@ -104,39 +84,8 @@ else
   exit 1
 fi
 
-# Step 3: Create Secret with sensitive credentials
-log_output "${YELLOW}Step 3: Creating cluster-config Secret${NC}"
-
-secret_manifest=$(cat <<EOF
-apiVersion: v1
-kind: Secret
-metadata:
-  name: cluster-config
-  namespace: cluster-config
-  labels:
-    component: cluster-config
-type: Opaque
-stringData:
-  SMTP_USERNAME: "$SMTP_USERNAME"
-  SMTP_PASSWORD: "$SMTP_PASSWORD"
-EOF
-)
-
-if ssh \
-  -o ConnectTimeout=$SSH_TIMEOUT \
-  -o StrictHostKeyChecking=no \
-  -o UserKnownHostsFile=/dev/null \
-  -o LogLevel=QUIET \
-  "$SSH_USER@$SERVER_IP" \
-  "echo '$secret_manifest' | sudo k3s kubectl apply -f -" > /dev/null 2>&1; then
-  log_output "${GREEN}✓ Secret cluster-config created/updated${NC}\n"
-else
-  log_output "${RED}✗ Failed to create Secret${NC}"
-  exit 1
-fi
-
-# Step 4: Kernel tuning
-log_output "${YELLOW}Step 4: Applying kernel tuning (inotify + vm.max_map_count)${NC}"
+# Step 3: Kernel tuning
+log_output "${YELLOW}Step 3: Applying kernel tuning (inotify + vm.max_map_count)${NC}"
 
 if ssh \
   -o ConnectTimeout=$SSH_TIMEOUT \
@@ -156,8 +105,8 @@ else
   exit 1
 fi
 
-# Step 5: Verify
-log_output "${YELLOW}Step 5: Verifying Configuration${NC}\n"
+# Step 4: Verify
+log_output "${YELLOW}Step 4: Verifying Configuration${NC}\n"
 
 log_output "  ConfigMap keys:"
 ssh \
@@ -168,17 +117,6 @@ ssh \
   "$SSH_USER@$SERVER_IP" \
   "sudo k3s kubectl get configmap cluster-config -n cluster-config -o yaml" 2>&1 \
   | tee -a "$LOG_FILE" | grep -E "^\s+[A-Z_]+:" | sed 's/^/    /'
-
-log_output ""
-log_output "  Secret keys:"
-ssh \
-  -o ConnectTimeout=$SSH_TIMEOUT \
-  -o StrictHostKeyChecking=no \
-  -o UserKnownHostsFile=/dev/null \
-  -o LogLevel=QUIET \
-  "$SSH_USER@$SERVER_IP" \
-  "sudo k3s kubectl get secret cluster-config -n cluster-config -o yaml | grep -E '^\s+[A-Z_]+:'" 2>&1 \
-  | tee -a "$LOG_FILE" | sed 's/^/    /'
 
 log_output ""
 log_output "${GREEN}=== ✓ Cluster Configuration Complete ===${NC}\n"

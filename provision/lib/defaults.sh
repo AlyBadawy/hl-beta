@@ -8,10 +8,6 @@ NAS_IP="${NAS_IP:-172.20.20.2}"
 NAS_BASE_SHARE="${NAS_BASE_SHARE:-/var/nfs/shared}"
 NAS_BASE_MOUNT="${NAS_BASE_MOUNT:-/mnt/nas}"
 
-SMTP_SERVER="${SMTP_SERVER:-smtp.resend.com}"
-SMTP_PORT="${SMTP_PORT:-587}"
-SMTP_FROM="${SMTP_FROM:-homelab@alybadawy.com}"
-
 ADMIN_EMAIL="${ADMIN_EMAIL:-homelab@alybadawy.com}"
 
 DOMAIN="${DOMAIN:-in.alybadawy.com}"

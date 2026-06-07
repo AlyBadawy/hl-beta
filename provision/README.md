@@ -30,16 +30,12 @@ by exporting an environment variable before running:
 | `NAS_IP` | `172.20.20.2` | NAS server IP |
 | `NAS_BASE_SHARE` | `/var/nfs/shared` | NFS export path on NAS |
 | `NAS_BASE_MOUNT` | `/mnt/nas` | Local mount point |
-| `SMTP_SERVER` | `smtp.resend.com` | SMTP server hostname |
-| `SMTP_PORT` | `587` | SMTP port |
-| `SMTP_FROM` | `noreply@alybadawy.com` | Sender email address |
 | `ADMIN_EMAIL` | `alybadawy@icloud.com` | Admin notification email |
 | `DOMAIN` | `in.alybadawy.com` | Base domain for the cluster |
 | `GIT_REPO` | `https://github.com/AlyBadawy/hl-beta` | GitOps repository URL |
 
 **Prompted at runtime:**
 - `SERVER_IP` — prompted once at the top of `provision-server.sh`
-- `SMTP_USERNAME` / `SMTP_PASSWORD` — prompted by `configure-cluster` (Phase 6)
 - `CLOUDFLARE_API_TOKEN` — prompted by `bootstrap-argocd.sh` (Phase 7)
 - `REPO_REVISION` — defaults to `main`; export to override before running Phase 7–9
 
@@ -67,8 +63,8 @@ kubeconfig locally to `~/.kube/config`.
 
 ### Phase 6: `configure-cluster`
 
-Creates a `cluster-config` namespace, ConfigMap (non-sensitive values), and Secret
-(SMTP credentials) in the cluster.
+Creates a `cluster-config` namespace and ConfigMap (domain, NAS paths, admin email,
+server IP) in the cluster. Applies kernel tuning (`inotify`, `vm.max_map_count`).
 
 ### Phase 7: `bootstrap-argocd.sh`
 

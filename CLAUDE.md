@@ -115,8 +115,8 @@ Installs and validates a single-node k3s Kubernetes cluster:
 Provisions cluster-wide configuration from `config/secrets.yaml` as Kubernetes resources:
 
 - Creates `cluster-config` namespace
-- Creates `cluster-config` ConfigMap with non-sensitive data (domain, NAS paths, SMTP server, email, server IP)
-- Creates `cluster-config` Secret with sensitive credentials (SMTP username and password)
+- Creates `cluster-config` ConfigMap with non-sensitive data (domain, NAS paths, admin email, server IP)
+- Applies kernel tuning (`inotify`, `vm.max_map_count`)
 - Verifies resources are created successfully
 
 **Purpose:** Decouples configuration from application manifests, following 12-factor app principles. Applications can reference values via environment variables or volume mounts.
@@ -251,7 +251,7 @@ Scripts prompt only for what varies at runtime. Everything else is hardcoded in 
 All static values live in `provision/lib/defaults.sh`. To override, export the variable before running:
 
 ```bash
-export SMTP_FROM=alerts@mycompany.com
+export ADMIN_EMAIL=alerts@mycompany.com
 ./provision/provision-server.sh
 ```
 
@@ -261,14 +261,11 @@ export SMTP_FROM=alerts@mycompany.com
 | `NAS_IP` | `172.20.20.2` | NAS server IP |
 | `NAS_BASE_SHARE` | `/var/nfs/shared` | NFS export path on NAS |
 | `NAS_BASE_MOUNT` | `/mnt/nas` | Local mount point |
-| `SMTP_SERVER` | `smtp.resend.com` | SMTP server hostname |
-| `SMTP_PORT` | `587` | SMTP port |
-| `SMTP_FROM` | `noreply@alybadawy.com` | Sender email address |
 | `ADMIN_EMAIL` | `alybadawy@icloud.com` | Admin notification email |
 | `DOMAIN` | `in.alybadawy.com` | Base domain for cluster |
 | `GIT_REPO` | `https://github.com/AlyBadawy/hl-beta` | GitOps repository URL |
 
-**Prompted at runtime:** `SERVER_IP`, `SMTP_USERNAME`, `SMTP_PASSWORD`, `CLOUDFLARE_API_TOKEN`.
+**Prompted at runtime:** `SERVER_IP`, `CLOUDFLARE_API_TOKEN`.
 
 ## Documentation
 
