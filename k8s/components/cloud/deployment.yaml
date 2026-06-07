@@ -61,7 +61,7 @@ spec:
               memory: 256Mi
             limits:
               cpu: 1500m
-              memory: 512Mi
+              memory: 1Gi
           readinessProbe:
             tcpSocket:
               port: 443
