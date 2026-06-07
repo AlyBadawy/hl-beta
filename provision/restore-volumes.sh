@@ -112,16 +112,23 @@ log "Syncing backup target: $BACKUP_TARGET"
 curl -sf -X POST "${LONGHORN_API}/backuptargets/default?action=syncBackupTarget" \
   -H "Content-Type: application/json" -d '{}' >/dev/null
 
-log "Waiting 30s for backup catalog to load..."
-sleep 30
-
 # --- 6. List available backup volumes -------------------------------------
-BACKUP_VOLUMES_JSON=$(curl -sf "${LONGHORN_API}/backupvolumes")
-BACKUP_VOLUME_NAMES=$(echo "$BACKUP_VOLUMES_JSON" | jq -r '.data[].name // empty')
+# Poll until volumes appear or we time out (up to 3 minutes).
+log "Waiting for backup catalog to load from NFS..."
+BACKUP_VOLUMES_JSON=""
+BACKUP_VOLUME_NAMES=""
+for i in $(seq 1 18); do
+  BACKUP_VOLUMES_JSON=$(curl -sf "${LONGHORN_API}/backupvolumes")
+  BACKUP_VOLUME_NAMES=$(echo "$BACKUP_VOLUMES_JSON" | jq -r '.data[].name // empty')
+  [[ -n "$BACKUP_VOLUME_NAMES" ]] && break
+  printf '  attempt %d/18 — no volumes yet, retrying in 10s...\n' "$i"
+  sleep 10
+done
 
 if [[ -z "$BACKUP_VOLUME_NAMES" ]]; then
-  warn "No backup volumes found at $BACKUP_TARGET"
-  warn "Verify the NAS is reachable and that backups exist on the share."
+  warn "No backup volumes found at $BACKUP_TARGET after 3 minutes."
+  warn "Check the Longhorn UI: kubectl port-forward -n $LONGHORN_NAMESPACE svc/longhorn-frontend 9001:80"
+  warn "Verify the backup target is reachable and backups exist on the NAS share."
   exit 1
 fi
 
