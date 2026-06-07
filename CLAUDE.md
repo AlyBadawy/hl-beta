@@ -171,8 +171,9 @@ to ArgoCD. After this, Git (main branch) is the sole source of truth.
 - ArgoCD discovers all child apps in `k8s/apps/`
 - Adopts the imperatively-installed ArgoCD and Longhorn with no diff (self-managing)
 - Deploys ingress-nginx, cert-manager, external-secrets, vault, and all application stacks
-- Vault (sync-wave `-1`) starts first; the auto-unseal CronJob unseals it within 60s
-- ESO connects to Vault and syncs all ExternalSecrets; apps start with their secrets populated
+- Vault (sync-wave `-1`) starts first; the auto-unseal CronJob unseals it (typically 5–6 min after boot — Longhorn PVC reattachment is the bottleneck)
+- Once Vault is unsealed, the eso-recovery CronJob detects the degraded ClusterSecretStore and restarts ESO; ESO reconnects and syncs all ExternalSecrets
+- Apps start with their secrets populated — full post-boot recovery is automatic with no manual steps
 - Stateful apps bind to PVCs pre-created in Phase 8
 
 **Access ArgoCD UI (once ingress-nginx syncs):**
@@ -215,13 +216,30 @@ See Architecture Decision Records in `docs/ADR-*.md` for detailed rationale.
    (Vault provider, Kubernetes auth). No secrets are stored in git or in a `secrets` namespace.
    Vault runs in the `security` namespace as a StatefulSet backed by a Longhorn PVC.
 
-8. **Auto-unseal CronJob** — A CronJob runs every minute and unseals Vault if it finds it
-   sealed (e.g., after a pod restart). The unseal key is stored in `vault-unseal-key` Secret
-   in the `security` namespace. On a rebuild, this is the only secret that must be seeded manually.
+8. **Auto-unseal CronJob** — `vault-auto-unseal` runs every minute in the `security` namespace.
+   It checks Vault's TCP port with `nc`, then runs `timeout 5 vault status` (plain `vault status`
+   hangs at the HTTP layer while Longhorn reattaches storage — the timeout kills it and retries
+   next minute). Exit code 2 = sealed → unseal; 0 = already unsealed; anything else = not ready,
+   retry. The unseal key is stored in the `vault-unseal-key` Secret in the `security` namespace.
 
-9. **Rebuild requires only one manual secret** — After restoring Longhorn backups (which
-   include Vault's data PVC), only `vault-unseal-key` needs to be seeded before GitOps runs.
-   Everything else flows automatically: Vault unseals → ESO syncs → apps start.
+9. **ESO recovery CronJob** — `eso-recovery` runs every minute alongside the unseal CronJob.
+   It checks if `vault-0` is ready (Vault's readiness probe fails when sealed, so `ready=true`
+   means unsealed) and if the `k8s-secrets` ClusterSecretStore is degraded. When Vault comes
+   back but ESO is still in exponential backoff, the job restarts the three ESO deployments in
+   the `security` namespace to clear the backoff and force reconnection. During normal operation
+   (store already Ready) it exits immediately — cheap to run every minute.
+
+10. **Full post-reboot recovery is automatic** — After a reboot the sequence is:
+    1. Vault pod starts sealed; ESO enters backoff (store degraded)
+    2. `vault-auto-unseal` retries every minute; Longhorn reattaches the PVC (~4–5 min)
+    3. Vault unseals; `vault-0` becomes Ready
+    4. `eso-recovery` detects Vault ready + store degraded → restarts ESO
+    5. ESO reconnects to Vault; all ExternalSecrets sync; apps recover
+    Total time from boot to fully healthy: ~6 minutes. No manual intervention required.
+
+11. **Rebuild requires only one manual secret** — After restoring Longhorn backups (which
+    include Vault's data PVC), only `vault-unseal-key` needs to be seeded before GitOps runs.
+    Everything else flows automatically: Vault unseals → ESO syncs → apps start.
 
 ## Running the Provisioning
 
@@ -295,5 +313,5 @@ export ADMIN_EMAIL=alerts@mycompany.com
 
 ---
 
-**Last Updated:** 2026-06-06  
-**Phase:** Phase 9 Complete — GitOps active, HashiCorp Vault is the secrets backend
+**Last Updated:** 2026-06-07  
+**Phase:** Phase 9 Complete — GitOps active, fully automatic post-reboot recovery
