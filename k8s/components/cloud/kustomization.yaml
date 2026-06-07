@@ -3,5 +3,7 @@ kind: Kustomization
 resources:
   - namespace.yaml
   - external-secret.yaml
-  - nextcloud.yaml
+  - deployment.yaml
   - ingress.yaml
+  - pvc.yaml
+  - service.yaml

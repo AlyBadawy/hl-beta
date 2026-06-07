@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: whoami
+  namespace: networking
+  labels:
+    app.kubernetes.io/name: whoami
+    homelab/stack: whoami
+spec:
+  selector:
+    app: whoami
+  ports:
+    - port: 80
+      targetPort: 80

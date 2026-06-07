@@ -4,5 +4,6 @@ kind: Kustomization
 namespace: networking
 
 resources:
-  - whoami.yaml
+  - deployment.yaml
+  - service.yaml
   - ingress.yaml

@@ -6,3 +6,6 @@ resources:
   - immich-server.yaml
   - immich-ml.yaml
   - ingress.yaml
+  - server-service.yaml
+  - ml-service.yaml
+  - pvc.yaml

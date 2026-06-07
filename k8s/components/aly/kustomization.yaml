@@ -4,5 +4,7 @@ kind: Kustomization
 namespace: websites
 
 resources:
-  - aly.yaml
+  - deployment.yaml
+  - service.yaml
   - ingress.yaml
+  - namespace.yaml

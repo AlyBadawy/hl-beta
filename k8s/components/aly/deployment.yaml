@@ -39,18 +39,3 @@ spec:
             limits:
               cpu: 100m
               memory: 64Mi
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: aly
-  namespace: websites
-  labels:
-    app.kubernetes.io/name: aly
-    homelab/stack: aly
-spec:
-  selector:
-    app: aly
-  ports:
-    - port: 80
-      targetPort: 80
