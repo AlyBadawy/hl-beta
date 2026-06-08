@@ -1,0 +1,204 @@
+---
+layout: default
+title: "Aly Badawy's self-hosted infrastructure"
+description: "Field notes and reference docs for a home Kubernetes cluster — how it's built, why it's built that way, and how to rebuild the whole thing from scratch."
+---
+
+<main class="home-main wrap">
+
+  <!-- HERO -->
+  <section class="hero">
+    <div class="hero-grid">
+      <div>
+        <span class="eyebrow">// self-hosted · gitops · k3s</span>
+        <h1>One server.<br>A whole <span class="blue">cloud</span>,<br>run from a Git repo.</h1>
+        <p class="lede">Field notes and reference docs for my home Kubernetes cluster — how it's built, why it's built that way, and how to rebuild the whole thing from scratch. Reproducible, documented, and honest about the trade-offs.</p>
+        <div class="hero-cta">
+          <a class="btn primary" href="/cluster/argocd.html">Explore the cluster <span class="arrow">→</span></a>
+          <a class="btn" href="/guides/rebuild.html">How to rebuild</a>
+        </div>
+        <div class="hero-stats">
+          <div class="s"><b>1</b><span>k3s node</span></div>
+          <div class="s"><b>9</b><span>argo apps</span></div>
+          <div class="s"><b>100%</b><span>gitops-managed</span></div>
+          <div class="s"><b><em>↑</em></b><span>auto-recovers</span></div>
+        </div>
+      </div>
+
+      <!-- terminal flourish -->
+      <div class="term" aria-hidden="true">
+        <div class="term-head"><i class="r"></i><i class="y"></i><i class="g"></i><span class="tt">aly@homelab: ~</span></div>
+        <div class="term-body">
+          <div class="ln"><span class="p">aly@homelab</span><span class="o">:~$</span> <span class="c">kubectl get nodes</span></div>
+          <div class="ln"><span class="o">NAME       STATUS   ROLES                  VERSION</span></div>
+          <div class="ln"><span class="bl">homelab</span><span class="o">    </span><span class="ok">Ready</span><span class="o">    control-plane,master   v1.36.1+k3s1</span></div>
+          <div class="ln">&nbsp;</div>
+          <div class="ln"><span class="p">aly@homelab</span><span class="o">:~$</span> <span class="c">argocd app list -o name</span></div>
+          <div class="ln"><span class="ok">✔</span> <span class="o">vault   longhorn   cert-manager   ingress-nginx</span></div>
+          <div class="ln"><span class="ok">✔</span> <span class="o">external-secrets   db   monitor   whoami</span></div>
+          <div class="ln">&nbsp;</div>
+          <div class="ln"><span class="p">aly@homelab</span><span class="o">:~$</span> <span class="c">git push origin main</span><span class="cursor"></span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ARCHITECTURE DIAGRAM -->
+  <section class="sec" id="architecture">
+    <div class="sec-head">
+      <div>
+        <span class="eyebrow">// topology</span>
+        <h2>How everything connects</h2>
+        <p>From the public internet down to a pod. Traffic enters through the firewall, hits the ingress controller, and every workload is reconciled continuously from Git.</p>
+      </div>
+      <a class="seclink" href="/networking/">full network docs →</a>
+    </div>
+
+    <div class="arch">
+      <div class="arch-inner">
+        <div class="arch-flow">
+          <!-- edge column -->
+          <div class="edge-col">
+            <div class="panel edge">
+              <div class="ph">Edge <span class="tag">vlan 10</span></div>
+              <div class="node"><span class="dot ok"></span><span class="nm">Internet</span><span class="meta">WAN</span></div>
+              <div class="node"><span class="dot ok"></span><span class="nm">OPNsense</span><span class="meta">firewall</span></div>
+              <div class="node"><span class="dot ok"></span><span class="nm">AdGuard</span><span class="meta">dns</span></div>
+            </div>
+            <div class="conn">│<br>▼</div>
+            <div class="panel">
+              <div class="ph">Ingress</div>
+              <div class="node"><span class="si"></span><span class="nm">ingress-nginx</span><span class="meta">:443</span></div>
+              <div class="node"><span class="dot ok"></span><span class="nm">cert-manager</span><span class="meta">TLS</span></div>
+            </div>
+          </div>
+
+          <!-- cluster column -->
+          <div class="panel cluster">
+            <div class="ph">k3s cluster <span class="tag">ubuntu 26.04 · single-node</span></div>
+            <div class="ns-grid">
+              <div class="svc gitops"><span class="si"></span> argocd</div>
+              <div class="svc"><span class="si"></span> vault</div>
+              <div class="svc"><span class="si"></span> longhorn</div>
+              <div class="svc"><span class="si"></span> external-secrets</div>
+              <div class="svc"><span class="si"></span> postgres</div>
+              <div class="svc"><span class="si"></span> immich</div>
+              <div class="svc"><span class="si"></span> nextcloud</div>
+              <div class="svc"><span class="si"></span> grafana</div>
+            </div>
+            <div style="padding: 0 14px 14px;">
+              <div class="gitops-bar">
+                <span class="glabel"><span class="dot ok live"></span> Argo CD</span>
+                <span class="arrowflow">◀── reconciles ───</span>
+                <span class="repo">github.com/AlyBadawy/hl-beta</span>
+                <span class="arrowflow">·</span>
+                <span>app-of-apps</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="arch-legend">
+          <span><i style="background:var(--ok)"></i> healthy / synced</span>
+          <span><i style="background:var(--accent)"></i> workload</span>
+          <span><i style="background:var(--warn)"></i> edge / wan</span>
+          <span style="margin-left:auto; color:var(--fg-faint)">◀── = GitOps reconciliation loop</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- TWO SECTION CARDS -->
+  <section class="sec">
+    <div class="sec-head">
+      <div>
+        <span class="eyebrow">// two domains</span>
+        <h2>Where to go next</h2>
+        <p>The docs split into the software that runs on the cluster, and the physical &amp; network layer underneath it.</p>
+      </div>
+    </div>
+    <div class="split">
+      <a class="bigcard" href="/cluster/argocd.html">
+        <span class="bc-no">01 — CLUSTER</span>
+        <h3>The Homelab Cluster</h3>
+        <p class="bc-desc">A single-node k3s cluster running the full self-hosted stack, delivered entirely through GitOps. Per-component docs for everything that runs in-cluster.</p>
+        <ul>
+          <li>ArgoCD</li><li>Vault</li><li>Longhorn</li><li>cert-manager</li><li>Ingress</li><li>ESO</li><li>Monitoring</li><li>Apps</li>
+        </ul>
+        <span class="bc-go">Open cluster docs <span class="arrow">→</span></span>
+      </a>
+      <a class="bigcard" href="/networking/">
+        <span class="bc-no">02 — INFRASTRUCTURE</span>
+        <h3>The Broader Setup</h3>
+        <p class="bc-desc">Everything beneath the cluster: physical hardware, VLAN segmentation, DNS, NAS storage, and the firewall rules that tie the whole house network together.</p>
+        <ul>
+          <li>Hardware</li><li>VLANs</li><li>DNS</li><li>NAS</li><li>Firewall</li><li>Backups</li>
+        </ul>
+        <span class="bc-go">Open networking docs <span class="arrow">→</span></span>
+      </a>
+    </div>
+  </section>
+
+  <!-- STATUS DASHBOARD -->
+  <section class="sec">
+    <div class="sec-head">
+      <div>
+        <span class="eyebrow">// cluster at a glance</span>
+        <h2>Live component status</h2>
+        <p>A snapshot of the core platform services. Each links through to its reference page.</p>
+      </div>
+      <span class="seclink"><span class="dot ok live"></span> updated 38s ago</span>
+    </div>
+    <div class="status-grid">
+      <a class="stat-tile" href="/cluster/argocd.html">
+        <div class="st-top"><span class="st-name">ArgoCD</span><span class="st-state ok"><span class="dot ok"></span>Synced</span></div>
+        <div class="st-sub">9/9 apps healthy</div>
+        <div class="meter"><i class="ok" style="width:100%"></i></div>
+      </a>
+      <a class="stat-tile" href="/cluster/vault.html">
+        <div class="st-top"><span class="st-name">Vault</span><span class="st-state ok"><span class="dot ok"></span>Unsealed</span></div>
+        <div class="st-sub">auto-unseal · kv-v2</div>
+        <div class="meter"><i class="ok" style="width:100%"></i></div>
+      </a>
+      <a class="stat-tile" href="/cluster/longhorn.html">
+        <div class="st-top"><span class="st-name">Longhorn</span><span class="st-state ok"><span class="dot ok"></span>Healthy</span></div>
+        <div class="st-sub">single-node · 1 replica</div>
+        <div class="meter"><i class="ok" style="width:62%"></i></div>
+      </a>
+      <a class="stat-tile" href="/cluster/cert-manager.html">
+        <div class="st-top"><span class="st-name">cert-manager</span><span class="st-state ok"><span class="dot ok"></span>Valid</span></div>
+        <div class="st-sub">1 wildcard cert · LE prod</div>
+        <div class="meter"><i class="ok" style="width:100%"></i></div>
+      </a>
+      <a class="stat-tile" href="/cluster/ingress.html">
+        <div class="st-top"><span class="st-name">ingress-nginx</span><span class="st-state ok"><span class="dot ok"></span>Healthy</span></div>
+        <div class="st-sub">wildcard default-ssl-cert</div>
+        <div class="meter"><i class="ok" style="width:100%"></i></div>
+      </a>
+      <a class="stat-tile" href="/cluster/external-secrets.html">
+        <div class="st-top"><span class="st-name">ESO</span><span class="st-state ok"><span class="dot ok"></span>Synced</span></div>
+        <div class="st-sub">ClusterSecretStore ready</div>
+        <div class="meter"><i class="ok" style="width:100%"></i></div>
+      </a>
+      <a class="stat-tile" href="/cluster/apps.html">
+        <div class="st-top"><span class="st-name">PostgreSQL</span><span class="st-state ok"><span class="dot ok"></span>Primary</span></div>
+        <div class="st-sub">Longhorn-backed · 3 dbs</div>
+        <div class="meter"><i class="ok" style="width:48%"></i></div>
+      </a>
+      <a class="stat-tile" href="/cluster/monitoring.html">
+        <div class="st-top"><span class="st-name">Grafana</span><span class="st-state ok"><span class="dot ok"></span>Scraping</span></div>
+        <div class="st-sub">Prometheus · monitor ns</div>
+        <div class="meter"><i class="ok" style="width:84%"></i></div>
+      </a>
+    </div>
+  </section>
+
+  <!-- FOOTER -->
+  <footer class="foot">
+    <div class="foot-row">
+      <span>built with <a href="https://jekyllrb.com" target="_blank" rel="noopener">Jekyll</a> · hosted on <a href="https://pages.cloudflare.com" target="_blank" rel="noopener">Cloudflare Pages</a> · source on <a href="{{ site.repo_url }}" target="_blank" rel="noopener">GitHub</a></span>
+      <span class="deploy"><span class="dot ok live"></span> GitOps-managed · <a href="{{ site.repo_url }}" style="color:var(--fg-faint)">AlyBadawy/hl-beta</a></span>
+    </div>
+  </footer>
+
+</main>
