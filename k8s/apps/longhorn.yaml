@@ -11,7 +11,6 @@ metadata:
   finalizers:
     - resources-finalizer.argocd.argoproj.io
     - pre-delete-finalizer.argocd.argoproj.io
-    - pre-delete-finalizer.argocd.argoproj.io/cleanup
 spec:
   project: default
   source:

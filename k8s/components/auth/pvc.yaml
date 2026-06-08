@@ -6,6 +6,8 @@ metadata:
   labels:
     app.kubernetes.io/name: authentik
     homelab/stack: auth
+  annotations:
+    recurring-job-group.longhorn.io/default: enabled
 spec:
   accessModes: [ReadWriteOnce]
   storageClassName: longhorn
@@ -21,6 +23,8 @@ metadata:
   labels:
     app.kubernetes.io/name: authentik
     homelab/stack: auth
+  annotations:
+    recurring-job-group.longhorn.io/default: enabled
 spec:
   accessModes: [ReadWriteOnce]
   storageClassName: longhorn

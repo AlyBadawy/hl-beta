@@ -8,6 +8,8 @@ metadata:
     homelab/stack: cloud
     longhorn.io/pvc-name: nextcloud-data-lh
     longhorn.io/pvc-namespace: cloud
+  annotations:
+    recurring-job-group.longhorn.io/default: enabled
 spec:
   accessModes: [ReadWriteOnce]
   storageClassName: longhorn

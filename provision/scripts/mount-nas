@@ -2,12 +2,6 @@
 
 set -e
 
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-NC='\033[0m'
-
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 LOG_FILE="$PROJECT_DIR/provision.log"
@@ -15,33 +9,8 @@ LOG_FILE="$PROJECT_DIR/provision.log"
 source "$(dirname "$SCRIPT_DIR")/lib/defaults.sh"
 require_server_ip
 
-SSH_TIMEOUT=5
 NFS_OPTIONS="defaults,_netdev,nofail,x-systemd.automount,x-systemd.mount-timeout=10"
 MOUNT_POINTS=(homelab backups immich nextcloud)
-
-log_output() { echo -e "$1" | tee -a "$LOG_FILE"; }
-
-run_remote_command() {
-  local command=$1
-  local description=$2
-  local fail_on_error=${3:-true}
-
-  log_output "${YELLOW}$description${NC}"
-
-  if output=$(ssh \
-    -o ConnectTimeout=$SSH_TIMEOUT \
-    -o StrictHostKeyChecking=no \
-    -o UserKnownHostsFile=/dev/null \
-    -o LogLevel=QUIET \
-    "$SSH_USER@$SERVER_IP" \
-    "$command" 2>&1); then
-    log_output "${GREEN}✓ Success${NC}"
-    return 0
-  else
-    log_output "${RED}✗ Failed: $output${NC}"
-    [ "$fail_on_error" = "true" ] && return 1 || return 0
-  fi
-}
 
 log_output "${BLUE}=== NAS Mount Setup ===${NC}\n"
 log_output "  NAS IP:     ${BLUE}$NAS_IP${NC}"
