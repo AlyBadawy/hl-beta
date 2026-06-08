@@ -132,19 +132,12 @@ server:
     storageClass: longhorn
     size: 5Gi
 
+  # Ingress is managed as a standalone Ingress resource in ingress.yaml,
+  # consistent with the rest of the cluster. TLS is handled globally by
+  # ingress-nginx via the shared wildcard cert (networking/wildcard-tls);
+  # no per-hostname cert or cert-manager annotation is needed here.
   ingress:
-    enabled: true
-    ingressClassName: nginx
-    annotations:
-      cert-manager.io/cluster-issuer: letsencrypt-prod
-    hosts:
-      - host: vault.in.alybadawy.com
-        paths:
-          - /
-    tls:
-      - secretName: vault-tls
-        hosts:
-          - vault.in.alybadawy.com
+    enabled: false
 
   resources:
     requests:
