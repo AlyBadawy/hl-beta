@@ -1,6 +1,6 @@
 # Cluster Rebuild Guide
 
-Step-by-step instructions for rebuilding the entire cluster on a new node and restoring all data from backups. Follow these phases in order — skipping or reordering them will cause dependency failures.
+Step-by-step instructions for rebuilding the entire cluster on a new node and restoring all data from backups. Follow these steps in order — skipping or reordering them will cause dependency failures.
 
 **Last Updated:** 2026-06-06  
 **Applies to:** k3s v1.36.1, ArgoCD on main branch, single-node cluster
@@ -11,11 +11,11 @@ Step-by-step instructions for rebuilding the entire cluster on a new node and re
 
 ### What is automatically restored
 
-| Data | Backup mechanism | Restored in phase |
+| Data | Backup mechanism | Restored in step |
 |---|---|---|
-| Vault KV secrets (all app credentials) | Longhorn PVC backup (`vault-data-lh`) → NAS | Phase 6 |
-| PostgreSQL databases (authentik, immich, nextcloud) | Daily `pg_dump` → NAS (`/mnt/nas/backups/postgres`) | Phase 8 (manual) |
-| Longhorn volumes (all `-lh` PVCs) | Longhorn backup every 6h → NAS | Phase 6 |
+| Vault KV secrets (all app credentials) | Longhorn PVC backup (`vault-data-lh`) → NAS | Step 6 |
+| PostgreSQL databases (authentik, immich, nextcloud) | Daily `pg_dump` → NAS (`/mnt/nas/backups/postgres`) | Step 8 (manual) |
+| Longhorn volumes (all `-lh` PVCs) | Longhorn backup every 6h → NAS | Step 6 |
 | Immich photos | NAS (`/mnt/nas/immich`) — live, not backed up separately | Available immediately after NAS mounts |
 | Nextcloud files | NAS (`/mnt/nas/nextcloud`) — live, not backed up separately | Available immediately after NAS mounts |
 | Grafana dashboards | `local-path` PVC — NOT backed up by Longhorn | Must be re-imported manually |
@@ -44,7 +44,7 @@ jq --version
 
 ---
 
-## Phase 1: Prepare the New Node
+## Step 1: Prepare the New Node
 
 Perform these steps on the **new server** before running any provisioning scripts.
 
@@ -84,11 +84,11 @@ ssh homelab@<NEW_SERVER_IP> 'sudo whoami'
 ssh homelab@<NEW_SERVER_IP> "ping -c 3 172.20.20.2"
 ```
 
-If the NAS is unreachable, do not proceed — Phase 4 (NAS mounts) will fail, and Immich/Nextcloud data will not be accessible.
+If the NAS is unreachable, do not proceed — rebuild.sh Step 3 (NAS mounts) will fail, and Immich/Nextcloud data will not be accessible.
 
 ---
 
-## Phase 2: Server Provisioning (Steps 1–5)
+## Step 2: Server Provisioning
 
 From your **local machine**, in the repo root:
 
@@ -125,7 +125,7 @@ kubectl get configmap cluster-config -n cluster-config
 
 ---
 
-## Phase 3: Seed the Vault Unseal Key (Step 6 — handled by rebuild.sh)
+## Step 3: Seed the Vault Unseal Key (handled by rebuild.sh)
 
 The Vault unseal key must exist before ArgoCD runs. When GitOps activates, Vault starts first (sync-wave `-1`) and the `vault-auto-unseal` CronJob uses this secret to unseal it within 60 seconds. Without it, Vault stays sealed, ESO cannot sync, and all apps fail to start.
 
@@ -147,9 +147,9 @@ kubectl create secret generic vault-unseal-key \
 
 ---
 
-## Phase 4: Required Secrets Reference
+## Step 4: Required Secrets Reference
 
-Only **two secrets** require manual intervention on a rebuild. Everything else is either seeded automatically or lives inside Vault (which is restored from the Longhorn backup in Phase 6).
+Only **two secrets** require manual intervention on a rebuild. Everything else is either seeded automatically or lives inside Vault (which is restored from the Longhorn backup in Step 6).
 
 | Secret | Namespace | How it's created | Why it's needed |
 |---|---|---|---|
@@ -190,7 +190,7 @@ kubectl get secret cloudflare-api-token -n networking
 
 ---
 
-## Phase 5: Bootstrap ArgoCD (Step 7 — handled by rebuild.sh)
+## Step 5: Bootstrap ArgoCD (handled by rebuild.sh)
 
 `rebuild.sh` runs `provision/scripts/bootstrap-argocd` automatically as Step 7 using
 the Cloudflare token you entered at the start. No separate invocation is needed.
@@ -217,7 +217,7 @@ kubectl port-forward -n argocd svc/argocd-server 8080:80
 
 ---
 
-## Phase 6: Install Longhorn and Restore Volumes (Step 8 — handled by rebuild.sh)
+## Step 6: Install Longhorn and Restore Volumes (handled by rebuild.sh)
 
 `rebuild.sh` runs `provision/scripts/restore-volumes` automatically as Step 8.
 The script will ask:
@@ -271,7 +271,7 @@ All `-lh` PVCs should show `Bound` status.
 
 ---
 
-## Phase 7: Activate GitOps
+## Step 7: Activate GitOps
 
 ```bash
 ./provision/activate-gitops.sh
@@ -307,7 +307,7 @@ Allow 10–15 minutes for all apps to reach `Synced / Healthy`.
 
 ---
 
-## Phase 8: Restore PostgreSQL Databases
+## Step 8: Restore PostgreSQL Databases
 
 Longhorn restores the PostgreSQL *data volume*, which should contain all databases intact. However, if the Longhorn backup was taken when PostgreSQL was mid-write (unlikely with the daily pg_dump schedule, but possible), you may need to fall back to the pg_dump backups.
 
@@ -351,7 +351,7 @@ kubectl exec -i -n db deploy/postgres -- \
 
 ---
 
-## Phase 9: Post-Rebuild Verification
+## Step 9: Post-Rebuild Verification
 
 ### 9.1 Certificates
 
@@ -479,7 +479,7 @@ The secret it references doesn't exist in the `secrets` namespace yet.
 
 ```bash
 kubectl describe externalsecret <name> -n <namespace>
-# "secret ... not found in namespace secrets" means you need to seed it (Phase 4)
+# "secret ... not found in namespace secrets" means you need to seed it (Step 4)
 
 # Verify which secret is missing
 kubectl get externalsecret <name> -n <namespace> \
@@ -544,7 +544,7 @@ For a clean rebuild, run these commands in order (filling in the values at each 
 # 4. Watch and wait
 kubectl get applications -n argocd -w
 
-# 5. Verify (Phases 8–9 above)
+# 5. Verify (Steps 8–9 above)
 ```
 
 ---
@@ -553,4 +553,4 @@ kubectl get applications -n argocd -w
 
 - `docs/secrets-rebuild-reference.md` — complete secret inventory, offline checklist, and `kubectl` commands
 - `provision/README.md` — provisioning script reference
-- `CLAUDE.md` — project overview and phase descriptions
+- `CLAUDE.md` — project overview and step descriptions
