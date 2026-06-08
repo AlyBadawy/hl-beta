@@ -398,9 +398,7 @@ If keeping Cloudflare, no change is needed.
 **Option A (k3s on EC2):**
 ```bash
 # Launch EC2 instance, then re-run provisioning scripts
-./provision/provision-server.sh   # Phases 2–6 (adapted for EC2)
-./provision/bootstrap-argocd.sh
-./provision/restore-volumes.sh    # Restore from S3 instead of NAS
+./provision/rebuild.sh            # Steps 1–8 (adapted for EC2; restore-volumes needs S3 backend)
 ./provision/activate-gitops.sh
 ```
 

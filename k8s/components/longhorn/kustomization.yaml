@@ -3,7 +3,7 @@ kind: Kustomization
 
 # Longhorn distributed storage, rendered from the upstream Helm chart via
 # Kustomize's Helm inflation. This same directory is applied imperatively by
-# provision/restore-volumes.sh AND tracked by k8s/apps/longhorn.yaml, which
+# provision/scripts/restore-volumes AND tracked by k8s/apps/longhorn.yaml, which
 # makes Longhorn self-managing: once the child Application syncs, it adopts
 # these exact resources with no diff.
 

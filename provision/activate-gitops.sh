@@ -1,17 +1,16 @@
 #!/usr/bin/env bash
 #
-# Phase 9: Activate GitOps — apply the root app-of-apps and hand full cluster
+# Final step: Activate GitOps — apply the root app-of-apps and hand full cluster
 # ownership to ArgoCD.
 #
 # After this runs:
 #   • ArgoCD self-manages (adopts the bootstrapped install with no diff)
 #   • Longhorn self-manages (adopts the bootstrapped install with no diff)
 #   • All other apps in k8s/apps/ are deployed and kept in sync from Git
-#   • Stateful apps bind to PVCs pre-created by restore-volumes.sh
+#   • Stateful apps bind to PVCs pre-created by provision/scripts/restore-volumes
 #
 # Prerequisites:
-#   provision/bootstrap-argocd.sh  — ArgoCD must be running
-#   provision/restore-volumes.sh   — Longhorn must be running; PVCs restored
+#   provision/rebuild.sh  — must have completed through Step 8 (Longhorn + PVCs restored)
 set -euo pipefail
 
 ARGOCD_NAMESPACE="argocd"
@@ -28,9 +27,9 @@ command -v kubectl >/dev/null 2>&1 || fail "'kubectl' is required but not on PAT
 kubectl cluster-info >/dev/null 2>&1 || fail "Cannot reach a Kubernetes cluster (check KUBECONFIG)."
 
 kubectl -n "$ARGOCD_NAMESPACE" get deploy/argocd-server >/dev/null 2>&1 \
-  || fail "ArgoCD not found in namespace '$ARGOCD_NAMESPACE'. Run bootstrap-argocd.sh first."
+  || fail "ArgoCD not found in namespace '$ARGOCD_NAMESPACE'. Run provision/rebuild.sh first."
 kubectl -n longhorn-system get daemonset/longhorn-manager >/dev/null 2>&1 \
-  || fail "Longhorn not found in namespace 'longhorn-system'. Run restore-volumes.sh first."
+  || fail "Longhorn not found in namespace 'longhorn-system'. Run provision/rebuild.sh first."
 
 # --- Apply root app-of-apps -----------------------------------------------
 log "Revision : $REPO_REVISION"

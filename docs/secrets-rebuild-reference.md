@@ -32,7 +32,7 @@ kubectl get secret <name> -n <namespace> \
 | **Type** | `Opaque` |
 | **Key** | `api-token` |
 | **Used by** | cert-manager `ClusterIssuer` (both `letsencrypt-prod` and `letsencrypt-staging`) for DNS-01 TLS challenges |
-| **Created by** | `provision/bootstrap-argocd.sh` (prompts at runtime) |
+| **Created by** | `provision/scripts/bootstrap-argocd` via `rebuild.sh` (Step 7) |
 
 The Cloudflare API token must have **Zone → DNS → Edit** permission for the `alybadawy.com` zone.
 
@@ -87,8 +87,8 @@ kubectl get secret vault-unseal-key -n security \
 
 | Secret | Namespace | Keys | Who creates it |
 |---|---|---|---|
-| `cloudflare-api-token` | `networking` | `api-token` | `bootstrap-argocd.sh` (or manually) |
-| `vault-unseal-key` | `security` | `key` | Manually — seeded from offline backup before Phase 5 |
+| `cloudflare-api-token` | `networking` | `api-token` | `provision/scripts/bootstrap-argocd` via `rebuild.sh` (Step 7) |
+| `vault-unseal-key` | `security` | `key` | `rebuild.sh` (Step 6) — prompted from offline backup |
 
 ---
 
@@ -107,11 +107,8 @@ These values must be saved somewhere safe and **offline** (e.g., a local passwor
 Create secrets in this order to avoid dependency failures:
 
 ```
-1. ./provision/provision-server.sh              # Phases 2–6
-2. kubectl create secret generic vault-unseal-key -n vault ...   ← from offline backup
-3. ./provision/bootstrap-argocd.sh              # Phase 7: installs ArgoCD, seeds cloudflare-api-token
-4. ./provision/restore-volumes.sh               # Phase 8: installs Longhorn, restores PVC backups
-5. ./provision/activate-gitops.sh               # Phase 9: Vault (wave -1) starts → CronJob unseals → ESO syncs all secrets → apps start
+1. ./provision/rebuild.sh          # Steps 1–8: provisions server, seeds secrets, bootstraps ArgoCD, installs Longhorn
+2. ./provision/activate-gitops.sh  # Vault (wave -1) starts → CronJob unseals → ESO syncs all secrets → apps start
 ```
 
 On a rebuild, Vault's data volume is restored from its Longhorn backup — Vault is already initialized. Only the unseal key secret needs to be manually seeded.

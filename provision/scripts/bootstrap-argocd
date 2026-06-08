@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 #
-# Phase 7: Bootstrap ArgoCD onto a fresh k3s cluster.
+# Step 7: Bootstrap ArgoCD onto a fresh k3s cluster.
 #
 # After this runs, ArgoCD is operational but no applications are deployed yet.
-# That gate is intentional — it allows restore-volumes.sh to pre-populate
+# That gate is intentional — it allows restore-volumes to pre-populate
 # Longhorn PVCs before any stateful services start.
 #
 # Flow:
@@ -11,13 +11,13 @@
 #   2. Wait for argocd-server to be ready.
 #   3. Create cert-manager namespace + Cloudflare API token secret.
 #
-# Next step: provision/restore-volumes.sh
+# Next step: provision/scripts/restore-volumes
 set -euo pipefail
 
 ARGOCD_NAMESPACE="argocd"
 REPO_REVISION="${REPO_REVISION:-main}"
 
-repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$repo_root"
 
 log()  { printf '\033[1;34m==>\033[0m %s\n' "$*"; }
@@ -71,5 +71,5 @@ Access the UI (before ingress goes live):
   kubectl port-forward -n $ARGOCD_NAMESPACE svc/argocd-server 8080:80
   open http://localhost:8080
 
-Next step: provision/restore-volumes.sh
+Next step: provision/scripts/restore-volumes
 EOF

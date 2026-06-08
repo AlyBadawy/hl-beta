@@ -9,16 +9,16 @@
 ```
 hl-beta/
 ├── provision/                    # Provisioning automation
-│   ├── provision-server.sh       # Server provisioning orchestrator (Phases 2-6)
-│   ├── bootstrap-argocd.sh       # Phase 7: install ArgoCD
-│   ├── restore-volumes.sh        # Phase 8: install Longhorn + restore PVC backups
-│   ├── activate-gitops.sh        # Phase 9: apply app-of-apps, GitOps takes over
-│   ├── scripts/                  # Individual provisioning scripts
-│   │   ├── check-ssh-connection  # Phase 2: SSH connectivity verification
-│   │   ├── update-dependencies   # Phase 3: System updates and package installation
-│   │   ├── mount-nas             # Phase 4: NAS mount setup
-│   │   ├── install-k3s           # Phase 5: K3s installation
-│   │   └── configure-cluster     # Phase 6: Cluster configuration provisioning
+│   ├── rebuild.sh                # Rebuild orchestrator (Steps 1–8)
+│   ├── activate-gitops.sh        # Final step: apply app-of-apps, GitOps takes over
+│   ├── scripts/                  # Individual step scripts
+│   │   ├── check-ssh-connection  # Step 1: SSH connectivity verification
+│   │   ├── update-dependencies   # Step 2: System updates and package installation
+│   │   ├── mount-nas             # Step 3: NAS mount setup
+│   │   ├── install-k3s           # Step 4: K3s installation
+│   │   ├── configure-cluster     # Step 5: Cluster configuration provisioning
+│   │   ├── bootstrap-argocd      # Step 7: install ArgoCD
+│   │   └── restore-volumes       # Step 8: install Longhorn + restore PVC backups
 │   ├── lib/                      # Helper functions & utilities
 │   │   └── defaults.sh           # Hardcoded homelab defaults + require_server_ip helper
 │   └── README.md                 # Provisioning documentation
@@ -50,11 +50,11 @@ hl-beta/
 
 ```
 
-## Development Phases
+## Provisioning Steps
 
-Provisioning is executed as a sequence of phases, each running a shell script with one or more internal steps.
+All steps are run by `provision/rebuild.sh`, which collects all interactive inputs upfront then executes each step in sequence. `activate-gitops.sh` is intentionally separate.
 
-### Phase 2: SSH Connectivity Check ✓ Complete
+### Step 1: SSH Connectivity Check ✓ Complete
 
 **Script:** `provision/scripts/check-ssh-connection`
 
@@ -66,7 +66,7 @@ Validates SSH connectivity and NOPASSWD sudo access to target Ubuntu server:
 
 **Blocks provisioning if checks fail** — ensures server is ready before proceeding.
 
-### Phase 3: System Updates & Dependencies ✓ Complete
+### Step 2: System Updates & Dependencies ✓ Complete
 
 **Script:** `provision/scripts/update-dependencies`
 
@@ -79,7 +79,7 @@ Prepares the Ubuntu server with essential packages and configuration:
 
 **Optional step** — user can skip with N when prompted (Y is default).
 
-### Phase 4: NAS Storage Mounting ✓ Complete
+### Step 3: NAS Storage Mounting ✓ Complete
 
 **Script:** `provision/scripts/mount-nas`
 
@@ -93,7 +93,7 @@ Configures NFS mounts for persistent storage:
 
 **Idempotent** — safe to re-run without duplication.
 
-### Phase 5: K3s Cluster Installation ✓ Complete
+### Step 4: K3s Cluster Installation ✓ Complete
 
 **Script:** `provision/scripts/install-k3s`
 
@@ -108,7 +108,7 @@ Installs and validates a single-node k3s Kubernetes cluster:
 
 **Idempotent** — detects existing installation and skips reinstall.
 
-### Phase 6: Cluster Configuration Provisioning ✓ Complete
+### Step 5: Cluster Configuration Provisioning ✓ Complete
 
 **Script:** `provision/scripts/configure-cluster`
 
@@ -121,12 +121,18 @@ Provisions cluster-wide configuration from `config/secrets.yaml` as Kubernetes r
 
 **Purpose:** Decouples configuration from application manifests, following 12-factor app principles. Applications can reference values via environment variables or volume mounts.
 
-### Phase 7: Bootstrap ArgoCD ✓ Complete
+### Step 6: Seed Vault Unseal Key ✓ Complete
 
-**Script:** `provision/bootstrap-argocd.sh`
+Handled inline by `provision/rebuild.sh` — creates the `security` namespace and seeds
+the `vault-unseal-key` secret before ArgoCD starts. Without it, Vault stays sealed,
+ESO cannot sync, and all apps fail to start.
+
+### Step 7: Bootstrap ArgoCD ✓ Complete
+
+**Script:** `provision/scripts/bootstrap-argocd`
 
 Installs ArgoCD onto the cluster and prepares the cert-manager secret. **Deliberately
-stops before deploying any applications** — this gate allows Phase 8 to restore PVC
+stops before deploying any applications** — this gate allows Step 8 to restore PVC
 backups before stateful services start.
 
 1. Installs ArgoCD via Kustomize + Helm from `k8s/components/argocd`
@@ -140,9 +146,9 @@ kubectl port-forward -n argocd svc/argocd-server 8080:80
 kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d
 ```
 
-### Phase 8: Longhorn + Volume Restore ✓ Complete
+### Step 8: Longhorn + Volume Restore ✓ Complete
 
-**Script:** `provision/restore-volumes.sh`
+**Script:** `provision/scripts/restore-volumes`
 
 Installs Longhorn distributed storage and optionally restores PVC backups from NAS.
 
@@ -155,13 +161,13 @@ Installs Longhorn distributed storage and optionally restores PVC backups from N
 - Installs Longhorn, then opens the Longhorn UI via port-forward on `localhost:9000`
 - Operator manually restores each volume from the UI (Backup → Restore) and creates PV/PVCs
 - Script waits for operator confirmation, then exits
-- When Phase 9 deploys stateful apps, they bind to the restored PVCs
+- When `activate-gitops.sh` deploys stateful apps, they bind to the restored PVCs
 
 **Access Longhorn UI (once ingress-nginx and cert-manager are live):**
 - https://longhorn.in.alybadawy.com
 - Before ingress is live: `kubectl port-forward -n longhorn-system svc/longhorn-frontend 9000:80` → http://localhost:9000
 
-### Phase 9: Activate GitOps ✓ Complete
+### Final Step: Activate GitOps ✓ Complete
 
 **Script:** `provision/activate-gitops.sh`
 
@@ -174,7 +180,7 @@ to ArgoCD. After this, Git (main branch) is the sole source of truth.
 - Vault (sync-wave `-1`) starts first; the auto-unseal CronJob unseals it (typically 5–6 min after boot — Longhorn PVC reattachment is the bottleneck)
 - Once Vault is unsealed, the eso-recovery CronJob detects the degraded ClusterSecretStore and restarts ESO; ESO reconnects and syncs all ExternalSecrets
 - Apps start with their secrets populated — full post-boot recovery is automatic with no manual steps
-- Stateful apps bind to PVCs pre-created in Phase 8
+- Stateful apps bind to PVCs pre-created in Step 8
 
 **Access ArgoCD UI (once ingress-nginx syncs):**
 - https://argo.in.alybadawy.com
@@ -196,9 +202,9 @@ See Architecture Decision Records in `docs/ADR-*.md` for detailed rationale.
 
 ### GitOps Bootstrap Design
 
-4. **Three-phase GitOps bootstrap** — Phases 7–9 are deliberately split so there is a
-   safe window (Phase 8) to restore Longhorn PVC backups before stateful apps start.
-   Without this, GitOps would create new empty volumes on first sync.
+4. **Staged bootstrap with a restore gate** — Steps 7–8 are deliberately separated from
+   `activate-gitops.sh` so there is a safe window to restore Longhorn PVC backups before
+   stateful apps start. Without this, GitOps would create new empty volumes on first sync.
 
 5. **Imperative bootstrap, GitOps adoption** — ArgoCD and Longhorn are installed
    imperatively (Kustomize + Helm) then adopted by `k8s/apps/argocd.yaml` and
@@ -246,23 +252,15 @@ See Architecture Decision Records in `docs/ADR-*.md` for detailed rationale.
 ### Initial Setup
 
 ```bash
-# Server setup
-./provision/provision-server.sh   # Phases 2–6
+# Steps 1–8: provision server, seed secrets, bootstrap ArgoCD, install Longhorn
+./provision/rebuild.sh
 
-# Seed the Vault unseal key (from offline backup) before GitOps runs
-kubectl create namespace security --dry-run=client -o yaml | kubectl apply -f -
-kubectl create secret generic vault-unseal-key -n security \
-  --from-literal=key="<UNSEAL_KEY_FROM_OFFLINE_BACKUP>"
-
-# GitOps bootstrap — run in order:
-./provision/bootstrap-argocd.sh   # Phase 7: install ArgoCD
-./provision/restore-volumes.sh    # Phase 8: install Longhorn + restore PVCs (includes Vault data)
-./provision/activate-gitops.sh    # Phase 9: apply app-of-apps, GitOps takes over
-                                  #   → Vault starts (wave -1), CronJob unseals it
-                                  #   → ESO syncs all secrets from Vault → apps start
+# Final step: apply app-of-apps, GitOps takes over
+./provision/activate-gitops.sh    # → Vault starts (wave -1), CronJob unseals it
+                                  # → ESO syncs all secrets from Vault → apps start
 ```
 
-Scripts prompt only for what varies at runtime. Everything else is hardcoded in `provision/lib/defaults.sh`.
+`rebuild.sh` prompts for server IP, Vault unseal key, and Cloudflare token upfront then runs unattended through Step 7. Step 8 requires manual Longhorn UI interaction for volume restore. Everything else is hardcoded in `provision/lib/defaults.sh`.
 
 ## Configuration Reference
 
@@ -270,7 +268,7 @@ All static values live in `provision/lib/defaults.sh`. To override, export the v
 
 ```bash
 export ADMIN_EMAIL=alerts@mycompany.com
-./provision/provision-server.sh
+./provision/rebuild.sh
 ```
 
 | Variable | Default | Description |
@@ -283,7 +281,7 @@ export ADMIN_EMAIL=alerts@mycompany.com
 | `DOMAIN` | `in.alybadawy.com` | Base domain for cluster |
 | `GIT_REPO` | `https://github.com/AlyBadawy/hl-beta` | GitOps repository URL |
 
-**Prompted at runtime:** `SERVER_IP`, `CLOUDFLARE_API_TOKEN`.
+**Prompted at runtime:** `SERVER_IP`, `VAULT_UNSEAL_KEY`, `CLOUDFLARE_API_TOKEN`.
 
 ## Documentation
 
@@ -314,4 +312,4 @@ export ADMIN_EMAIL=alerts@mycompany.com
 ---
 
 **Last Updated:** 2026-06-07  
-**Phase:** Phase 9 Complete — GitOps active, fully automatic post-reboot recovery
+**Status:** All steps complete — GitOps active, fully automatic post-reboot recovery

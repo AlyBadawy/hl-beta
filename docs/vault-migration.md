@@ -512,23 +512,11 @@ Update `docs/rebuild-guide.md` and `docs/secrets-rebuild-reference.md` to reflec
 On a fresh node, Vault's data volume is restored from its Longhorn backup along with all other stateful apps. Vault is already initialized — only the unseal key needs to be seeded.
 
 ```bash
-# 1. Provision server
-./provision/provision-server.sh
+# 1. Provision server, seed secrets, bootstrap ArgoCD, restore Longhorn volumes
+#    Prompted upfront: server IP, Vault unseal key, Cloudflare API token
+./provision/rebuild.sh
 
-# 2. Seed the Vault unseal key (from offline backup)
-kubectl create namespace vault --dry-run=client -o yaml | kubectl apply -f -
-kubectl create secret generic vault-unseal-key \
-  --namespace=vault \
-  --from-literal=key="<UNSEAL_KEY_FROM_OFFLINE_BACKUP>" \
-  --save-config --dry-run=client -o yaml | kubectl apply -f -
-
-# 3. Bootstrap ArgoCD
-./provision/bootstrap-argocd.sh
-
-# 4. Restore Longhorn volumes (includes vault data PVC)
-./provision/restore-volumes.sh
-
-# 5. Activate GitOps
+# 2. Activate GitOps
 #    vault (wave -1) starts → CronJob auto-unseals within 60s
 #    ESO connects to Vault → all ExternalSecrets sync → apps start
 ./provision/activate-gitops.sh

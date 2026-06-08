@@ -29,8 +29,8 @@ These values are never stored in git and must be supplied from your offline back
 |---|---|
 | New node IP address | All provisioning scripts |
 | SSH private key for `homelab` user | Your local `~/.ssh/` |
-| Vault unseal key (from offline backup) | Phase 3 — before GitOps activates |
-| Cloudflare API token (Zone:DNS:Edit) | Phase 5 — `bootstrap-argocd.sh` prompt |
+| Vault unseal key (from offline backup) | `rebuild.sh` Step 6 — prompted at start |
+| Cloudflare API token (Zone:DNS:Edit) | `rebuild.sh` Step 7 — prompted at start |
 
 ### Required tools on your local machine
 
@@ -88,29 +88,32 @@ If the NAS is unreachable, do not proceed — Phase 4 (NAS mounts) will fail, an
 
 ---
 
-## Phase 2: Server Provisioning (Phases 2–6)
+## Phase 2: Server Provisioning (Steps 1–5)
 
 From your **local machine**, in the repo root:
 
 ```bash
 cd ~/hl-beta
-./provision/provision-server.sh
+./provision/rebuild.sh
 ```
 
 When prompted:
 - **Server IP:** enter the new node's IP
+- **Vault unseal key:** from your offline backup / password manager
+- **Cloudflare API token:** Zone:DNS:Edit for `alybadawy.com`
 
-This runs through five internal phases:
+`rebuild.sh` runs all steps unattended from this point. It covers Steps 1–8 (server
+provisioning, secret seeding, ArgoCD bootstrap, Longhorn install + volume restore).
 
-| Phase | Script | What it does |
+| Step | Script | What it does |
 |---|---|---|
-| 2 | `check-ssh-connection` | Validates SSH + NOPASSWD sudo |
-| 3 | `update-dependencies` | `apt upgrade`, installs packages incl. `open-iscsi`, disables swap |
-| 4 | `mount-nas` | Creates `/mnt/nas/{homelab,backups,immich,nextcloud}`, adds NFS fstab entries |
-| 5 | `install-k3s` | Installs k3s v1.36.1 (Traefik disabled), copies kubeconfig to `~/.kube/config` |
-| 6 | `configure-cluster` | Creates `cluster-config` namespace and ConfigMap, applies kernel tuning |
+| 1 | `check-ssh-connection` | Validates SSH + NOPASSWD sudo |
+| 2 | `update-dependencies` | `apt upgrade`, installs packages incl. `open-iscsi`, disables swap |
+| 3 | `mount-nas` | Creates `/mnt/nas/{homelab,backups,immich,nextcloud}`, adds NFS fstab entries |
+| 4 | `install-k3s` | Installs k3s v1.36.1 (Traefik disabled), copies kubeconfig to `~/.kube/config` |
+| 5 | `configure-cluster` | Creates `cluster-config` namespace and ConfigMap, applies kernel tuning |
 
-When complete, verify:
+When Steps 1–5 complete, verify:
 
 ```bash
 kubectl get nodes
@@ -122,11 +125,13 @@ kubectl get configmap cluster-config -n cluster-config
 
 ---
 
-## Phase 3: Seed the Vault Unseal Key
+## Phase 3: Seed the Vault Unseal Key (Step 6 — handled by rebuild.sh)
 
-The Vault unseal key must exist before ArgoCD runs. When GitOps activates (Phase 7), Vault starts first (sync-wave `-1`) and the `vault-auto-unseal` CronJob uses this secret to unseal it within 60 seconds. Without it, Vault stays sealed, ESO cannot sync, and all apps fail to start.
+The Vault unseal key must exist before ArgoCD runs. When GitOps activates, Vault starts first (sync-wave `-1`) and the `vault-auto-unseal` CronJob uses this secret to unseal it within 60 seconds. Without it, Vault stays sealed, ESO cannot sync, and all apps fail to start.
 
 On a rebuild, Vault's data volume (`vault-data-lh`) is restored from the Longhorn backup — so all KV secrets are already inside Vault. You only need to provide the unseal key to let the CronJob open it.
+
+**`rebuild.sh` handles this automatically** (Step 6) — it prompts for the unseal key at the start and seeds it after the k3s cluster is up. For reference, the commands it runs are:
 
 ```bash
 kubectl create namespace security --dry-run=client -o yaml | kubectl apply -f -
@@ -148,14 +153,14 @@ Only **two secrets** require manual intervention on a rebuild. Everything else i
 
 | Secret | Namespace | How it's created | Why it's needed |
 |---|---|---|---|
-| `vault-unseal-key` | `security` | Manually — Phase 3 above | CronJob unseals Vault within 60s of each pod restart |
-| `cloudflare-api-token` | `networking` | `bootstrap-argocd.sh` prompt — Phase 5 | DNS-01 TLS challenges for `*.in.alybadawy.com` via cert-manager |
+| `vault-unseal-key` | `security` | `rebuild.sh` Step 6 (prompted at start) | CronJob unseals Vault within 60s of each pod restart |
+| `cloudflare-api-token` | `networking` | `rebuild.sh` Step 7 (prompted at start) | DNS-01 TLS challenges for `*.in.alybadawy.com` via cert-manager |
 
 **All other app secrets** (postgres credentials, authentik secret key, immich credentials, nextcloud credentials, SMTP, grafana admin, etc.) are stored in Vault's KV store at `secret/`. ESO reads them from Vault and distributes copies into each app namespace automatically. Because Vault's data PVC is part of the Longhorn backup, no manual seeding of these secrets is required.
 
 ### 4.1 vault-unseal-key
 
-Already created in Phase 3. Verify it exists before continuing:
+Created by `rebuild.sh` Step 6. Verify it exists before continuing:
 
 ```bash
 kubectl get secret vault-unseal-key -n security
@@ -163,10 +168,9 @@ kubectl get secret vault-unseal-key -n security
 
 ### 4.2 cloudflare-api-token
 
-Created automatically by `bootstrap-argocd.sh` in Phase 5 — it prompts you for the token and runs:
+Created by `rebuild.sh` Step 7 (`provision/scripts/bootstrap-argocd`). For reference, the commands it runs:
 
 ```bash
-# For reference (bootstrap-argocd.sh runs this automatically):
 kubectl create namespace networking --dry-run=client -o yaml | kubectl apply -f -
 kubectl -n networking create secret generic cloudflare-api-token \
   --from-literal=api-token="<CLOUDFLARE_API_TOKEN>" \
@@ -175,9 +179,9 @@ kubectl -n networking create secret generic cloudflare-api-token \
 
 The token must have **Zone → DNS → Edit** permission for the `alybadawy.com` zone.
 
-### 4.3 Verify after Phase 5
+### 4.3 Verify after rebuild.sh
 
-After `bootstrap-argocd.sh` completes, confirm both secrets are present:
+After `rebuild.sh` completes through Step 7, confirm both secrets are present:
 
 ```bash
 kubectl get secret vault-unseal-key -n security
@@ -186,16 +190,12 @@ kubectl get secret cloudflare-api-token -n networking
 
 ---
 
-## Phase 5: Bootstrap ArgoCD
+## Phase 5: Bootstrap ArgoCD (Step 7 — handled by rebuild.sh)
 
-```bash
-./provision/bootstrap-argocd.sh
-```
+`rebuild.sh` runs `provision/scripts/bootstrap-argocd` automatically as Step 7 using
+the Cloudflare token you entered at the start. No separate invocation is needed.
 
-When prompted:
-- **Cloudflare API token:** paste your token (Zone → DNS → Edit for `alybadawy.com`)
-
-This script:
+For reference, this step:
 1. Installs ArgoCD from `k8s/components/argocd` via Kustomize + Helm
 2. Waits for `argocd-server` and `argocd-repo-server` to be ready
 3. Creates the `networking` namespace and seeds `cloudflare-api-token` into it (used by cert-manager for DNS-01 challenges)
@@ -217,12 +217,9 @@ kubectl port-forward -n argocd svc/argocd-server 8080:80
 
 ---
 
-## Phase 6: Install Longhorn and Restore Volumes
+## Phase 6: Install Longhorn and Restore Volumes (Step 8 — handled by rebuild.sh)
 
-```bash
-./provision/restore-volumes.sh
-```
-
+`rebuild.sh` runs `provision/scripts/restore-volumes` automatically as Step 8.
 The script will ask:
 
 > **Is this a fresh cluster with no backups to restore? [y/N]**
@@ -537,31 +534,17 @@ For a clean rebuild, run these commands in order (filling in the values at each 
 ```bash
 # 1. On the new server — create homelab user, configure sudo, install SSH key
 
-# 2. From your local machine (repo root):
-./provision/provision-server.sh   # prompted: server IP only
+# 2. From your local machine (repo root) — Steps 1–8:
+#    Prompted upfront: server IP, Vault unseal key, Cloudflare API token
+./provision/rebuild.sh
 
-# 3. Seed the Vault unseal key (from offline backup — must exist before GitOps)
-kubectl create namespace security --dry-run=client -o yaml | kubectl apply -f -
-kubectl create secret generic vault-unseal-key -n security \
-  --from-literal=key="<UNSEAL_KEY_FROM_OFFLINE_BACKUP>" \
-  --save-config --dry-run=client -o yaml | kubectl apply -f -
-
-# 4. (Reference) Only 2 manual secrets needed — see Phase 4 for details
-#    vault-unseal-key is done above; cloudflare-api-token is handled in step 5.
-
-# 5. Bootstrap ArgoCD (prompted: Cloudflare API token — seeds cloudflare-api-token automatically)
-./provision/bootstrap-argocd.sh
-
-# 6. Restore Longhorn volumes (includes vault-data-lh, postgres-data-lh, etc.)
-./provision/restore-volumes.sh
-
-# 7. Activate GitOps (Vault starts → CronJob unseals → ESO syncs all secrets → apps start)
+# 3. Activate GitOps (Vault starts → CronJob unseals → ESO syncs all secrets → apps start)
 ./provision/activate-gitops.sh
 
-# 8. Watch and wait
+# 4. Watch and wait
 kubectl get applications -n argocd -w
 
-# 9. Verify (Phases 8–9 above)
+# 5. Verify (Phases 8–9 above)
 ```
 
 ---
