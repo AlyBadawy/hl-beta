@@ -1,7 +1,7 @@
 ---
 layout: docs
 title: "Applications"
-description: "The user-facing apps running on the cluster: Authentik, Nextcloud, Immich, PostgreSQL, pgAdmin, Redis, and more."
+description: "All 14 ArgoCD Applications: platform infrastructure and user-facing services — Authentik, Nextcloud, Immich, PostgreSQL, and more."
 section: cluster
 ---
 
@@ -22,64 +22,104 @@ section: cluster
         <h1>Applications</h1>
       </div>
     </div>
-    <p class="tagline">The user-facing services running on the cluster. Each app is a separate ArgoCD Application, deployed at sync-wave 2+, pulling credentials from Vault via ESO, and exposed through ingress-nginx with the wildcard TLS cert.</p>
+    <p class="tagline">All 14 ArgoCD Applications across the cluster — platform infrastructure and user-facing services. Each is GitOps-managed from <code>k8s/apps/</code>, pulling credentials from Vault via ESO, and exposed through ingress-nginx with the wildcard TLS cert.</p>
     <div class="doc-pills">
       <span class="pill ok"><span class="dot ok"></span> All synced</span>
-      <span class="pill">sync-wave 2+</span>
+      <span class="pill">14 applications</span>
       <span class="pill">Vault secrets</span>
       <span class="pill">wildcard TLS</span>
     </div>
   </header>
 
   <article class="doc-article">
-    <p class="lead">Every user-facing app in this cluster follows the same pattern: GitOps-managed by ArgoCD, credentials injected at runtime by ESO from Vault, HTTPS provided by the shared wildcard cert. Adding a new app means adding a component directory and an Application manifest — no TLS config, no secret management boilerplate.</p>
+    <p class="lead">Every app in this cluster follows the same pattern: GitOps-managed by ArgoCD, credentials injected at runtime by ESO from Vault, HTTPS provided by the shared wildcard cert. The 14 Applications break down into two groups — platform infrastructure (deployed at wave -1 to 1) and user-facing services (wave 2+).</p>
 
-    <h2 id="roster"><span class="hn">01</span> Application roster</h2>
+    <h2 id="platform"><span class="hn">01</span> Platform infrastructure</h2>
+    <p>These Applications form the foundation the user-facing apps depend on. They deploy first, in sync-wave order, before any user workloads start.</p>
 
     <table class="spec-table">
-      <thead><tr><th>App</th><th>Namespace</th><th>URL</th><th>Description</th></tr></thead>
+      <thead><tr><th>Application</th><th>Namespace</th><th>Wave</th><th>Role</th></tr></thead>
       <tbody>
         <tr>
-          <td class="k">Authentik</td>
+          <td class="k"><a href="/cluster/vault.html">vault</a></td>
+          <td><span class="mono">security</span></td>
+          <td>−1</td>
+          <td>Secrets backend — must be unsealed before ESO can sync.</td>
+        </tr>
+        <tr>
+          <td class="k"><a href="/cluster/argocd.html">argocd</a></td>
+          <td><span class="mono">argocd</span></td>
+          <td>0</td>
+          <td>Self-managing GitOps controller. Adopts imperatively-bootstrapped install.</td>
+        </tr>
+        <tr>
+          <td class="k"><a href="/cluster/longhorn.html">longhorn</a></td>
+          <td><span class="mono">longhorn-system</span></td>
+          <td>0</td>
+          <td>Block storage for stateful workloads. Self-managing after bootstrap.</td>
+        </tr>
+        <tr>
+          <td class="k"><a href="/cluster/ingress.html">ingress-nginx</a></td>
+          <td><span class="mono">networking</span></td>
+          <td>1</td>
+          <td>Cluster-wide ingress controller. Serves wildcard TLS on port 443.</td>
+        </tr>
+        <tr>
+          <td class="k"><a href="/cluster/cert-manager.html">cert-manager</a></td>
+          <td><span class="mono">networking</span></td>
+          <td>1</td>
+          <td>Automated TLS — issues and renews the wildcard cert via DNS-01.</td>
+        </tr>
+        <tr>
+          <td class="k"><a href="/cluster/external-secrets.html">external-secrets</a></td>
+          <td><span class="mono">security</span></td>
+          <td>1</td>
+          <td>Bridges Vault to Kubernetes Secrets. ClusterSecretStore <code>k8s-secrets</code>.</td>
+        </tr>
+        <tr>
+          <td class="k"><a href="/cluster/monitoring.html">monitor</a></td>
+          <td><span class="mono">monitor</span></td>
+          <td>2</td>
+          <td>kube-prometheus-stack: Prometheus, Grafana, Alertmanager.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h2 id="roster"><span class="hn">02</span> User-facing services</h2>
+    <p>These Applications deploy at wave 2 or later, after the platform is healthy. All are exposed via ingress-nginx with the wildcard cert.</p>
+
+    <table class="spec-table">
+      <thead><tr><th>Application</th><th>Namespace</th><th>URL</th><th>Description</th></tr></thead>
+      <tbody>
+        <tr>
+          <td class="k">auth</td>
           <td><span class="mono">security</span></td>
           <td><a href="https://auth.in.alybadawy.com" target="_blank" rel="noopener">auth.in.alybadawy.com</a></td>
-          <td>Identity provider — SSO, OAuth2, LDAP proxy. Version 2026.5.2.</td>
+          <td>Authentik v2026.5.2 — SSO, OAuth2, LDAP proxy.</td>
         </tr>
         <tr>
-          <td class="k">Nextcloud</td>
-          <td><span class="mono">cloud</span></td>
-          <td><a href="https://cloud.in.alybadawy.com" target="_blank" rel="noopener">cloud.in.alybadawy.com</a></td>
-          <td>Self-hosted cloud storage and collaboration suite.</td>
-        </tr>
-        <tr>
-          <td class="k">Immich</td>
-          <td><span class="mono">immich</span></td>
-          <td><a href="https://photos.in.alybadawy.com" target="_blank" rel="noopener">photos.in.alybadawy.com</a></td>
-          <td>Self-hosted photo and video backup (Google Photos alternative).</td>
-        </tr>
-        <tr>
-          <td class="k">PostgreSQL</td>
-          <td><span class="mono">db</span></td>
-          <td>Internal only</td>
-          <td>Shared Postgres instance used by Authentik, Nextcloud, Immich.</td>
-        </tr>
-        <tr>
-          <td class="k">pgAdmin</td>
+          <td class="k">db</td>
           <td><span class="mono">db</span></td>
           <td><a href="https://pgadmin.in.alybadawy.com" target="_blank" rel="noopener">pgadmin.in.alybadawy.com</a></td>
-          <td>PostgreSQL web UI for database management.</td>
+          <td>PostgreSQL + Redis + pgAdmin + pg-dump CronJob.</td>
         </tr>
         <tr>
-          <td class="k">Redis</td>
-          <td><span class="mono">db</span></td>
-          <td>Internal only</td>
-          <td>Shared Redis cache used by Authentik and Nextcloud.</td>
+          <td class="k">cloud</td>
+          <td><span class="mono">cloud</span></td>
+          <td><a href="https://cloud.in.alybadawy.com" target="_blank" rel="noopener">cloud.in.alybadawy.com</a></td>
+          <td>Nextcloud — self-hosted cloud storage and collaboration.</td>
+        </tr>
+        <tr>
+          <td class="k">immich</td>
+          <td><span class="mono">immich</span></td>
+          <td><a href="https://photos.in.alybadawy.com" target="_blank" rel="noopener">photos.in.alybadawy.com</a></td>
+          <td>Immich — photo and video backup (Google Photos alternative).</td>
         </tr>
         <tr>
           <td class="k">whoami</td>
           <td><span class="mono">whoami</span></td>
           <td><a href="https://whoami.in.alybadawy.com" target="_blank" rel="noopener">whoami.in.alybadawy.com</a></td>
-          <td>HTTP echo service — useful for testing ingress and TLS.</td>
+          <td>HTTP echo service for testing ingress and TLS.</td>
         </tr>
         <tr>
           <td class="k">aly</td>
@@ -87,10 +127,16 @@ section: cluster
           <td><a href="https://aly.in.alybadawy.com" target="_blank" rel="noopener">aly.in.alybadawy.com</a></td>
           <td>Personal website (<code>ghcr.io/alybadawy/aly:latest</code>).</td>
         </tr>
+        <tr>
+          <td class="k">root</td>
+          <td><span class="mono">argocd</span></td>
+          <td>—</td>
+          <td>Root app-of-apps. Watches <code>k8s/apps/</code> and manages all other Applications.</td>
+        </tr>
       </tbody>
     </table>
 
-    <h2 id="db"><span class="hn">02</span> Database stack</h2>
+    <h2 id="db"><span class="hn">03</span> Database stack</h2>
     <p>PostgreSQL and Redis run in the <code>db</code> namespace as raw Deployments (not operators). A <code>pg-dump</code> CronJob runs periodic dumps of all databases to the NAS. pgAdmin provides a web UI for database management.</p>
 
     <div class="callout info">
@@ -117,7 +163,7 @@ section: cluster
 <span class="t-prompt">$</span> <span class="t-cmd">kubectl</span> get jobs <span class="t-flag">-n</span> db <span class="t-flag">--sort-by=.metadata.creationTimestamp</span></code></pre>
     </div>
 
-    <h2 id="immich"><span class="hn">03</span> Immich</h2>
+    <h2 id="immich"><span class="hn">04</span> Immich</h2>
     <p>Immich runs two containers in the <code>immich</code> namespace: <code>immich-server</code> (main API + web UI) and <code>immich-ml</code> (machine learning for face recognition and CLIP image search). Photos are stored on a Longhorn-backed PVC that is included in the NAS backup schedule.</p>
 
     <div class="callout warn">
@@ -125,7 +171,7 @@ section: cluster
       <div><b>Large body uploads.</b> Immich and Nextcloud upload large files (photos, videos, documents). The ingress-nginx <code>client-max-body-size: 100m</code> setting is required — without it, nginx rejects uploads over 1 MiB with a 413 error. For very large Nextcloud uploads (>100 MB), the client must use chunked upload.</div>
     </div>
 
-    <h2 id="add-app"><span class="hn">04</span> Adding a new app</h2>
+    <h2 id="add-app"><span class="hn">05</span> Adding a new app</h2>
     <p>The pattern is the same for every app:</p>
     <ol>
       <li>Create <code>k8s/components/&lt;name&gt;/</code> with namespace, deployment, service, ingress, and optionally ExternalSecret + PVC.</li>
@@ -187,14 +233,15 @@ section: cluster
 <aside class="toc">
   <div class="toc-title">On this page</div>
   <ul>
-    <li><a href="#roster">Application roster</a></li>
+    <li><a href="#platform">Platform infrastructure</a></li>
+    <li><a href="#roster">User-facing services</a></li>
     <li><a href="#db">Database stack</a></li>
     <li><a href="#immich">Immich</a></li>
     <li><a href="#add-app">Adding a new app</a></li>
   </ul>
   <div class="toc-meta">
     <div class="row"><span>health</span><span style="color:var(--ok)">All synced</span></div>
-    <div class="row"><span>apps</span><span>8 user-facing</span></div>
+    <div class="row"><span>total apps</span><span>14</span></div>
     <div class="row"><span>secrets</span><span>Vault via ESO</span></div>
     <div class="row"><span>reading</span><span>~5 min</span></div>
   </div>
