@@ -1,0 +1,153 @@
+---
+layout: docs
+title: "NAS & storage"
+description: "The UNAS Pro at 172.20.20.2 provides NFS exports for the k3s cluster mounts and Longhorn backup target."
+section: networking
+---
+
+<main class="doc-main">
+  <nav class="breadcrumb">
+    <a href="/">home</a><span class="s">/</span>
+    <a href="/networking/">networking</a><span class="s">/</span>
+    <span style="color:var(--fg-muted)">nas</span>
+  </nav>
+
+  <header class="doc-header">
+    <div class="htop">
+      <div class="doc-logo">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14c0 1.66 4.03 3 9 3s9-1.34 9-3V5"/><path d="M3 12c0 1.66 4.03 3 9 3s9-1.34 9-3"/></svg>
+      </div>
+      <div>
+        <span class="eyebrow">// networking · storage</span>
+        <h1>NAS &amp; storage</h1>
+      </div>
+    </div>
+    <p class="tagline">The UNAS Pro at <code>172.20.20.2</code> provides NFS shares for the k3s cluster. Four exports mount on the cluster node at boot; a fifth is the Longhorn backup target.</p>
+    <div class="doc-pills">
+      <span class="pill">UNAS Pro</span>
+      <span class="pill">172.20.20.2</span>
+      <span class="pill">NFS exports</span>
+      <span class="pill">Longhorn backup target</span>
+    </div>
+  </header>
+
+  <article class="doc-article">
+
+    <h2 id="hardware"><span class="hn">01</span> NAS hardware</h2>
+
+    <table class="spec-table">
+      <thead><tr><th>Property</th><th>Value</th></tr></thead>
+      <tbody>
+        <tr><td class="k">Model</td><td>UniFi UNAS Pro</td></tr>
+        <tr><td class="k">IP</td><td><span class="mono">172.20.20.2</span> — static/reserved in DHCP</td></tr>
+        <tr><td class="k">VLAN</td><td>Servers (20)</td></tr>
+        <tr><td class="k">NFS export base</td><td><span class="mono">/var/nfs/shared</span></td></tr>
+        <tr><td class="k">Drives</td><td><!-- TODO: drive count, size, RAID level --></td></tr>
+        <tr><td class="k">Total capacity</td><td><!-- TODO --></td></tr>
+      </tbody>
+    </table>
+
+    <h2 id="exports"><span class="hn">02</span> NFS exports</h2>
+    <p>Four directories under <code>/var/nfs/shared/</code> are exported over NFS and mounted on the k3s server at boot. A fifth path (<code>backups/pvcs</code>) is used exclusively as the Longhorn backup target — it is not mounted as a filesystem on the cluster node.</p>
+
+    <table class="ns-table">
+      <thead>
+        <tr><th>Export path</th><th>Mounted at</th><th>Used by</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="k">172.20.20.2:/var/nfs/shared/homelab</td>
+          <td class="apps">/mnt/nas/homelab</td>
+          <td>General homelab storage</td>
+        </tr>
+        <tr>
+          <td class="k">172.20.20.2:/var/nfs/shared/backups</td>
+          <td class="apps">/mnt/nas/backups</td>
+          <td>General backup storage; also contains <code>pvcs/</code> subdir for Longhorn</td>
+        </tr>
+        <tr>
+          <td class="k">172.20.20.2:/var/nfs/shared/immich</td>
+          <td class="apps">/mnt/nas/immich</td>
+          <td>Immich photo library (NAS-backed, not Longhorn)</td>
+        </tr>
+        <tr>
+          <td class="k">172.20.20.2:/var/nfs/shared/nextcloud</td>
+          <td class="apps">/mnt/nas/nextcloud</td>
+          <td>Nextcloud external storage for large files</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h2 id="mount-options"><span class="hn">03</span> Mount options</h2>
+    <p>All four NFS mounts use the same <code>/etc/fstab</code> options, chosen specifically for a Kubernetes node:</p>
+
+    <div class="code">
+      <div class="code-head">
+        <span class="dots"><i></i><i></i><i></i></span>
+        <span class="fname">/etc/fstab (NFS entries)</span>
+        <button class="copy-btn">copy</button>
+        <span class="lang">text</span>
+      </div>
+<pre><code>172.20.20.2:/var/nfs/shared/homelab    /mnt/nas/homelab    nfs    defaults,_netdev,nofail,x-systemd.automount,x-systemd.mount-timeout=10    0    0
+172.20.20.2:/var/nfs/shared/backups    /mnt/nas/backups    nfs    defaults,_netdev,nofail,x-systemd.automount,x-systemd.mount-timeout=10    0    0
+172.20.20.2:/var/nfs/shared/immich     /mnt/nas/immich     nfs    defaults,_netdev,nofail,x-systemd.automount,x-systemd.mount-timeout=10    0    0
+172.20.20.2:/var/nfs/shared/nextcloud  /mnt/nas/nextcloud  nfs    defaults,_netdev,nofail,x-systemd.automount,x-systemd.mount-timeout=10    0    0</code></pre>
+    </div>
+
+    <table class="spec-table">
+      <thead><tr><th>Option</th><th>Why it's there</th></tr></thead>
+      <tbody>
+        <tr><td class="k"><code>_netdev</code></td><td>Delays mount until networking is up. Without this, systemd may try to mount NFS before the network interface is ready and fail at boot.</td></tr>
+        <tr><td class="k"><code>nofail</code></td><td>Boot succeeds even if the NAS is unreachable. The cluster node can start Kubernetes even during a NAS outage — only workloads that need NAS paths will fail.</td></tr>
+        <tr><td class="k"><code>x-systemd.automount</code></td><td>Mount is lazy — attempted on first filesystem access, not at boot time. Avoids blocking the boot sequence if the NAS is slow to respond.</td></tr>
+        <tr><td class="k"><code>x-systemd.mount-timeout=10</code></td><td>Caps the automount retry at 10 seconds. Without a timeout, a hung NFS connection would block indefinitely.</td></tr>
+      </tbody>
+    </table>
+
+    <h2 id="longhorn-backup"><span class="hn">04</span> Longhorn backup target</h2>
+    <p>Longhorn uses the NAS as its backup destination over NFS. The backup target is configured in the Longhorn Helm values — it points at the <code>backups/pvcs</code> subdirectory, keeping Longhorn volume backups separate from other NAS content.</p>
+
+    <div class="code">
+      <div class="code-head">
+        <span class="dots"><i></i><i></i><i></i></span>
+        <span class="fname">Longhorn backup target</span>
+        <button class="copy-btn">copy</button>
+        <span class="lang">text</span>
+      </div>
+<pre><code>nfs://172.20.20.2:/var/nfs/shared/backups/pvcs</code></pre>
+    </div>
+
+    <p>Longhorn polls the backup target every 300 seconds. Each Longhorn PVC with the annotation <code>recurring-job-group.longhorn.io/default: enabled</code> participates in the default recurring snapshot + backup schedule. See <a href="/cluster/longhorn.html">Longhorn docs</a> for details.</p>
+
+    <nav class="doc-nav">
+      <a class="prev" href="/networking/dns.html">
+        <span class="dir">← previous</span>
+        <span class="ttl">DNS &amp; AdGuard</span>
+      </a>
+      <a class="next" href="/networking/firewall.html">
+        <span class="dir">next →</span>
+        <span class="ttl">Firewall rules</span>
+      </a>
+    </nav>
+
+    <div class="doc-foot">
+      <span>last updated 2026-06-08 · <a href="{{ site.repo_url }}/blob/main/provision/scripts/mount-nas" target="_blank" rel="noopener">mount-nas script on GitHub</a></span>
+    </div>
+  </article>
+</main>
+
+<aside class="toc">
+  <div class="toc-title">On this page</div>
+  <ul>
+    <li><a href="#hardware">NAS hardware</a></li>
+    <li><a href="#exports">NFS exports</a></li>
+    <li><a href="#mount-options">Mount options</a></li>
+    <li><a href="#longhorn-backup">Longhorn backup target</a></li>
+  </ul>
+  <div class="toc-meta">
+    <div class="row"><span>model</span><span>UNAS Pro</span></div>
+    <div class="row"><span>IP</span><span>172.20.20.2</span></div>
+    <div class="row"><span>exports</span><span>4 NFS shares</span></div>
+    <div class="row"><span>reading</span><span>~4 min</span></div>
+  </div>
+</aside>

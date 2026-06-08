@@ -1,0 +1,119 @@
+---
+layout: docs
+title: "DNS & AdGuard"
+description: "AdGuard Home handles DNS for the homelab. Internal hostnames, ad-blocking, and DNS-over-HTTPS — all in one place."
+section: networking
+---
+
+<main class="doc-main">
+  <nav class="breadcrumb">
+    <a href="/">home</a><span class="s">/</span>
+    <a href="/networking/">networking</a><span class="s">/</span>
+    <span style="color:var(--fg-muted)">dns</span>
+  </nav>
+
+  <header class="doc-header">
+    <div class="htop">
+      <div class="doc-logo">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M12 3a14.5 14.5 0 010 18M3 12h18"/><path d="M12 3a14.5 14.5 0 000 18"/></svg>
+      </div>
+      <div>
+        <span class="eyebrow">// networking · dns</span>
+        <h1>DNS &amp; AdGuard</h1>
+      </div>
+    </div>
+    <p class="tagline">AdGuard Home acts as the recursive resolver for all homelab VLANs. It handles ad-blocking, DNS rewrites for internal services, and upstream forwarding to public resolvers.</p>
+    <div class="doc-pills">
+      <span class="pill">AdGuard Home</span>
+      <span class="pill"><!-- TODO: AdGuard IP --></span>
+      <span class="pill">DNS rewrites</span>
+    </div>
+  </header>
+
+  <article class="doc-article">
+
+    <h2 id="overview"><span class="hn">01</span> Overview</h2>
+    <p>All VLANs on the UDR7 point to AdGuard Home as their DNS server. This gives a single control plane for:</p>
+    <ul>
+      <li><strong>Ad &amp; tracker blocking</strong> — filters applied to all VLANs equally.</li>
+      <li><strong>DNS rewrites</strong> — internal hostnames (e.g. <code>argo.in.alybadawy.com</code>) resolve to the k3s server IP without leaving the LAN.</li>
+      <li><strong>Upstream forwarding</strong> — all other queries forwarded upstream over <!-- TODO: DoH or plain DNS? -->.</li>
+    </ul>
+
+    <table class="spec-table">
+      <thead><tr><th>Property</th><th>Value</th></tr></thead>
+      <tbody>
+        <tr><td class="k">Host</td><td><!-- TODO: which server / VM runs AdGuard? --></td></tr>
+        <tr><td class="k">IP</td><td><span class="mono"><!-- TODO: AdGuard IP --></span></td></tr>
+        <tr><td class="k">Port</td><td><span class="mono"><!-- TODO: 53 or custom? --></span></td></tr>
+        <tr><td class="k">UI</td><td><!-- TODO: AdGuard UI URL --></td></tr>
+        <tr><td class="k">Upstream</td><td><!-- TODO: upstream DNS servers --></td></tr>
+      </tbody>
+    </table>
+
+    <h2 id="rewrites"><span class="hn">02</span> DNS rewrites for cluster services</h2>
+    <p>All <code>*.in.alybadawy.com</code> hostnames resolve to the k3s server's IP address on the LAN. Traffic never leaves the network for internal services — it hits the ingress-nginx controller directly.</p>
+
+    <div class="code">
+      <div class="code-head">
+        <span class="dots"><i></i><i></i><i></i></span>
+        <span class="fname">DNS rewrite rules (AdGuard Home format)</span>
+        <button class="copy-btn">copy</button>
+        <span class="lang">text</span>
+      </div>
+<pre><code>*.in.alybadawy.com  →  <!-- TODO: k3s server IP -->
+
+# Examples of what resolves:
+argo.in.alybadawy.com      →  k3s server
+vault.in.alybadawy.com     →  k3s server
+grafana.in.alybadawy.com   →  k3s server
+auth.in.alybadawy.com      →  k3s server
+cloud.in.alybadawy.com     →  k3s server
+photos.in.alybadawy.com    →  k3s server</code></pre>
+    </div>
+
+    <div class="callout info">
+      <span class="ic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 8h.01M11 12h1v4h1"/></svg></span>
+      <div><b>Why Cloudflare CNAME records still exist.</b> The <code>in.alybadawy.com</code> subdomain has CNAME records in Cloudflare pointing to <code>alybadawy.com</code> (unproxied). These are needed so cert-manager's DNS-01 ACME challenge can create <code>_acme-challenge.in.alybadawy.com</code> TXT records that Cloudflare's DNS actually serves. Without them, Cloudflare's DNS wouldn't serve child TXT records. External DNS for <code>in.alybadawy.com</code> is intentionally a dead end — the services are LAN-only.</div>
+    </div>
+
+    <h2 id="blocklists"><span class="hn">03</span> Blocklists</h2>
+    <p>AdGuard Home applies blocklists to all VLANs. The IoT and Guest VLANs benefit most — devices on those networks cannot make DNS queries that bypass AdGuard (the UDR7 firewall intercepts and redirects port 53 traffic).</p>
+
+    <table class="spec-table">
+      <thead><tr><th>List</th><th>Purpose</th></tr></thead>
+      <tbody>
+        <tr><td class="k"><!-- TODO: blocklist names --></td><td><!-- TODO --></td></tr>
+      </tbody>
+    </table>
+
+    <nav class="doc-nav">
+      <a class="prev" href="/networking/vlans.html">
+        <span class="dir">← previous</span>
+        <span class="ttl">VLAN segmentation</span>
+      </a>
+      <a class="next" href="/networking/nas.html">
+        <span class="dir">next →</span>
+        <span class="ttl">NAS &amp; storage</span>
+      </a>
+    </nav>
+
+    <div class="doc-foot">
+      <span>last updated 2026-06-08</span>
+    </div>
+  </article>
+</main>
+
+<aside class="toc">
+  <div class="toc-title">On this page</div>
+  <ul>
+    <li><a href="#overview">Overview</a></li>
+    <li><a href="#rewrites">DNS rewrites</a></li>
+    <li><a href="#blocklists">Blocklists</a></li>
+  </ul>
+  <div class="toc-meta">
+    <div class="row"><span>resolver</span><span>AdGuard Home</span></div>
+    <div class="row"><span>cluster domain</span><span>*.in.alybadawy.com</span></div>
+    <div class="row"><span>reading</span><span>~3 min</span></div>
+  </div>
+</aside>
