@@ -7,15 +7,10 @@ metadata:
     app.kubernetes.io/name: authentik
     homelab/stack: auth
   annotations:
-    cert-manager.io/cluster-issuer: letsencrypt-prod
     nginx.ingress.kubernetes.io/ssl-redirect: "true"
     nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
 spec:
   ingressClassName: nginx
-  tls:
-    - hosts:
-        - auth.in.alybadawy.com
-      secretName: authentik-tls
   rules:
     - host: auth.in.alybadawy.com
       http:

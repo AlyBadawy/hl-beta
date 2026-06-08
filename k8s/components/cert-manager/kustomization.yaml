@@ -15,3 +15,4 @@ helmCharts:
 resources:
   - cluster-issuer.yaml
   - prometheus-rule.yaml
+  - wildcard-certificate.yaml

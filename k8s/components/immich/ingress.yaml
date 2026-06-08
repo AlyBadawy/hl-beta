@@ -7,7 +7,6 @@ metadata:
     app.kubernetes.io/name: immich
     homelab/stack: immich
   annotations:
-    cert-manager.io/cluster-issuer: letsencrypt-prod
     nginx.ingress.kubernetes.io/ssl-redirect: "true"
     nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
     nginx.ingress.kubernetes.io/proxy-body-size: "5g"
@@ -15,10 +14,6 @@ metadata:
     nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
 spec:
   ingressClassName: nginx
-  tls:
-    - hosts:
-        - photos.in.alybadawy.com
-      secretName: immich-tls
   rules:
     - host: photos.in.alybadawy.com
       http:

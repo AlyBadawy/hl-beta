@@ -7,15 +7,10 @@ metadata:
     app.kubernetes.io/name: grafana
     homelab/stack: monitor
   annotations:
-    cert-manager.io/cluster-issuer: letsencrypt-prod
     nginx.ingress.kubernetes.io/ssl-redirect: "true"
     nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
 spec:
   ingressClassName: nginx
-  tls:
-    - hosts:
-        - grafana.in.alybadawy.com
-      secretName: grafana-tls
   rules:
     - host: grafana.in.alybadawy.com
       http:
@@ -37,15 +32,10 @@ metadata:
     app.kubernetes.io/name: prometheus
     homelab/stack: monitor
   annotations:
-    cert-manager.io/cluster-issuer: letsencrypt-prod
     nginx.ingress.kubernetes.io/ssl-redirect: "true"
     nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
 spec:
   ingressClassName: nginx
-  tls:
-    - hosts:
-        - prometheus.in.alybadawy.com
-      secretName: prometheus-tls
   rules:
     - host: prometheus.in.alybadawy.com
       http:
@@ -67,15 +57,10 @@ metadata:
     app.kubernetes.io/name: alertmanager
     homelab/stack: monitor
   annotations:
-    cert-manager.io/cluster-issuer: letsencrypt-prod
     nginx.ingress.kubernetes.io/ssl-redirect: "true"
     nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
 spec:
   ingressClassName: nginx
-  tls:
-    - hosts:
-        - alerts.in.alybadawy.com
-      secretName: alertmanager-tls
   rules:
     - host: alerts.in.alybadawy.com
       http:

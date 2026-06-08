@@ -12,13 +12,15 @@ configs:
     # This avoids the double-TLS / gRPC passthrough complications on k3s.
     server.insecure: true
 
-# Web UI / API ingress. TLS certificate is issued by cert-manager.
+# Web UI / API ingress. TLS is terminated by ingress-nginx using the shared
+# wildcard cert (networking/wildcard-tls); no per-ingress cert needed.
 server:
   ingress:
     enabled: true
     ingressClassName: nginx
     hostname: argo.in.alybadawy.com
     annotations:
-      cert-manager.io/cluster-issuer: letsencrypt-prod
+      nginx.ingress.kubernetes.io/ssl-redirect: "true"
+      nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
       nginx.ingress.kubernetes.io/backend-protocol: HTTP
-    tls: true # creates a TLS section for `hostname`, stored in argocd-server-tls
+    tls: false

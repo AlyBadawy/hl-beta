@@ -7,7 +7,6 @@ metadata:
     app.kubernetes.io/name: nextcloud
     homelab/stack: cloud
   annotations:
-    cert-manager.io/cluster-issuer: letsencrypt-prod
     nginx.ingress.kubernetes.io/ssl-redirect: "true"
     nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
     nginx.ingress.kubernetes.io/backend-protocol: "HTTPS"
@@ -16,10 +15,6 @@ metadata:
     nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
 spec:
   ingressClassName: nginx
-  tls:
-    - hosts:
-        - cloud.in.alybadawy.com
-      secretName: nextcloud-tls
   rules:
     - host: cloud.in.alybadawy.com
       http:

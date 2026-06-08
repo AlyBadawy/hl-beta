@@ -7,15 +7,10 @@ metadata:
     app.kubernetes.io/name: pgadmin
     homelab/stack: db
   annotations:
-    cert-manager.io/cluster-issuer: letsencrypt-prod
     nginx.ingress.kubernetes.io/ssl-redirect: "true"
     nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
 spec:
   ingressClassName: nginx
-  tls:
-    - hosts:
-        - pgadmin.in.alybadawy.com
-      secretName: pgadmin-tls
   rules:
     - host: pgadmin.in.alybadawy.com
       http:

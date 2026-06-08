@@ -7,6 +7,12 @@ controller:
   ingressClassResource:
     default: true
 
+  # Use the shared wildcard cert for all Ingresses. TLS termination happens at
+  # the controller level, so per-Ingress tls[] blocks and cert-manager
+  # annotations are not needed.
+  extraArgs:
+    default-ssl-certificate: networking/wildcard-tls
+
   # On k3s, a Service of type LoadBalancer is fulfilled by the built-in
   # ServiceLB (klipper-lb), which exposes the controller on the node IP(s).
   # Ensure k3s was installed WITH Traefik disabled (see README) so nginx is the

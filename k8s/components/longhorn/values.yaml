@@ -14,7 +14,7 @@ ingress:
   enabled: true
   ingressClassName: nginx
   host: longhorn.in.alybadawy.com
-  tls: true
-  tlsSecret: longhorn-tls
+  tls: false
   annotations:
-    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
