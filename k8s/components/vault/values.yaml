@@ -32,6 +32,16 @@ server:
     - name: data
       mountPath: /vault/data
 
+  # Go's runtime sends SIGURG to itself for goroutine preemption (since Go 1.14).
+  # Newer kernels enforce AppArmor on intra-process signals, causing the default
+  # containerd profile to deny SIGURG and break Vault. Unconfined scopes the
+  # exemption to this container only.
+  statefulSet:
+    securityContext:
+      container:
+        appArmorProfile:
+          type: Unconfined
+
   resources:
     requests:
       cpu: 50m
