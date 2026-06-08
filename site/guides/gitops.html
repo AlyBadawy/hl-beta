@@ -1,0 +1,166 @@
+---
+layout: docs
+title: "Bootstrapping GitOps"
+description: "How ArgoCD takes over the cluster. What activate-gitops.sh does, what the sync-wave sequence looks like, and how to watch it unfold."
+section: guides
+---
+
+<main class="doc-main">
+  <nav class="breadcrumb">
+    <a href="/">home</a><span class="s">/</span>
+    <a href="/guides/">guides</a><span class="s">/</span>
+    <span style="color:var(--fg-muted)">gitops</span>
+  </nav>
+
+  <header class="doc-header">
+    <div class="htop">
+      <div class="doc-logo">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.22 4.22l2.12 2.12M17.66 17.66l2.12 2.12M2 12h3M19 12h3M4.22 19.78l2.12-2.12M17.66 6.34l2.12-2.12"/></svg>
+      </div>
+      <div>
+        <span class="eyebrow">// guides · gitops</span>
+        <h1>Bootstrapping GitOps</h1>
+      </div>
+    </div>
+    <p class="tagline">What happens when you run <code>./provision/activate-gitops.sh</code>. The sync-wave sequence, how imperative installs are adopted, and how to watch the rollout live.</p>
+    <div class="doc-pills">
+      <span class="pill">~6 min to full health</span>
+      <span class="pill">14 Applications</span>
+      <span class="pill">sync-wave -1 → 3</span>
+    </div>
+  </header>
+
+  <article class="doc-article">
+    <p class="lead"><code>activate-gitops.sh</code> is intentionally the final step — it applies a single file (<code>k8s/apps/root.yaml</code>) and then gets out of the way. After that, Git is the sole source of truth and ArgoCD drives everything. No more imperative <code>kubectl apply</code>.</p>
+
+    <h2 id="what-it-does"><span class="hn">01</span> What activate-gitops.sh does</h2>
+
+    <div class="code">
+      <div class="code-head">
+        <span class="dots"><i></i><i></i><i></i></span>
+        <span class="fname">terminal</span>
+        <button class="copy-btn">copy</button>
+        <span class="lang">bash</span>
+      </div>
+<pre><code><span class="t-prompt">$</span> <span class="t-cmd">./provision/activate-gitops.sh</span></code></pre>
+    </div>
+
+    <p>The script does three things:</p>
+    <ol>
+      <li><strong>Preflight checks</strong> — verifies <code>kubectl</code> reaches the cluster, ArgoCD is installed, and Longhorn is installed. Fails fast if either is missing.</li>
+      <li><strong>Applies <code>k8s/apps/root.yaml</code></strong> — this creates the root <code>Application</code> in ArgoCD. The root app watches <code>k8s/apps/</code> in the repo and creates a child Application for every YAML file it finds there.</li>
+      <li><strong>Prints instructions</strong> — how to watch the rollout, how to get the initial admin password, and the ArgoCD UI URL.</li>
+    </ol>
+
+    <div class="callout info">
+      <span class="ic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 8h.01M11 12h1v4h1"/></svg></span>
+      <div><b>Imperative bootstrap → GitOps adoption.</b> ArgoCD and Longhorn were installed imperatively by <code>rebuild.sh</code>. When the root app deploys <code>k8s/apps/argocd.yaml</code> and <code>k8s/apps/longhorn.yaml</code>, ArgoCD "adopts" those installs — it compares the live state to the Helm values in <code>k8s/components/*/</code> and finds zero diff, because the bootstrap used the same source. No re-install, no downtime.</div>
+    </div>
+
+    <h2 id="waves"><span class="hn">02</span> Sync-wave sequence</h2>
+    <p>ArgoCD deploys apps in wave order. Within a wave, it waits for all resources to be healthy before advancing to the next wave. The full sequence from activation to fully healthy cluster:</p>
+
+    <table class="spec-table">
+      <thead><tr><th>Wave</th><th>Applications</th><th>Why this order</th></tr></thead>
+      <tbody>
+        <tr>
+          <td class="k">−1</td>
+          <td><code>vault</code></td>
+          <td>Must be unsealed before ESO (wave 1) can read secrets. PVC reattachment is the bottleneck — ~4–5 min after pod start.</td>
+        </tr>
+        <tr>
+          <td class="k">0</td>
+          <td><code>argocd</code>, <code>longhorn</code></td>
+          <td>Platform adoption. ArgoCD adopts itself (no diff). Longhorn adopts its bootstrapped install.</td>
+        </tr>
+        <tr>
+          <td class="k">1</td>
+          <td><code>ingress-nginx</code>, <code>cert-manager</code>, <code>external-secrets</code></td>
+          <td>Ingress and TLS must be ready before apps need HTTPS. ESO must connect to Vault before apps need secrets.</td>
+        </tr>
+        <tr>
+          <td class="k">2</td>
+          <td><code>monitor</code>, <code>db</code>, <code>auth</code>, <code>cloud</code>, <code>immich</code>, <code>whoami</code>, <code>aly</code></td>
+          <td>User-facing apps. By now ingress, TLS, secrets, and storage are all healthy.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h2 id="vault-unseal"><span class="hn">03</span> Vault unseal after activation</h2>
+    <p>Vault's pod starts sealed. The <code>vault-auto-unseal</code> CronJob (deployed as part of the <code>vault</code> Application) runs every minute. It checks TCP port 8200 with <code>nc</code>, then runs <code>timeout 5 vault status</code>. Exit code 2 = sealed → unseals. The Longhorn PVC reattachment is the bottleneck — expect Vault to unseal 4–5 minutes after the pod starts.</p>
+
+    <p>Once Vault is unsealed, the <code>eso-recovery</code> CronJob detects that the <code>ClusterSecretStore</code> is degraded and restarts the ESO deployments to clear backoff. ESO reconnects, syncs all <code>ExternalSecret</code> resources, and apps get their secrets. Total time from activation to fully healthy: <strong>~6 minutes</strong>.</p>
+
+    <h2 id="watch"><span class="hn">04</span> Watching the rollout</h2>
+
+    <div class="code">
+      <div class="code-head">
+        <span class="dots"><i></i><i></i><i></i></span>
+        <span class="fname">useful commands during activation</span>
+        <button class="copy-btn">copy</button>
+        <span class="lang">bash</span>
+      </div>
+<pre><code><span class="t-com"># watch all Applications converge to Synced/Healthy</span>
+<span class="t-prompt">$</span> <span class="t-cmd">kubectl</span> get applications <span class="t-flag">-n</span> argocd <span class="t-flag">-w</span>
+
+<span class="t-com"># watch Vault unseal (look for "Vault is unsealed" in logs)</span>
+<span class="t-prompt">$</span> <span class="t-cmd">kubectl</span> logs <span class="t-flag">-n</span> security <span class="t-flag">-l</span> job-name <span class="t-flag">--tail=20</span> <span class="t-flag">-f</span>
+
+<span class="t-com"># check ClusterSecretStore status</span>
+<span class="t-prompt">$</span> <span class="t-cmd">kubectl</span> get clustersecretstore k8s-secrets
+
+<span class="t-com"># initial ArgoCD admin password (rotate after first login)</span>
+<span class="t-prompt">$</span> <span class="t-cmd">kubectl</span> <span class="t-flag">-n</span> argocd get secret argocd-initial-admin-secret \
+    <span class="t-flag">-o</span> jsonpath=<span class="t-str">'{.data.password}'</span> | base64 -d; echo
+
+<span class="t-com"># open ArgoCD before ingress is live</span>
+<span class="t-prompt">$</span> <span class="t-cmd">kubectl</span> port-forward <span class="t-flag">-n</span> argocd svc/argocd-server <span class="t-num">8080</span>:80
+<span class="t-com"># → http://localhost:8080  username: admin</span>
+
+<span class="t-com"># once ingress-nginx syncs, access via HTTPS</span>
+<span class="t-com"># → https://argo.in.alybadawy.com</span></code></pre>
+    </div>
+
+    <h2 id="post-activation"><span class="hn">05</span> Post-activation checklist</h2>
+    <ol>
+      <li>Wait for all 14 Applications to show <code>Synced</code> + <code>Healthy</code> in ArgoCD.</li>
+      <li>Confirm Vault is unsealed: <code>kubectl exec -n security vault-0 -- vault status</code>.</li>
+      <li>Confirm ESO is connected: <code>kubectl get clustersecretstore k8s-secrets</code> should show <code>Valid</code>.</li>
+      <li>Open <a href="https://argo.in.alybadawy.com" target="_blank" rel="noopener">argo.in.alybadawy.com</a> and rotate the admin password.</li>
+      <li>Open <a href="https://grafana.in.alybadawy.com" target="_blank" rel="noopener">grafana.in.alybadawy.com</a> and verify metrics are flowing.</li>
+      <li>Delete the initial admin secret: <code>kubectl delete secret argocd-initial-admin-secret -n argocd</code>.</li>
+    </ol>
+
+    <nav class="doc-nav">
+      <a class="prev" href="/guides/rebuild.html">
+        <span class="dir">← previous</span>
+        <span class="ttl">How to rebuild</span>
+      </a>
+      <a class="next" href="/guides/disaster-recovery.html">
+        <span class="dir">next →</span>
+        <span class="ttl">Disaster recovery</span>
+      </a>
+    </nav>
+
+    <div class="doc-foot">
+      <span>last updated 2026-06-08 · <a href="{{ site.repo_url }}/tree/main/provision/activate-gitops.sh" target="_blank" rel="noopener">view source on GitHub</a></span>
+    </div>
+  </article>
+</main>
+
+<aside class="toc">
+  <div class="toc-title">On this page</div>
+  <ul>
+    <li><a href="#what-it-does">What activate-gitops.sh does</a></li>
+    <li><a href="#waves">Sync-wave sequence</a></li>
+    <li><a href="#vault-unseal">Vault unseal</a></li>
+    <li><a href="#watch">Watching the rollout</a></li>
+    <li><a href="#post-activation">Post-activation checklist</a></li>
+  </ul>
+  <div class="toc-meta">
+    <div class="row"><span>time to healthy</span><span>~6 min</span></div>
+    <div class="row"><span>manual steps</span><span>none</span></div>
+    <div class="row"><span>apps</span><span>14</span></div>
+    <div class="row"><span>reading</span><span>~5 min</span></div>
+  </div>
+</aside>

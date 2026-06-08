@@ -1,0 +1,197 @@
+---
+layout: docs
+title: "Disaster recovery"
+description: "What to do when things go wrong. Node failure, accidental deletion, Vault corruption, broken ArgoCD sync — recovery procedures for each scenario."
+section: guides
+---
+
+<main class="doc-main">
+  <nav class="breadcrumb">
+    <a href="/">home</a><span class="s">/</span>
+    <a href="/guides/">guides</a><span class="s">/</span>
+    <span style="color:var(--fg-muted)">disaster-recovery</span>
+  </nav>
+
+  <header class="doc-header">
+    <div class="htop">
+      <div class="doc-logo">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><path d="M12 9v4M12 17h.01"/></svg>
+      </div>
+      <div>
+        <span class="eyebrow">// guides · recovery</span>
+        <h1>Disaster recovery</h1>
+      </div>
+    </div>
+    <p class="tagline">Recovery procedures for the most likely failure modes. Most are self-healing. The worst case — complete node destruction — is a full rebuild with Longhorn NAS backups, which takes under an hour.</p>
+    <div class="doc-pills">
+      <span class="pill warn">read before you need it</span>
+      <span class="pill">Vault unseal key required</span>
+    </div>
+  </header>
+
+  <article class="doc-article">
+
+    <div class="callout warn">
+      <span class="ic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l9 16H3z"/><path d="M12 9v5M12 17h.01"/></svg></span>
+      <div><b>Keep your Vault unseal key offline.</b> It is the only secret not stored anywhere in the cluster. If you lose it, Vault's data is permanently inaccessible — there is no recovery path. Store it in a password manager and a physical backup, separately.</div>
+    </div>
+
+    <h2 id="reboot"><span class="hn">01</span> Normal reboot / power failure</h2>
+    <p>This is fully automatic. No action needed. The recovery sequence takes ~6 minutes:</p>
+    <ol>
+      <li>k3s restarts. All pods start immediately except Vault (sealed).</li>
+      <li><code>vault-auto-unseal</code> CronJob runs every minute. Longhorn reattaches the PVC at ~4–5 min.</li>
+      <li>Vault unseals. <code>vault-0</code> passes readiness probe.</li>
+      <li><code>eso-recovery</code> CronJob detects Vault ready + <code>ClusterSecretStore</code> degraded → restarts ESO.</li>
+      <li>ESO reconnects. All <code>ExternalSecret</code> resources sync. Apps recover.</li>
+    </ol>
+
+    <div class="callout ok">
+      <span class="ic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg></span>
+      <div>Walk away. The cluster heals itself. Check back after 6–7 minutes — everything should be healthy.</div>
+    </div>
+
+    <h2 id="vault-sealed"><span class="hn">02</span> Vault stuck sealed</h2>
+    <p>If Vault doesn't unseal after 10 minutes, something prevented the CronJob from running or the unseal key is wrong. Diagnose:</p>
+
+    <div class="code">
+      <div class="code-head">
+        <span class="dots"><i></i><i></i><i></i></span>
+        <span class="fname">vault seal debugging</span>
+        <button class="copy-btn">copy</button>
+        <span class="lang">bash</span>
+      </div>
+<pre><code><span class="t-com"># check the last unseal CronJob run</span>
+<span class="t-prompt">$</span> <span class="t-cmd">kubectl</span> get jobs <span class="t-flag">-n</span> security <span class="t-flag">--sort-by=.metadata.creationTimestamp</span>
+<span class="t-prompt">$</span> <span class="t-cmd">kubectl</span> logs <span class="t-flag">-n</span> security <span class="t-flag">-l</span> job-name=vault-auto-unseal <span class="t-flag">--tail=30</span>
+
+<span class="t-com"># check Vault pod is actually running</span>
+<span class="t-prompt">$</span> <span class="t-cmd">kubectl</span> get pod vault-0 <span class="t-flag">-n</span> security
+
+<span class="t-com"># check the PVC is bound (Longhorn might still be reattaching)</span>
+<span class="t-prompt">$</span> <span class="t-cmd">kubectl</span> get pvc vault-data-lh <span class="t-flag">-n</span> security
+
+<span class="t-com"># check if the unseal key is present</span>
+<span class="t-prompt">$</span> <span class="t-cmd">kubectl</span> get secret vault-unseal-key <span class="t-flag">-n</span> security
+
+<span class="t-com"># manually unseal if the CronJob is failing</span>
+<span class="t-prompt">$</span> <span class="t-cmd">kubectl</span> port-forward <span class="t-flag">-n</span> security svc/vault <span class="t-num">8200</span>:8200
+<span class="t-prompt">$</span> <span class="t-cmd">export</span> VAULT_ADDR=http://localhost:8200
+<span class="t-prompt">$</span> <span class="t-cmd">vault</span> operator unseal</code></pre>
+    </div>
+
+    <h2 id="eso-degraded"><span class="hn">03</span> ESO ClusterSecretStore degraded</h2>
+    <p>If apps are failing to get secrets even after Vault is unsealed, ESO may be stuck in exponential backoff. The <code>eso-recovery</code> CronJob handles this automatically, but you can force it manually:</p>
+
+    <div class="code">
+      <div class="code-head">
+        <span class="dots"><i></i><i></i><i></i></span>
+        <span class="fname">force ESO reconnect</span>
+        <button class="copy-btn">copy</button>
+        <span class="lang">bash</span>
+      </div>
+<pre><code><span class="t-com"># check store status</span>
+<span class="t-prompt">$</span> <span class="t-cmd">kubectl</span> get clustersecretstore k8s-secrets
+
+<span class="t-com"># restart all three ESO deployments to clear backoff</span>
+<span class="t-prompt">$</span> <span class="t-cmd">kubectl</span> rollout restart deployment <span class="t-flag">-n</span> security \
+    external-secrets external-secrets-webhook external-secrets-cert-controller
+
+<span class="t-com"># wait for ready, then check store again</span>
+<span class="t-prompt">$</span> <span class="t-cmd">kubectl</span> rollout status deployment/external-secrets <span class="t-flag">-n</span> security
+<span class="t-prompt">$</span> <span class="t-cmd">kubectl</span> get clustersecretstore k8s-secrets</code></pre>
+    </div>
+
+    <h2 id="argocd-sync"><span class="hn">04</span> ArgoCD app stuck / OutOfSync</h2>
+    <p>An app stuck at <code>OutOfSync</code> usually has one of three causes: a resource that ArgoCD can't reconcile, a <code>SyncFailed</code> error, or a dependency that hasn't come up yet.</p>
+
+    <div class="code">
+      <div class="code-head">
+        <span class="dots"><i></i><i></i><i></i></span>
+        <span class="fname">ArgoCD sync debugging</span>
+        <button class="copy-btn">copy</button>
+        <span class="lang">bash</span>
+      </div>
+<pre><code><span class="t-com"># list all apps and their health/sync status</span>
+<span class="t-prompt">$</span> <span class="t-cmd">kubectl</span> get applications <span class="t-flag">-n</span> argocd
+
+<span class="t-com"># get detailed status for a failing app</span>
+<span class="t-prompt">$</span> <span class="t-cmd">kubectl</span> describe application &lt;app-name&gt; <span class="t-flag">-n</span> argocd
+
+<span class="t-com"># force a hard refresh (clears ArgoCD's cached state)</span>
+<span class="t-prompt">$</span> <span class="t-cmd">kubectl</span> patch application &lt;app-name&gt; <span class="t-flag">-n</span> argocd \
+    <span class="t-flag">--type</span> merge <span class="t-flag">-p</span> <span class="t-str">'{"metadata":{"annotations":{"argocd.argoproj.io/refresh":"hard"}}}'</span></code></pre>
+    </div>
+
+    <h2 id="node-failure"><span class="hn">05</span> Node destruction — full rebuild</h2>
+    <p>If the physical server is unrecoverable (hardware failure, OS corruption), the recovery path is a full rebuild. Longhorn NAS backups contain all stateful data. Nothing in Git is lost — Git is the source of truth.</p>
+
+    <p>Recovery steps:</p>
+    <ol>
+      <li>Provision a new Ubuntu 26.04 server (same hardware or a replacement).</li>
+      <li>Set up SSH key auth for user <code>homelab</code> with NOPASSWD sudo.</li>
+      <li>Get your Vault unseal key from offline backup and your Cloudflare API token.</li>
+      <li>Run <code>./provision/rebuild.sh</code> — answer "no" when asked about fresh cluster (to restore from NAS backups).</li>
+      <li>Restore all Longhorn volumes from the Longhorn UI (Step 8).</li>
+      <li>Run <code>./provision/activate-gitops.sh</code>.</li>
+    </ol>
+
+    <p>All application data (Vault secrets, PostgreSQL databases, Nextcloud files, Immich photos, Authentik users) is restored from Longhorn NAS backups. The only data that cannot be restored from Longhorn backups is Immich data stored on NAS directly — that lives on the NFS mount and is unaffected by a node rebuild.</p>
+
+    <div class="callout info">
+      <span class="ic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 8h.01M11 12h1v4h1"/></svg></span>
+      <div><b>Expected data loss window.</b> Longhorn backups run on the default recurring schedule. The maximum data loss is the time since the last backup completed. Check the Longhorn UI under "Recurring Jobs" to see the schedule and last run time.</div>
+    </div>
+
+    <h2 id="secret-rotation"><span class="hn">06</span> Vault unseal key rotation</h2>
+    <p>If you need to rotate the Vault unseal key (e.g. after a security incident or staff change):</p>
+
+    <div class="code">
+      <div class="code-head">
+        <span class="dots"><i></i><i></i><i></i></span>
+        <span class="fname">rotate Vault unseal key</span>
+        <button class="copy-btn">copy</button>
+        <span class="lang">bash</span>
+      </div>
+<pre><code><span class="t-com"># 1. generate a new unseal key (requires the root token or recovery key)</span>
+<span class="t-prompt">$</span> <span class="t-cmd">vault</span> operator rekey
+
+<span class="t-com"># 2. update the Kubernetes Secret with the new key</span>
+<span class="t-prompt">$</span> <span class="t-cmd">kubectl</span> create secret generic vault-unseal-key \
+    <span class="t-flag">--namespace=security</span> \
+    <span class="t-flag">--from-literal=key="&lt;new-unseal-key&gt;"</span> \
+    <span class="t-flag">--dry-run=client</span> <span class="t-flag">-o</span> yaml | kubectl apply -f -
+
+<span class="t-com"># 3. update your offline backup</span></code></pre>
+    </div>
+
+    <nav class="doc-nav">
+      <a class="prev" href="/guides/gitops.html">
+        <span class="dir">← previous</span>
+        <span class="ttl">Bootstrapping GitOps</span>
+      </a>
+    </nav>
+
+    <div class="doc-foot">
+      <span>last updated 2026-06-08 · <a href="{{ site.repo_url }}/tree/main/provision" target="_blank" rel="noopener">view source on GitHub</a></span>
+    </div>
+  </article>
+</main>
+
+<aside class="toc">
+  <div class="toc-title">On this page</div>
+  <ul>
+    <li><a href="#reboot">Normal reboot</a></li>
+    <li><a href="#vault-sealed">Vault stuck sealed</a></li>
+    <li><a href="#eso-degraded">ESO degraded</a></li>
+    <li><a href="#argocd-sync">ArgoCD OutOfSync</a></li>
+    <li><a href="#node-failure">Node destruction</a></li>
+    <li><a href="#secret-rotation">Unseal key rotation</a></li>
+  </ul>
+  <div class="toc-meta">
+    <div class="row"><span>worst case RTO</span><span>~45 min</span></div>
+    <div class="row"><span>reboot recovery</span><span>~6 min auto</span></div>
+    <div class="row"><span>key required</span><span>Vault unseal key</span></div>
+    <div class="row"><span>reading</span><span>~6 min</span></div>
+  </div>
+</aside>
