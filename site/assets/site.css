@@ -568,6 +568,36 @@ pre code { font-family: inherit; }
 .toc-meta .row span:last-child { color: var(--fg-muted); }
 
 /* ==========================================================================
+   CLUSTER OVERVIEW — component grid
+   ========================================================================== */
+.comp-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin: 26px 0; }
+.comp-card {
+  display: flex; flex-direction: column; gap: 9px; padding: 18px 20px;
+  background: var(--bg-2); border: 1px solid var(--line); border-radius: 11px;
+  text-decoration: none; transition: border-color .15s, transform .12s, background .15s;
+}
+.comp-card:hover { border-color: var(--accent-line); transform: translateY(-2px); background: var(--surface); }
+.comp-card .cc-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.comp-card .cc-name { font-weight: 700; font-size: 15px; color: var(--fg); }
+.comp-card .cc-ns { font-family: var(--mono); font-size: 11px; color: var(--fg-faint); background: var(--inset); border: 1px solid var(--line); border-radius: 5px; padding: 2px 7px; white-space: nowrap; }
+.comp-card .cc-desc { font-size: 13.5px; color: var(--fg-muted); line-height: 1.55; flex: 1; }
+.comp-card .cc-go { font-family: var(--mono); font-size: 12px; color: var(--accent); display: inline-flex; align-items: center; gap: 6px; margin-top: 4px; }
+.comp-card:hover .cc-go .arrow { transform: translateX(3px); }
+.cc-go .arrow { transition: transform .15s; }
+
+/* namespace anatomy table */
+.ns-table { width: 100%; border-collapse: collapse; margin: 20px 0; font-size: 13.5px; }
+.ns-table th, .ns-table td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--line); }
+.ns-table th { font-family: var(--mono); font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--fg-dim); }
+.ns-table td { color: var(--fg-muted); }
+.ns-table td.k { font-family: var(--mono); color: var(--fg); font-size: 12.5px; }
+.ns-table td.apps { font-family: var(--mono); font-size: 12px; color: var(--fg-dim); }
+.ns-table tr:last-child td { border-bottom: none; }
+
+@media (max-width: 900px) { .comp-grid { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 560px) { .comp-grid { grid-template-columns: 1fr; } }
+
+/* ==========================================================================
    RESPONSIVE
    ========================================================================== */
 @media (max-width: 940px) {

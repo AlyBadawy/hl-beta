@@ -1,0 +1,201 @@
+---
+layout: docs
+title: "Applications"
+description: "The user-facing apps running on the cluster: Authentik, Nextcloud, Immich, PostgreSQL, pgAdmin, Redis, and more."
+section: cluster
+---
+
+<main class="doc-main">
+  <nav class="breadcrumb">
+    <a href="/">home</a><span class="s">/</span>
+    <a href="/cluster/">cluster</a><span class="s">/</span>
+    <span style="color:var(--fg-muted)">apps</span>
+  </nav>
+
+  <header class="doc-header">
+    <div class="htop">
+      <div class="doc-logo">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+      </div>
+      <div>
+        <span class="eyebrow">// cluster · applications</span>
+        <h1>Applications</h1>
+      </div>
+    </div>
+    <p class="tagline">The user-facing services running on the cluster. Each app is a separate ArgoCD Application, deployed at sync-wave 2+, pulling credentials from Vault via ESO, and exposed through ingress-nginx with the wildcard TLS cert.</p>
+    <div class="doc-pills">
+      <span class="pill ok"><span class="dot ok"></span> All synced</span>
+      <span class="pill">sync-wave 2+</span>
+      <span class="pill">Vault secrets</span>
+      <span class="pill">wildcard TLS</span>
+    </div>
+  </header>
+
+  <article class="doc-article">
+    <p class="lead">Every user-facing app in this cluster follows the same pattern: GitOps-managed by ArgoCD, credentials injected at runtime by ESO from Vault, HTTPS provided by the shared wildcard cert. Adding a new app means adding a component directory and an Application manifest — no TLS config, no secret management boilerplate.</p>
+
+    <h2 id="roster"><span class="hn">01</span> Application roster</h2>
+
+    <table class="spec-table">
+      <thead><tr><th>App</th><th>Namespace</th><th>URL</th><th>Description</th></tr></thead>
+      <tbody>
+        <tr>
+          <td class="k">Authentik</td>
+          <td><span class="mono">security</span></td>
+          <td><a href="https://auth.in.alybadawy.com" target="_blank" rel="noopener">auth.in.alybadawy.com</a></td>
+          <td>Identity provider — SSO, OAuth2, LDAP proxy. Version 2026.5.2.</td>
+        </tr>
+        <tr>
+          <td class="k">Nextcloud</td>
+          <td><span class="mono">cloud</span></td>
+          <td><a href="https://cloud.in.alybadawy.com" target="_blank" rel="noopener">cloud.in.alybadawy.com</a></td>
+          <td>Self-hosted cloud storage and collaboration suite.</td>
+        </tr>
+        <tr>
+          <td class="k">Immich</td>
+          <td><span class="mono">immich</span></td>
+          <td><a href="https://photos.in.alybadawy.com" target="_blank" rel="noopener">photos.in.alybadawy.com</a></td>
+          <td>Self-hosted photo and video backup (Google Photos alternative).</td>
+        </tr>
+        <tr>
+          <td class="k">PostgreSQL</td>
+          <td><span class="mono">db</span></td>
+          <td>Internal only</td>
+          <td>Shared Postgres instance used by Authentik, Nextcloud, Immich.</td>
+        </tr>
+        <tr>
+          <td class="k">pgAdmin</td>
+          <td><span class="mono">db</span></td>
+          <td><a href="https://pgadmin.in.alybadawy.com" target="_blank" rel="noopener">pgadmin.in.alybadawy.com</a></td>
+          <td>PostgreSQL web UI for database management.</td>
+        </tr>
+        <tr>
+          <td class="k">Redis</td>
+          <td><span class="mono">db</span></td>
+          <td>Internal only</td>
+          <td>Shared Redis cache used by Authentik and Nextcloud.</td>
+        </tr>
+        <tr>
+          <td class="k">whoami</td>
+          <td><span class="mono">whoami</span></td>
+          <td><a href="https://whoami.in.alybadawy.com" target="_blank" rel="noopener">whoami.in.alybadawy.com</a></td>
+          <td>HTTP echo service — useful for testing ingress and TLS.</td>
+        </tr>
+        <tr>
+          <td class="k">aly</td>
+          <td><span class="mono">websites</span></td>
+          <td><a href="https://aly.in.alybadawy.com" target="_blank" rel="noopener">aly.in.alybadawy.com</a></td>
+          <td>Personal website (<code>ghcr.io/alybadawy/aly:latest</code>).</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h2 id="db"><span class="hn">02</span> Database stack</h2>
+    <p>PostgreSQL and Redis run in the <code>db</code> namespace as raw Deployments (not operators). A <code>pg-dump</code> CronJob runs periodic dumps of all databases to the NAS. pgAdmin provides a web UI for database management.</p>
+
+    <div class="callout info">
+      <span class="ic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 8h.01M11 12h1v4h1"/></svg></span>
+      <div><b>Shared database instance.</b> Authentik, Nextcloud, and Immich all use separate databases within the same PostgreSQL instance — each app gets its own <code>POSTGRES_DB</code>. This simplifies operations: one set of backups, one PVC to restore on rebuild.</div>
+    </div>
+
+    <div class="code">
+      <div class="code-head">
+        <span class="dots"><i></i><i></i><i></i></span>
+        <span class="fname">db namespace resources</span>
+        <button class="copy-btn">copy</button>
+        <span class="lang">bash</span>
+      </div>
+<pre><code><span class="t-com"># check all db namespace resources</span>
+<span class="t-prompt">$</span> <span class="t-cmd">kubectl</span> get all <span class="t-flag">-n</span> db
+<span class="t-out">NAME                          READY   STATUS    RESTARTS   AGE</span>
+<span class="t-out">pod/postgres-xxx              1/1     Running   0          5d</span>
+<span class="t-out">pod/pgadmin-xxx               1/1     Running   0          5d</span>
+<span class="t-out">pod/redis-xxx                 1/1     Running   0          5d</span>
+
+<span class="t-com"># check the pg-dump cronjob (dumps to NAS)</span>
+<span class="t-prompt">$</span> <span class="t-cmd">kubectl</span> get cronjob <span class="t-flag">-n</span> db
+<span class="t-prompt">$</span> <span class="t-cmd">kubectl</span> get jobs <span class="t-flag">-n</span> db <span class="t-flag">--sort-by=.metadata.creationTimestamp</span></code></pre>
+    </div>
+
+    <h2 id="immich"><span class="hn">03</span> Immich</h2>
+    <p>Immich runs two containers in the <code>immich</code> namespace: <code>immich-server</code> (main API + web UI) and <code>immich-ml</code> (machine learning for face recognition and CLIP image search). Photos are stored on a Longhorn-backed PVC that is included in the NAS backup schedule.</p>
+
+    <div class="callout warn">
+      <span class="ic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l9 16H3z"/><path d="M12 9v5M12 17h.01"/></svg></span>
+      <div><b>Large body uploads.</b> Immich and Nextcloud upload large files (photos, videos, documents). The ingress-nginx <code>client-max-body-size: 100m</code> setting is required — without it, nginx rejects uploads over 1 MiB with a 413 error. For very large Nextcloud uploads (>100 MB), the client must use chunked upload.</div>
+    </div>
+
+    <h2 id="add-app"><span class="hn">04</span> Adding a new app</h2>
+    <p>The pattern is the same for every app:</p>
+    <ol>
+      <li>Create <code>k8s/components/&lt;name&gt;/</code> with namespace, deployment, service, ingress, and optionally ExternalSecret + PVC.</li>
+      <li>Create <code>k8s/apps/&lt;name&gt;.yaml</code> — copy any existing Application manifest and update <code>path</code>, <code>destination.namespace</code>, and <code>name</code>.</li>
+      <li>Store credentials in Vault: <code>vault kv put secret/&lt;name&gt;-secret KEY=value ...</code></li>
+      <li>Commit and push. ArgoCD detects the new Application manifest (root app watches <code>k8s/apps/</code>) and syncs automatically.</li>
+    </ol>
+
+    <div class="code">
+      <div class="code-head">
+        <span class="dots"><i></i><i></i><i></i></span>
+        <span class="fname">minimal Application manifest (k8s/apps/myapp.yaml)</span>
+        <button class="copy-btn">copy</button>
+        <span class="lang">yaml</span>
+      </div>
+<pre><code><span class="t-key">apiVersion</span><span class="t-punc">:</span> <span class="t-str">argoproj.io/v1alpha1</span>
+<span class="t-key">kind</span><span class="t-punc">:</span> <span class="t-str">Application</span>
+<span class="t-key">metadata</span><span class="t-punc">:</span>
+  <span class="t-key">name</span><span class="t-punc">:</span> <span class="t-str">myapp</span>
+  <span class="t-key">namespace</span><span class="t-punc">:</span> <span class="t-str">argocd</span>
+  <span class="t-key">annotations</span><span class="t-punc">:</span>
+    <span class="t-key">argocd.argoproj.io/sync-wave</span><span class="t-punc">:</span> <span class="t-str">"3"</span>  <span class="t-com"># after db and platform</span>
+  <span class="t-key">finalizers</span><span class="t-punc">:</span>
+    <span class="t-punc">-</span> <span class="t-str">resources-finalizer.argocd.argoproj.io</span>
+<span class="t-key">spec</span><span class="t-punc">:</span>
+  <span class="t-key">project</span><span class="t-punc">:</span> <span class="t-str">default</span>
+  <span class="t-key">source</span><span class="t-punc">:</span>
+    <span class="t-key">repoURL</span><span class="t-punc">:</span> <span class="t-str">https://github.com/AlyBadawy/hl-beta</span>
+    <span class="t-key">targetRevision</span><span class="t-punc">:</span> <span class="t-str">main</span>
+    <span class="t-key">path</span><span class="t-punc">:</span> <span class="t-str">k8s/components/myapp</span>
+  <span class="t-key">destination</span><span class="t-punc">:</span>
+    <span class="t-key">server</span><span class="t-punc">:</span> <span class="t-str">https://kubernetes.default.svc</span>
+    <span class="t-key">namespace</span><span class="t-punc">:</span> <span class="t-str">myapp</span>
+  <span class="t-key">syncPolicy</span><span class="t-punc">:</span>
+    <span class="t-key">automated</span><span class="t-punc">:</span>
+      <span class="t-key">prune</span><span class="t-punc">:</span> <span class="t-num">true</span>
+      <span class="t-key">selfHeal</span><span class="t-punc">:</span> <span class="t-num">true</span>
+    <span class="t-key">syncOptions</span><span class="t-punc">:</span>
+      <span class="t-punc">-</span> <span class="t-str">CreateNamespace=true</span></code></pre>
+    </div>
+
+    <nav class="doc-nav">
+      <a class="prev" href="/cluster/monitoring.html">
+        <span class="dir">← previous</span>
+        <span class="ttl">Monitoring</span>
+      </a>
+      <a class="next" href="/cluster/">
+        <span class="dir">↑ back to</span>
+        <span class="ttl">Cluster overview</span>
+      </a>
+    </nav>
+
+    <div class="doc-foot">
+      <span>last updated 2026-06-08 · <a href="{{ site.repo_url }}/tree/main/k8s/apps" target="_blank" rel="noopener">view source on GitHub</a></span>
+    </div>
+  </article>
+</main>
+
+<aside class="toc">
+  <div class="toc-title">On this page</div>
+  <ul>
+    <li><a href="#roster">Application roster</a></li>
+    <li><a href="#db">Database stack</a></li>
+    <li><a href="#immich">Immich</a></li>
+    <li><a href="#add-app">Adding a new app</a></li>
+  </ul>
+  <div class="toc-meta">
+    <div class="row"><span>health</span><span style="color:var(--ok)">All synced</span></div>
+    <div class="row"><span>apps</span><span>8 user-facing</span></div>
+    <div class="row"><span>secrets</span><span>Vault via ESO</span></div>
+    <div class="row"><span>reading</span><span>~5 min</span></div>
+  </div>
+</aside>

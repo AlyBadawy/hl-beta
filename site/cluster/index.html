@@ -1,0 +1,162 @@
+---
+layout: docs
+title: "Cluster Overview"
+description: "A single-node k3s cluster running the full self-hosted stack, managed entirely through GitOps."
+section: cluster
+---
+
+<main class="doc-main">
+  <nav class="breadcrumb">
+    <a href="/">home</a><span class="s">/</span>
+    <span style="color:var(--fg-muted)">cluster</span>
+  </nav>
+
+  <header class="doc-header">
+    <div class="htop">
+      <div class="doc-logo">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/><circle cx="12" cy="10" r="2"/></svg>
+      </div>
+      <div>
+        <span class="eyebrow">// the homelab</span>
+        <h1>Cluster Overview</h1>
+      </div>
+    </div>
+    <p class="tagline">A single-node k3s cluster running the full self-hosted stack on Ubuntu 26.04. Every component is declared in Git and reconciled by ArgoCD — nothing is applied to the cluster by hand.</p>
+    <div class="doc-pills">
+      <span class="pill ok"><span class="dot ok"></span> All systems operational</span>
+      <span class="pill accent">k3s v1.36.1+k3s1</span>
+      <span class="pill">Ubuntu 26.04</span>
+      <span class="pill">13 ArgoCD apps</span>
+    </div>
+  </header>
+
+  <article class="doc-article">
+    <p class="lead">One physical server running a full Kubernetes cluster — secrets management, storage, TLS, SSO, photo backup, cloud storage, monitoring, and more. Every piece is a Helm chart or Kustomize overlay, versioned in Git, deployed by ArgoCD, and automatically recovered after a reboot.</p>
+
+    <h2 id="facts"><span class="hn">01</span> Key facts</h2>
+    <table class="spec-table">
+      <thead><tr><th>Property</th><th>Value</th></tr></thead>
+      <tbody>
+        <tr><td class="k">Distribution</td><td>k3s <span class="mono">v1.36.1+k3s1</span> — Traefik disabled, ingress-nginx installed instead</td></tr>
+        <tr><td class="k">Node OS</td><td>Ubuntu 26.04 LTS — single control-plane node</td></tr>
+        <tr><td class="k">GitOps</td><td>ArgoCD app-of-apps — root points at <span class="mono">k8s/apps/</span> in this repo</td></tr>
+        <tr><td class="k">Secrets</td><td>HashiCorp Vault (KV v2) → ESO → app namespaces</td></tr>
+        <tr><td class="k">Storage</td><td>Longhorn (single replica) — NAS NFS backup target</td></tr>
+        <tr><td class="k">TLS</td><td>One wildcard cert <span class="mono">*.in.alybadawy.com</span> via cert-manager + Let's Encrypt DNS-01</td></tr>
+        <tr><td class="k">Ingress</td><td>ingress-nginx — default-ssl-certificate at controller level, no per-Ingress TLS</td></tr>
+        <tr><td class="k">Post-reboot recovery</td><td>Fully automatic — Vault unseals, ESO reconnects, apps recover (~6 min)</td></tr>
+      </tbody>
+    </table>
+
+    <h2 id="components"><span class="hn">02</span> Platform components</h2>
+    <p>The platform layer — everything that supports the application stack. Each links to its reference page.</p>
+
+    <div class="comp-grid">
+      <a class="comp-card" href="/cluster/argocd.html">
+        <div class="cc-top"><span class="cc-name">ArgoCD</span><span class="cc-ns">argocd</span></div>
+        <span class="cc-desc">GitOps controller. Watches the repo and continuously reconciles all 13 apps to match Git state.</span>
+        <span class="cc-go">Read docs <span class="arrow">→</span></span>
+      </a>
+      <a class="comp-card" href="/cluster/vault.html">
+        <div class="cc-top"><span class="cc-name">HashiCorp Vault</span><span class="cc-ns">security</span></div>
+        <span class="cc-desc">Secrets backend. All app secrets live in Vault KV v2 and are synced to namespaces by ESO.</span>
+        <span class="cc-go">Read docs <span class="arrow">→</span></span>
+      </a>
+      <a class="comp-card" href="/cluster/longhorn.html">
+        <div class="cc-top"><span class="cc-name">Longhorn</span><span class="cc-ns">longhorn-system</span></div>
+        <span class="cc-desc">Block storage for stateful workloads. Automated recurring backups to the NAS over NFS.</span>
+        <span class="cc-go">Read docs <span class="arrow">→</span></span>
+      </a>
+      <a class="comp-card" href="/cluster/cert-manager.html">
+        <div class="cc-top"><span class="cc-name">cert-manager</span><span class="cc-ns">networking</span></div>
+        <span class="cc-desc">TLS lifecycle. Issues and renews the wildcard cert covering all <code>*.in.alybadawy.com</code> hostnames.</span>
+        <span class="cc-go">Read docs <span class="arrow">→</span></span>
+      </a>
+      <a class="comp-card" href="/cluster/ingress.html">
+        <div class="cc-top"><span class="cc-name">Ingress (nginx)</span><span class="cc-ns">networking</span></div>
+        <span class="cc-desc">All inbound HTTPS traffic. Terminates TLS at the controller with the shared wildcard cert.</span>
+        <span class="cc-go">Read docs <span class="arrow">→</span></span>
+      </a>
+      <a class="comp-card" href="/cluster/external-secrets.html">
+        <div class="cc-top"><span class="cc-name">External Secrets</span><span class="cc-ns">security</span></div>
+        <span class="cc-desc">Bridges Vault to Kubernetes. Apps declare what secrets they need; ESO fetches and keeps them in sync.</span>
+        <span class="cc-go">Read docs <span class="arrow">→</span></span>
+      </a>
+      <a class="comp-card" href="/cluster/monitoring.html">
+        <div class="cc-top"><span class="cc-name">Monitoring</span><span class="cc-ns">monitor</span></div>
+        <span class="cc-desc">kube-prometheus-stack. Prometheus scrapes the cluster, Grafana visualizes it, Alertmanager routes alerts.</span>
+        <span class="cc-go">Read docs <span class="arrow">→</span></span>
+      </a>
+      <a class="comp-card" href="/cluster/apps.html">
+        <div class="cc-top"><span class="cc-name">Applications</span><span class="cc-ns">various</span></div>
+        <span class="cc-desc">Authentik, Nextcloud, Immich, PostgreSQL, pgAdmin, Redis, Immich ML, and more.</span>
+        <span class="cc-go">Read docs <span class="arrow">→</span></span>
+      </a>
+    </div>
+
+    <h2 id="waves"><span class="hn">03</span> Deployment order — sync waves</h2>
+    <p>ArgoCD deploys apps in wave order. The platform layer must be healthy before applications can start, because apps depend on Vault secrets and Longhorn PVCs.</p>
+
+    <div class="callout info">
+      <span class="ic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 8h.01M11 12h1v4h1"/></svg></span>
+      <div><b>Vault at wave -1.</b> Vault must be unsealed before ESO can read secrets, and ESO must have secrets before apps can start. The <code>vault-auto-unseal</code> CronJob handles unsealing automatically — no manual steps after a reboot.</div>
+    </div>
+
+    <table class="spec-table">
+      <thead><tr><th>Wave</th><th>Apps</th><th>Why first</th></tr></thead>
+      <tbody>
+        <tr><td class="k">-1</td><td>vault</td><td>Secrets backend — everything else depends on it</td></tr>
+        <tr><td class="k">0 (default)</td><td>longhorn, cert-manager, ingress-nginx, external-secrets</td><td>Platform layer — storage, TLS, ingress, secret sync</td></tr>
+        <tr><td class="k">1+</td><td>db, monitor, auth, cloud, immich, whoami, aly</td><td>Application layer — depend on platform being healthy</td></tr>
+      </tbody>
+    </table>
+
+    <h2 id="namespaces"><span class="hn">04</span> Namespace layout</h2>
+    <p>Namespaces are created by ArgoCD (<code>CreateNamespace=true</code> in sync options) and group related services together.</p>
+
+    <table class="ns-table">
+      <thead><tr><th>Namespace</th><th>Contents</th></tr></thead>
+      <tbody>
+        <tr><td class="k">argocd</td><td class="apps">ArgoCD server, repo-server, application-controller, dex, redis</td></tr>
+        <tr><td class="k">security</td><td class="apps">Vault StatefulSet, vault-auto-unseal CronJob, ESO operator, eso-recovery CronJob</td></tr>
+        <tr><td class="k">networking</td><td class="apps">ingress-nginx controller, cert-manager controller, ClusterIssuer, wildcard Certificate + Secret</td></tr>
+        <tr><td class="k">longhorn-system</td><td class="apps">Longhorn manager, driver, UI frontend, CSI components</td></tr>
+        <tr><td class="k">monitor</td><td class="apps">Prometheus, Grafana, Alertmanager</td></tr>
+        <tr><td class="k">db</td><td class="apps">PostgreSQL, pgAdmin, Redis</td></tr>
+        <tr><td class="k">auth</td><td class="apps">Authentik server + worker</td></tr>
+        <tr><td class="k">cloud</td><td class="apps">Nextcloud</td></tr>
+        <tr><td class="k">immich</td><td class="apps">Immich server + ML worker</td></tr>
+      </tbody>
+    </table>
+
+    <nav class="doc-nav">
+      <a class="prev" href="/">
+        <span class="dir">← previous</span>
+        <span class="ttl">Home</span>
+      </a>
+      <a class="next" href="/cluster/argocd.html">
+        <span class="dir">next →</span>
+        <span class="ttl">ArgoCD</span>
+      </a>
+    </nav>
+
+    <div class="doc-foot">
+      <span>last updated 2026-06-08 · <a href="{{ site.repo_url }}/tree/main/k8s" target="_blank" rel="noopener">view source on GitHub</a></span>
+    </div>
+  </article>
+</main>
+
+<aside class="toc">
+  <div class="toc-title">On this page</div>
+  <ul>
+    <li><a href="#facts">Key facts</a></li>
+    <li><a href="#components">Platform components</a></li>
+    <li><a href="#waves">Deployment order</a></li>
+    <li><a href="#namespaces">Namespace layout</a></li>
+  </ul>
+  <div class="toc-meta">
+    <div class="row"><span>k3s</span><span>v1.36.1+k3s1</span></div>
+    <div class="row"><span>apps</span><span>13</span></div>
+    <div class="row"><span>reading</span><span>~4 min</span></div>
+  </div>
+</aside>

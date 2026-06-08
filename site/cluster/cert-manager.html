@@ -1,0 +1,180 @@
+---
+layout: docs
+title: "cert-manager"
+description: "Automated TLS certificate lifecycle. One wildcard cert covers every hostname in the cluster."
+section: cluster
+---
+
+<main class="doc-main">
+  <nav class="breadcrumb">
+    <a href="/">home</a><span class="s">/</span>
+    <a href="/cluster/">cluster</a><span class="s">/</span>
+    <span style="color:var(--fg-muted)">cert-manager</span>
+  </nav>
+
+  <header class="doc-header">
+    <div class="htop">
+      <div class="doc-logo">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+      </div>
+      <div>
+        <span class="eyebrow">// cluster · tls</span>
+        <h1>cert-manager</h1>
+      </div>
+    </div>
+    <p class="tagline">Automated certificate issuance and renewal. A single wildcard certificate covers all <code>*.in.alybadawy.com</code> hostnames. cert-manager handles the full lifecycle — no manual cert management ever.</p>
+    <div class="doc-pills">
+      <span class="pill ok"><span class="dot ok"></span> Valid</span>
+      <span class="pill">namespace: networking</span>
+      <span class="pill">wildcard cert</span>
+      <span class="pill">DNS-01 / Cloudflare</span>
+    </div>
+  </header>
+
+  <article class="doc-article">
+    <p class="lead">cert-manager runs the full ACME DNS-01 challenge against Cloudflare to issue a wildcard cert for <code>*.in.alybadawy.com</code>. The resulting <code>wildcard-tls</code> Secret is loaded by ingress-nginx as its default certificate — every HTTPS hostname in the cluster gets the wildcard automatically, with zero per-Ingress configuration.</p>
+
+    <h2 id="architecture"><span class="hn">01</span> Three-component architecture</h2>
+    <p>TLS works because three resources are set up correctly and in the right order:</p>
+    <ol>
+      <li><strong>ClusterIssuer <code>letsencrypt-prod</code></strong> — tells cert-manager how to talk to Let's Encrypt and how to prove domain ownership (DNS-01 via Cloudflare API).</li>
+      <li><strong>Certificate <code>wildcard-in-alybadawy-com</code></strong> — requests the actual cert. cert-manager creates a DNS TXT record in Cloudflare, Let's Encrypt verifies it, cert-manager stores the result in the <code>wildcard-tls</code> Secret.</li>
+      <li><strong>ingress-nginx <code>default-ssl-certificate</code></strong> — tells nginx to load <code>wildcard-tls</code> for all incoming HTTPS connections. Per-Ingress <code>tls[]</code> blocks are not needed.</li>
+    </ol>
+
+    <div class="callout info">
+      <span class="ic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 8h.01M11 12h1v4h1"/></svg></span>
+      <div><b>Why DNS-01?</b> HTTP-01 challenges cannot issue wildcard certificates — Let's Encrypt requires DNS-01 for wildcards. DNS-01 also works for private/LAN-only services that aren't publicly reachable over HTTP, which is exactly this cluster's use case.</div>
+    </div>
+
+    <h2 id="issuer"><span class="hn">02</span> ClusterIssuer</h2>
+    <p>Two issuers exist: <code>letsencrypt-prod</code> (used by default) and <code>letsencrypt-staging</code> (for testing without hitting rate limits). Both use DNS-01 with the Cloudflare solver. cert-manager is configured to query <code>8.8.8.8</code> and <code>1.1.1.1</code> directly for propagation checks, bypassing any local DNS that might not see the TXT record yet.</p>
+
+    <div class="code">
+      <div class="code-head">
+        <span class="dots"><i></i><i></i><i></i></span>
+        <span class="fname">k8s/components/cert-manager/cluster-issuer.yaml (excerpt)</span>
+        <button class="copy-btn">copy</button>
+        <span class="lang">yaml</span>
+      </div>
+<pre><code><span class="t-key">apiVersion</span><span class="t-punc">:</span> <span class="t-str">cert-manager.io/v1</span>
+<span class="t-key">kind</span><span class="t-punc">:</span> <span class="t-str">ClusterIssuer</span>
+<span class="t-key">metadata</span><span class="t-punc">:</span>
+  <span class="t-key">name</span><span class="t-punc">:</span> <span class="t-str">letsencrypt-prod</span>
+<span class="t-key">spec</span><span class="t-punc">:</span>
+  <span class="t-key">acme</span><span class="t-punc">:</span>
+    <span class="t-key">server</span><span class="t-punc">:</span> <span class="t-str">https://acme-v02.api.letsencrypt.org/directory</span>
+    <span class="t-key">email</span><span class="t-punc">:</span> <span class="t-str">alybadawy@icloud.com</span>
+    <span class="t-key">privateKeySecretRef</span><span class="t-punc">:</span>
+      <span class="t-key">name</span><span class="t-punc">:</span> <span class="t-str">letsencrypt-prod-account-key</span>
+    <span class="t-key">solvers</span><span class="t-punc">:</span>
+      <span class="t-punc">-</span> <span class="t-key">dns01</span><span class="t-punc">:</span>
+          <span class="t-key">cloudflare</span><span class="t-punc">:</span>
+            <span class="t-key">apiTokenSecretRef</span><span class="t-punc">:</span>
+              <span class="t-key">name</span><span class="t-punc">:</span> <span class="t-str">cloudflare-api-token</span>
+              <span class="t-key">key</span><span class="t-punc">:</span> <span class="t-str">api-token</span>  <span class="t-com"># seeded by provision/bootstrap-argocd in step 7</span></code></pre>
+    </div>
+
+    <h2 id="certificate"><span class="hn">03</span> The wildcard Certificate</h2>
+    <p>One <code>Certificate</code> resource covers every current and future hostname under <code>in.alybadawy.com</code>. Adding a new service never requires touching cert-manager.</p>
+
+    <div class="code">
+      <div class="code-head">
+        <span class="dots"><i></i><i></i><i></i></span>
+        <span class="fname">k8s/components/cert-manager/wildcard-certificate.yaml</span>
+        <button class="copy-btn">copy</button>
+        <span class="lang">yaml</span>
+      </div>
+<pre><code><span class="t-key">apiVersion</span><span class="t-punc">:</span> <span class="t-str">cert-manager.io/v1</span>
+<span class="t-key">kind</span><span class="t-punc">:</span> <span class="t-str">Certificate</span>
+<span class="t-key">metadata</span><span class="t-punc">:</span>
+  <span class="t-key">name</span><span class="t-punc">:</span> <span class="t-str">wildcard-in-alybadawy-com</span>
+  <span class="t-key">namespace</span><span class="t-punc">:</span> <span class="t-str">networking</span>
+  <span class="t-key">annotations</span><span class="t-punc">:</span>
+    <span class="t-key">argocd.argoproj.io/sync-wave</span><span class="t-punc">:</span> <span class="t-str">"2"</span>  <span class="t-com"># after ClusterIssuer at wave 1</span>
+<span class="t-key">spec</span><span class="t-punc">:</span>
+  <span class="t-key">secretName</span><span class="t-punc">:</span> <span class="t-str">wildcard-tls</span>
+  <span class="t-key">issuerRef</span><span class="t-punc">:</span>
+    <span class="t-key">name</span><span class="t-punc">:</span> <span class="t-str">letsencrypt-prod</span>
+    <span class="t-key">kind</span><span class="t-punc">:</span> <span class="t-str">ClusterIssuer</span>
+  <span class="t-key">commonName</span><span class="t-punc">:</span> <span class="t-str">"*.in.alybadawy.com"</span>
+  <span class="t-key">dnsNames</span><span class="t-punc">:</span>
+    <span class="t-punc">-</span> <span class="t-str">"*.in.alybadawy.com"</span>
+    <span class="t-punc">-</span> <span class="t-str">"in.alybadawy.com"</span></code></pre>
+    </div>
+
+    <p>cert-manager automatically renews the cert before expiry. Let's Encrypt certs are valid for 90 days; renewal starts at 60 days. When cert-manager writes an updated <code>wildcard-tls</code> Secret, ingress-nginx hot-reloads it — no downtime, no manual steps.</p>
+
+    <h2 id="newservice"><span class="hn">04</span> Adding a new service</h2>
+    <p>Because TLS is handled globally, adding a new HTTPS service requires zero cert-manager configuration:</p>
+
+    <ol>
+      <li>Create an <code>Ingress</code> resource with <code>ingressClassName: nginx</code> and your hostname.</li>
+      <li>Add <code>nginx.ingress.kubernetes.io/force-ssl-redirect: "true"</code> for HTTP→HTTPS redirect.</li>
+      <li><strong>Do not</strong> add <code>cert-manager.io/cluster-issuer</code>. <strong>Do not</strong> add a <code>tls[]</code> block.</li>
+    </ol>
+
+    <p>The wildcard cert already covers the new hostname. nginx serves it automatically.</p>
+
+    <h2 id="troubleshoot"><span class="hn">05</span> Troubleshooting</h2>
+
+    <div class="code">
+      <div class="code-head">
+        <span class="dots"><i></i><i></i><i></i></span>
+        <span class="fname">cert status checks</span>
+        <button class="copy-btn">copy</button>
+        <span class="lang">bash</span>
+      </div>
+<pre><code><span class="t-com"># certificate status and expiry</span>
+<span class="t-prompt">$</span> <span class="t-cmd">kubectl</span> get certificate wildcard-in-alybadawy-com <span class="t-flag">-n</span> networking
+<span class="t-out">NAME                        READY   SECRET         AGE</span>
+<span class="t-out">wildcard-in-alybadawy-com   True    wildcard-tls   5d</span>
+
+<span class="t-com"># verify SANs and expiry date</span>
+<span class="t-prompt">$</span> <span class="t-cmd">kubectl</span> get secret wildcard-tls <span class="t-flag">-n</span> networking \
+    <span class="t-flag">-o</span> jsonpath=<span class="t-str">'{.data.tls\.crt}'</span> | base64 -d \
+    | openssl x509 <span class="t-flag">-noout</span> <span class="t-flag">-text</span> | grep <span class="t-flag">-A2</span> <span class="t-str">"Subject Alternative\|Not After"</span>
+
+<span class="t-com"># watch cert-manager reconcile (useful during first issuance)</span>
+<span class="t-prompt">$</span> <span class="t-cmd">kubectl</span> logs <span class="t-flag">-n</span> networking <span class="t-flag">-l</span> app.kubernetes.io/name=cert-manager <span class="t-flag">--tail=50</span></code></pre>
+    </div>
+
+    <div class="callout warn">
+      <span class="ic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l9 16H3z"/><path d="M12 9v5M12 17h.01"/></svg></span>
+      <div><b>DNS prerequisite.</b> The <code>_acme-challenge.in.alybadawy.com</code> TXT record requires Cloudflare to have an explicit <code>A</code> or <code>CNAME</code> record for <code>in.alybadawy.com</code> — without it, Cloudflare's DNS will store the TXT but not serve it. Both <code>in.alybadawy.com</code> and <code>*.in.alybadawy.com</code> should have CNAME records pointing to <code>alybadawy.com</code> (unproxied).</div>
+    </div>
+
+    <nav class="doc-nav">
+      <a class="prev" href="/cluster/longhorn.html">
+        <span class="dir">← previous</span>
+        <span class="ttl">Longhorn</span>
+      </a>
+      <a class="next" href="/cluster/ingress.html">
+        <span class="dir">next →</span>
+        <span class="ttl">Ingress (nginx)</span>
+      </a>
+    </nav>
+
+    <div class="doc-foot">
+      <span>last updated 2026-06-08 · <a href="{{ site.repo_url }}/tree/main/k8s/components/cert-manager" target="_blank" rel="noopener">view source on GitHub</a></span>
+      <span><a href="/docs/tls-architecture.html" target="_blank">full TLS architecture doc ↗</a></span>
+    </div>
+  </article>
+</main>
+
+<aside class="toc">
+  <div class="toc-title">On this page</div>
+  <ul>
+    <li><a href="#architecture">Three-component architecture</a></li>
+    <li><a href="#issuer">ClusterIssuer</a></li>
+    <li><a href="#certificate">The wildcard Certificate</a></li>
+    <li><a href="#newservice">Adding a new service</a></li>
+    <li><a href="#troubleshoot">Troubleshooting</a></li>
+  </ul>
+  <div class="toc-meta">
+    <div class="row"><span>health</span><span style="color:var(--ok)">Valid</span></div>
+    <div class="row"><span>namespace</span><span>networking</span></div>
+    <div class="row"><span>expires</span><span>Sep 6 2026</span></div>
+    <div class="row"><span>reading</span><span>~5 min</span></div>
+  </div>
+</aside>

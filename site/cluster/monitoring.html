@@ -1,0 +1,174 @@
+---
+layout: docs
+title: "Monitoring"
+description: "kube-prometheus-stack provides Prometheus, Grafana, and Alertmanager. 30-day retention, Grafana secrets from Vault."
+section: cluster
+---
+
+<main class="doc-main">
+  <nav class="breadcrumb">
+    <a href="/">home</a><span class="s">/</span>
+    <a href="/cluster/">cluster</a><span class="s">/</span>
+    <span style="color:var(--fg-muted)">monitoring</span>
+  </nav>
+
+  <header class="doc-header">
+    <div class="htop">
+      <div class="doc-logo">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+      </div>
+      <div>
+        <span class="eyebrow">// cluster · observability</span>
+        <h1>Monitoring</h1>
+      </div>
+    </div>
+    <p class="tagline">The full kube-prometheus-stack: Prometheus scrapes metrics from all cluster components, Grafana visualises them, and Alertmanager fires alerts. Grafana admin credentials come from Vault via ESO — no hardcoded secrets.</p>
+    <div class="doc-pills">
+      <span class="pill ok"><span class="dot ok"></span> Healthy</span>
+      <span class="pill">namespace: monitor</span>
+      <span class="pill">30d retention</span>
+      <span class="pill">kube-prometheus-stack</span>
+    </div>
+  </header>
+
+  <article class="doc-article">
+    <p class="lead">The monitoring stack runs in the <code>monitor</code> namespace and is deployed as a single ArgoCD Application at sync-wave 2 (after ingress-nginx and cert-manager). Prometheus stores 30 days of metrics on <code>local-path</code> storage; Grafana persists dashboards to a separate 5 GiB volume. Alertmanager is enabled but alert routing is configured separately.</p>
+
+    <h2 id="stack"><span class="hn">01</span> Stack components</h2>
+
+    <table class="spec-table">
+      <thead><tr><th>Component</th><th>URL</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr>
+          <td class="k">Grafana</td>
+          <td><a href="https://grafana.in.alybadawy.com" target="_blank" rel="noopener">grafana.in.alybadawy.com</a></td>
+          <td>Admin credentials from Vault <code>secret/grafana-admin</code></td>
+        </tr>
+        <tr>
+          <td class="k">Prometheus</td>
+          <td><a href="https://prometheus.in.alybadawy.com" target="_blank" rel="noopener">prometheus.in.alybadawy.com</a></td>
+          <td>30-day retention, 20 GiB PV on <code>local-path</code></td>
+        </tr>
+        <tr>
+          <td class="k">Alertmanager</td>
+          <td><a href="https://alerts.in.alybadawy.com" target="_blank" rel="noopener">alerts.in.alybadawy.com</a></td>
+          <td>Enabled — routing config TBD</td>
+        </tr>
+        <tr>
+          <td class="k">node-exporter</td>
+          <td>DaemonSet (no UI)</td>
+          <td>CPU, memory, disk, network per node</td>
+        </tr>
+        <tr>
+          <td class="k">kube-state-metrics</td>
+          <td>Deployment (no UI)</td>
+          <td>Kubernetes object state metrics (pods, deployments, etc.)</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h2 id="config"><span class="hn">02</span> Key configuration</h2>
+    <p>Several kube-prometheus-stack defaults are disabled — they require HA control-plane components (etcd, scheduler, controller-manager) that don't exist in a single-node k3s cluster. The Prometheus operator's admission webhooks are also disabled to simplify the install.</p>
+
+    <div class="code">
+      <div class="code-head">
+        <span class="dots"><i></i><i></i><i></i></span>
+        <span class="fname">k8s/components/monitor/helm-values.yaml (key sections)</span>
+        <button class="copy-btn">copy</button>
+        <span class="lang">yaml</span>
+      </div>
+<pre><code><span class="t-key">prometheusOperator</span><span class="t-punc">:</span>
+  <span class="t-key">tls</span><span class="t-punc">:</span>
+    <span class="t-key">enabled</span><span class="t-punc">:</span> <span class="t-num">false</span>    <span class="t-com"># no TLS on operator — ingress-nginx handles it</span>
+  <span class="t-key">admissionWebhooks</span><span class="t-punc">:</span>
+    <span class="t-key">enabled</span><span class="t-punc">:</span> <span class="t-num">false</span>  <span class="t-com"># simplified install; not needed for single-node</span>
+
+<span class="t-key">grafana</span><span class="t-punc">:</span>
+  <span class="t-key">admin</span><span class="t-punc">:</span>
+    <span class="t-key">existingSecret</span><span class="t-punc">:</span> <span class="t-str">grafana-admin</span>  <span class="t-com"># ESO syncs this from Vault secret/grafana-admin</span>
+    <span class="t-key">userKey</span><span class="t-punc">:</span> <span class="t-str">admin-user</span>
+    <span class="t-key">passwordKey</span><span class="t-punc">:</span> <span class="t-str">admin-password</span>
+  <span class="t-key">persistence</span><span class="t-punc">:</span>
+    <span class="t-key">enabled</span><span class="t-punc">:</span> <span class="t-num">true</span>
+    <span class="t-key">storageClassName</span><span class="t-punc">:</span> <span class="t-str">local-path</span>  <span class="t-com"># not Longhorn — no backup needed for dashboards</span>
+    <span class="t-key">size</span><span class="t-punc">:</span> <span class="t-str">5Gi</span>
+
+<span class="t-key">prometheus</span><span class="t-punc">:</span>
+  <span class="t-key">prometheusSpec</span><span class="t-punc">:</span>
+    <span class="t-key">externalLabels</span><span class="t-punc">:</span>
+      <span class="t-key">cluster</span><span class="t-punc">:</span> <span class="t-str">homelab</span>
+      <span class="t-key">env</span><span class="t-punc">:</span> <span class="t-str">prod</span>
+    <span class="t-key">retention</span><span class="t-punc">:</span> <span class="t-str">30d</span>
+    <span class="t-key">storageSpec</span><span class="t-punc">:</span>
+      <span class="t-key">volumeClaimTemplate</span><span class="t-punc">:</span>
+        <span class="t-key">spec</span><span class="t-punc">:</span>
+          <span class="t-key">storageClassName</span><span class="t-punc">:</span> <span class="t-str">local-path</span>
+          <span class="t-key">resources</span><span class="t-punc">:</span>
+            <span class="t-key">requests</span><span class="t-punc">:</span>
+              <span class="t-key">storage</span><span class="t-punc">:</span> <span class="t-str">20Gi</span>
+
+<span class="t-com"># disabled — these components don't exist in single-node k3s</span>
+<span class="t-key">kubeEtcd</span><span class="t-punc">:</span>
+  <span class="t-key">enabled</span><span class="t-punc">:</span> <span class="t-num">false</span>
+<span class="t-key">kubeScheduler</span><span class="t-punc">:</span>
+  <span class="t-key">enabled</span><span class="t-punc">:</span> <span class="t-num">false</span>
+<span class="t-key">kubeControllerManager</span><span class="t-punc">:</span>
+  <span class="t-key">enabled</span><span class="t-punc">:</span> <span class="t-num">false</span></code></pre>
+    </div>
+
+    <div class="callout info">
+      <span class="ic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 8h.01M11 12h1v4h1"/></svg></span>
+      <div><b>Why <code>local-path</code> instead of Longhorn?</b> Prometheus and Grafana store metrics and dashboard configs — valuable but fully regenerable. Using <code>local-path</code> keeps Longhorn's backup job list clean and reduces Longhorn I/O. If the node is destroyed, metrics history is lost but dashboards can be reimported from JSON.</div>
+    </div>
+
+    <h2 id="secrets"><span class="hn">03</span> Grafana credentials</h2>
+    <p>Grafana admin credentials are managed through Vault → ESO. The <code>grafana-admin</code> Kubernetes Secret is created by an <code>ExternalSecret</code> that pulls from <code>secret/grafana-admin</code> in Vault.</p>
+
+    <div class="code">
+      <div class="code-head">
+        <span class="dots"><i></i><i></i><i></i></span>
+        <span class="fname">setting grafana credentials in Vault</span>
+        <button class="copy-btn">copy</button>
+        <span class="lang">bash</span>
+      </div>
+<pre><code><span class="t-prompt">$</span> <span class="t-cmd">vault</span> kv put secret/grafana-admin \
+    admin-user=<span class="t-str">"admin"</span> \
+    admin-password=<span class="t-str">"&lt;strong-password&gt;"</span></code></pre>
+    </div>
+
+    <div class="callout warn">
+      <span class="ic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l9 16H3z"/><path d="M12 9v5M12 17h.01"/></svg></span>
+      <div><b>ArgoCD ignoreDifferences.</b> The <code>monitor</code> Application has an <code>ignoreDifferences</code> block for the Grafana secret and checksum annotation. This prevents ArgoCD from trying to revert Grafana's auto-generated secret hash on every sync. Without it, the app would show a permanent diff.</div>
+    </div>
+
+    <nav class="doc-nav">
+      <a class="prev" href="/cluster/external-secrets.html">
+        <span class="dir">← previous</span>
+        <span class="ttl">External Secrets (ESO)</span>
+      </a>
+      <a class="next" href="/cluster/apps.html">
+        <span class="dir">next →</span>
+        <span class="ttl">Applications</span>
+      </a>
+    </nav>
+
+    <div class="doc-foot">
+      <span>last updated 2026-06-08 · <a href="{{ site.repo_url }}/tree/main/k8s/components/monitor" target="_blank" rel="noopener">view source on GitHub</a></span>
+    </div>
+  </article>
+</main>
+
+<aside class="toc">
+  <div class="toc-title">On this page</div>
+  <ul>
+    <li><a href="#stack">Stack components</a></li>
+    <li><a href="#config">Key configuration</a></li>
+    <li><a href="#secrets">Grafana credentials</a></li>
+  </ul>
+  <div class="toc-meta">
+    <div class="row"><span>health</span><span style="color:var(--ok)">Healthy</span></div>
+    <div class="row"><span>namespace</span><span>monitor</span></div>
+    <div class="row"><span>retention</span><span>30 days</span></div>
+    <div class="row"><span>reading</span><span>~4 min</span></div>
+  </div>
+</aside>
