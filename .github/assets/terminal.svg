@@ -1,0 +1,63 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="520" height="295" viewBox="0 0 520 295" role="img" aria-label="Terminal: kubectl get nodes shows homelab node ready; argocd app list shows 14 synced apps">
+  <!-- window background -->
+  <rect width="520" height="295" rx="12" fill="#0f1523" stroke="#1e2a40" stroke-width="1"/>
+
+  <!-- title bar -->
+  <rect width="520" height="38" rx="12" fill="#151d2e"/>
+  <rect y="26" width="520" height="12" fill="#151d2e"/>
+  <line x1="0" y1="38.5" x2="520" y2="38.5" stroke="#1e2a40" stroke-width="1"/>
+
+  <!-- traffic lights -->
+  <circle cx="20" cy="19" r="5.5" fill="#e5534b"/>
+  <circle cx="38" cy="19" r="5.5" fill="#f0b429"/>
+  <circle cx="56" cy="19" r="5.5" fill="#3fba50"/>
+
+  <!-- title bar label -->
+  <text x="76" y="23.5" font-family="'Courier New', Courier, monospace" font-size="12" fill="#6b7a9a">aly@homelab: ~</text>
+
+  <!-- terminal body -->
+  <g font-family="'Courier New', Courier, monospace" font-size="13">
+
+    <!-- aly@homelab:~$ kubectl get nodes -->
+    <text x="18" y="68">
+      <tspan fill="#4ade80">aly@homelab</tspan><tspan fill="#6b7a9a">:~$</tspan><tspan fill="#e8ecf8"> kubectl get nodes</tspan>
+    </text>
+
+    <!-- NAME STATUS ROLES VERSION -->
+    <text x="18" y="90" fill="#6b7a9a">NAME    STATUS   ROLES                  VERSION</text>
+
+    <!-- homelab Ready control-plane,master v1.36.1+k3s1 -->
+    <text x="18" y="112">
+      <tspan fill="#60a5fa">homelab</tspan><tspan fill="#e8ecf8"> </tspan><tspan fill="#4ade80">Ready</tspan><tspan fill="#6b7a9a">  control-plane,master  v1.36.1+k3s1</tspan>
+    </text>
+
+    <!-- aly@homelab:~$ argocd app list -o name -->
+    <text x="18" y="156">
+      <tspan fill="#4ade80">aly@homelab</tspan><tspan fill="#6b7a9a">:~$</tspan><tspan fill="#e8ecf8"> argocd app list -o name</tspan>
+    </text>
+
+    <!-- ✔ vault longhorn cert-manager ingress-nginx -->
+    <text x="18" y="178">
+      <tspan fill="#4ade80">✔</tspan><tspan fill="#6b7a9a">  vault  longhorn  cert-manager  ingress-nginx</tspan>
+    </text>
+
+    <!-- ✔ external-secrets db monitor argocd -->
+    <text x="18" y="200">
+      <tspan fill="#4ade80">✔</tspan><tspan fill="#6b7a9a">  external-secrets  db  monitor  argocd</tspan>
+    </text>
+
+    <!-- ✔ auth cloud immich whoami aly -->
+    <text x="18" y="222">
+      <tspan fill="#4ade80">✔</tspan><tspan fill="#6b7a9a">  auth  cloud  immich  whoami  aly</tspan>
+    </text>
+
+    <!-- aly@homelab:~$ git push origin main -->
+    <text x="18" y="266">
+      <tspan fill="#4ade80">aly@homelab</tspan><tspan fill="#6b7a9a">:~$</tspan><tspan fill="#e8ecf8"> git push origin main</tspan>
+    </text>
+
+  </g>
+
+  <!-- cursor: 35 chars × 7.8px/char + 18px left padding = 291px -->
+  <rect x="291" y="253" width="8" height="15" fill="#60a5fa"/>
+</svg>
