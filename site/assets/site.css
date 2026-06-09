@@ -606,6 +606,7 @@ pre code { font-family: inherit; }
   .split { grid-template-columns: 1fr; }
   .status-grid { grid-template-columns: repeat(2, 1fr); }
   .topnav { display: none; }
+  .status-chip { display: none; }
 }
 @media (max-width: 560px) {
   .status-grid { grid-template-columns: 1fr; }
