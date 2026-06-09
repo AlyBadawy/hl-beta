@@ -1,0 +1,241 @@
+---
+layout: docs
+title: "Backups"
+description: "Three backup layers: Longhorn volume snapshots to NAS, PostgreSQL SQL dumps to NAS, and NAS-level protection for the underlying data."
+section: networking
+---
+
+<main class="doc-main">
+  <nav class="breadcrumb">
+    <a href="/">home</a><span class="s">/</span>
+    <a href="/networking/">networking</a><span class="s">/</span>
+    <span style="color:var(--fg-muted)">backups</span>
+  </nav>
+
+  <header class="doc-header">
+    <div class="htop">
+      <div class="doc-logo">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+      </div>
+      <div>
+        <span class="eyebrow">// networking · backups</span>
+        <h1>Backups</h1>
+      </div>
+    </div>
+    <p class="tagline">Three independent backup layers protect the homelab data. Longhorn backs up every stateful PVC to the NAS. PostgreSQL dumps add SQL-level snapshots. The NAS itself is protected at the storage level.</p>
+    <div class="doc-pills">
+      <span class="pill">Longhorn → NAS</span>
+      <span class="pill">pg-dump CronJob</span>
+      <span class="pill"><!-- TODO: NAS RAID/backup --></span>
+    </div>
+  </header>
+
+  <article class="doc-article">
+
+    <h2 id="overview"><span class="hn">01</span> Backup layers</h2>
+
+    <table class="spec-table">
+      <thead><tr><th>Layer</th><th>What's protected</th><th>Destination</th><th>Recovery</th></tr></thead>
+      <tbody>
+        <tr>
+          <td class="k">Longhorn volume backups</td>
+          <td>All stateful Kubernetes PVCs (Vault, PostgreSQL, Nextcloud, Authentik, Immich)</td>
+          <td>NAS NFS: <code>/var/nfs/shared/backups/pvcs</code></td>
+          <td>Restore from Longhorn UI during <a href="/guides/rebuild.html">cluster rebuild</a></td>
+        </tr>
+        <tr>
+          <td class="k">PostgreSQL SQL dumps</td>
+          <td>All databases in the shared PostgreSQL instance</td>
+          <td>NAS NFS: <code>/mnt/nas/backups</code></td>
+          <td>Restore from <code>.sql</code> dump file with <code>psql</code></td>
+        </tr>
+        <tr>
+          <td class="k">NAS storage protection</td>
+          <td>All NAS data including backups themselves</td>
+          <td><!-- TODO: RAID level / cloud backup? --></td>
+          <td><!-- TODO --></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h2 id="longhorn"><span class="hn">02</span> Longhorn volume backups</h2>
+    <p>Longhorn's recurring job system automatically snapshots and backs up every annotated PVC. The default schedule runs against any PVC carrying <code>recurring-job-group.longhorn.io/default: enabled</code>.</p>
+
+    <div class="code">
+      <div class="code-head">
+        <span class="dots"><i></i><i></i><i></i></span>
+        <span class="fname">PVCs covered by Longhorn backups</span>
+        <button class="copy-btn">copy</button>
+        <span class="lang">text</span>
+      </div>
+<pre><code>namespace   PVC name                  data stored
+────────────────────────────────────────────────────────────────
+security    vault-data-lh             Vault KV secrets (all app credentials)
+db          postgres-data-lh          All PostgreSQL databases
+cloud       nextcloud-data-lh         Nextcloud application data
+security    authentik-media-lh        Authentik uploaded media
+security    authentik-templates-lh    Authentik custom templates
+immich      immich-pvc (see note)     Immich app data (not the photo library)</code></pre>
+    </div>
+
+    <div class="callout info">
+      <span class="ic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 8h.01M11 12h1v4h1"/></svg></span>
+      <div><b>Immich photo library is NAS-backed, not Longhorn-backed.</b> Immich stores photos at <code>/mnt/nas/immich</code> — a direct NFS mount from the NAS. That data is protected by the NAS storage layer, not Longhorn. A cluster rebuild does not affect the photo library — it lives on the NAS and is remounted on first deploy.</div>
+    </div>
+
+    <p>The backup target and polling interval are set in the Longhorn Helm values:</p>
+
+    <div class="code">
+      <div class="code-head">
+        <span class="dots"><i></i><i></i><i></i></span>
+        <span class="fname">k8s/components/longhorn/helm-values.yaml (backup section)</span>
+        <button class="copy-btn">copy</button>
+        <span class="lang">yaml</span>
+      </div>
+<pre><code><span class="t-key">defaultSettings</span><span class="t-punc">:</span>
+  <span class="t-key">backupTarget</span><span class="t-punc">:</span> <span class="t-str">nfs://172.20.20.2:/var/nfs/shared/backups/pvcs</span>
+  <span class="t-key">backupTargetCredentialSecret</span><span class="t-punc">:</span> <span class="t-str">""</span>  <span class="t-com"># no auth needed (NAS on trusted Servers VLAN)</span>
+  <span class="t-key">backupPollInterval</span><span class="t-punc">:</span> <span class="t-num">300</span>  <span class="t-com"># seconds between polls</span></code></pre>
+    </div>
+
+    <h2 id="schedule"><span class="hn">03</span> Backup schedule</h2>
+    <p>All layers run on a coordinated schedule. Longhorn snapshots run first, backups to NAS run 30 minutes later, and NAS snapshots run 29 minutes after that — giving Longhorn time to finish before the NAS preserves its own state.</p>
+
+    <table class="ns-table">
+      <thead><tr><th>Layer</th><th>Event</th><th>Times (daily)</th></tr></thead>
+      <tbody>
+        <tr>
+          <td class="k">Longhorn</td>
+          <td>Volume snapshot</td>
+          <td class="apps">12:00 AM · 6:00 AM · 12:00 PM · 6:00 PM</td>
+        </tr>
+        <tr>
+          <td class="k">Longhorn → NAS</td>
+          <td>Backup to NFS target</td>
+          <td class="apps">12:30 AM · 6:30 AM · 12:30 PM · 6:30 PM</td>
+        </tr>
+        <tr>
+          <td class="k">NAS (UNAS 4)</td>
+          <td>Filesystem snapshot (RAID 5)</td>
+          <td class="apps">12:59 AM · 6:59 AM · 12:59 PM · 6:59 PM</td>
+        </tr>
+        <tr>
+          <td class="k">NAS → Remote NAS</td>
+          <td>Off-site backup</td>
+          <td class="apps">3:00 AM (daily)</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h2 id="pg-dump"><span class="hn">04</span> PostgreSQL SQL dumps</h2>
+    <p>A <code>pg-dump</code> CronJob in the <code>db</code> namespace runs periodic SQL dumps of all databases and writes them to <code>/mnt/nas/backups</code>. This provides a second, SQL-level backup independent of Longhorn — useful for point-in-time restore of specific tables or schemas without needing to restore an entire volume.</p>
+
+    <div class="code">
+      <div class="code-head">
+        <span class="dots"><i></i><i></i><i></i></span>
+        <span class="fname">check recent pg-dump jobs</span>
+        <button class="copy-btn">copy</button>
+        <span class="lang">bash</span>
+      </div>
+<pre><code><span class="t-com"># list recent dump jobs</span>
+<span class="t-prompt">$</span> <span class="t-cmd">kubectl</span> get jobs <span class="t-flag">-n</span> db <span class="t-flag">--sort-by=.metadata.creationTimestamp</span>
+
+<span class="t-com"># check the last dump succeeded</span>
+<span class="t-prompt">$</span> <span class="t-cmd">kubectl</span> logs <span class="t-flag">-n</span> db <span class="t-flag">-l</span> job-name=pg-dump <span class="t-flag">--tail=20</span>
+
+<span class="t-com"># list dump files on the NAS</span>
+<span class="t-prompt">$</span> <span class="t-cmd">ls</span> <span class="t-flag">-lh</span> /mnt/nas/backups/*.sql 2>/dev/null</code></pre>
+    </div>
+
+    <h2 id="nas-backup"><span class="hn">05</span> NAS storage protection</h2>
+    <p>The NAS itself needs protection — if it fails, all Longhorn backups and SQL dumps are lost. The UNAS 4 uses RAID 5, so a single drive failure results in no data loss. Snapshots and off-site replication add additional recovery options.</p>
+
+    <table class="spec-table">
+      <thead><tr><th>Property</th><th>Value</th></tr></thead>
+      <tbody>
+        <tr><td class="k">RAID / redundancy</td><td>RAID 5 — single drive failure tolerated. NAS self-rebuilds when a replacement drive is inserted.</td></tr>
+        <tr><td class="k">Snapshot schedule</td><td>Every 6 hours at 12:59, 6:59, 12:59, 18:59 — timed 29 min after Longhorn backups complete.</td></tr>
+        <tr><td class="k">Off-site backup</td><td>Backed up to a remote NAS every 24 hours at 3:00 AM.</td></tr>
+      </tbody>
+    </table>
+
+    <h2 id="rto-rpo"><span class="hn">06</span> Recovery objectives</h2>
+
+    <table class="spec-table">
+      <thead><tr><th>Scenario</th><th>RPO (max data loss)</th><th>RTO (recovery time)</th><th>Method</th></tr></thead>
+      <tbody>
+        <tr>
+          <td class="k">k3s node failure</td>
+          <td>Since last Longhorn backup (≤6 hours)</td>
+          <td>~30 min</td>
+          <td>Full rebuild — <a href="/guides/rebuild.html">rebuild guide</a></td>
+        </tr>
+        <tr>
+          <td class="k">Single app failure</td>
+          <td>0 (redeploy from Git)</td>
+          <td>&lt;5 min</td>
+          <td>ArgoCD re-sync or pod restart</td>
+        </tr>
+        <tr>
+          <td class="k">Database corruption</td>
+          <td>Since last Longhorn backup or pg-dump (≤6 hours)</td>
+          <td>~15 min</td>
+          <td>Restore from Longhorn backup (preferred); fall back to <code>.sql</code> dump if backup is not recent enough</td>
+        </tr>
+        <tr>
+          <td class="k">NAS drive failure</td>
+          <td>0 — RAID 5, no data loss on single drive failure</td>
+          <td>RAID rebuild time (varies by drive size)</td>
+          <td>Replace failed drive; NAS automatically rebuilds RAID array</td>
+        </tr>
+        <tr>
+          <td class="k">NAS server failure</td>
+          <td>Since last off-site backup (≤24 hours)</td>
+          <td>~1 hour</td>
+          <td>Restore from remote NAS backup to replacement hardware</td>
+        </tr>
+        <tr>
+          <td class="k">Vault data loss</td>
+          <td>Since last Longhorn backup (≤6 hours)</td>
+          <td>~15 min</td>
+          <td>Vault data lives in a Longhorn PVC — restore the PVC, then unseal with the offline unseal key</td>
+        </tr>
+        <tr>
+          <td class="k">Vault unseal key lost</td>
+          <td>N/A</td>
+          <td>Significantly longer — manual</td>
+          <td>Without the unseal key, Vault cannot be unsealed. Recovery requires manual re-initialization and re-seeding all secrets. <strong>Store the unseal key offline and never commit it to Git.</strong></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <nav class="doc-nav">
+      <a class="prev" href="/networking/firewall.html">
+        <span class="dir">← previous</span>
+        <span class="ttl">Firewall rules</span>
+      </a>
+    </nav>
+
+    <div class="doc-foot">
+      <span>last updated 2026-06-08</span>
+    </div>
+  </article>
+</main>
+
+<aside class="toc">
+  <div class="toc-title">On this page</div>
+  <ul>
+    <li><a href="#overview">Backup layers</a></li>
+    <li><a href="#longhorn">Longhorn volume backups</a></li>
+    <li><a href="#schedule">Backup schedule</a></li>
+    <li><a href="#pg-dump">PostgreSQL SQL dumps</a></li>
+    <li><a href="#nas-backup">NAS storage protection</a></li>
+    <li><a href="#rto-rpo">Recovery objectives</a></li>
+  </ul>
+  <div class="toc-meta">
+    <div class="row"><span>Longhorn target</span><span>NAS NFS</span></div>
+    <div class="row"><span>k3s RTO</span><span>~30 min</span></div>
+    <div class="row"><span>app RTO</span><span>&lt;5 min</span></div>
+    <div class="row"><span>reading</span><span>~4 min</span></div>
+  </div>
+</aside>

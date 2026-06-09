@@ -1,0 +1,273 @@
+---
+layout: docs
+title: "Longhorn"
+description: "Distributed block storage for stateful workloads. Single replica on a single-node cluster, with automated NAS backups."
+section: cluster
+---
+
+<main class="doc-main">
+  <nav class="breadcrumb">
+    <a href="/">home</a><span class="s">/</span> <a href="/cluster/">cluster</a
+    ><span class="s">/</span>
+    <span style="color: var(--fg-muted)">longhorn</span>
+  </nav>
+
+  <header class="doc-header">
+    <div class="htop">
+      <div class="doc-logo">
+        <svg
+          width="26"
+          height="26"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.8"
+        >
+          <ellipse cx="12" cy="5" rx="9" ry="3" />
+          <path d="M3 5v14c0 1.66 4.03 3 9 3s9-1.34 9-3V5" />
+          <path d="M3 12c0 1.66 4.03 3 9 3s9-1.34 9-3" />
+        </svg>
+      </div>
+      <div>
+        <span class="eyebrow">// cluster · storage</span>
+        <h1>Longhorn</h1>
+      </div>
+    </div>
+    <p class="tagline">
+      Cloud-native distributed block storage built into the cluster. On a
+      single-node setup, replicas are set to 1 — no need to replicate across
+      nodes that don't exist. Automated NAS backups guard against data loss.
+    </p>
+    <div class="doc-pills">
+      <span class="pill ok"><span class="dot ok"></span> Healthy</span>
+      <span class="pill">namespace: longhorn-system</span>
+      <span class="pill">1 replica</span>
+      <span class="pill">NAS backup target</span>
+    </div>
+  </header>
+
+  <article class="doc-article">
+    <p class="lead">
+      Longhorn provides the <code>longhorn</code> StorageClass used by Vault,
+      Authentik, Nextcloud, Immich, and PostgreSQL. Every PVC backed by Longhorn
+      has recurring snapshot and backup jobs enabled via annotation — backups
+      land on the NAS over NFS.
+    </p>
+
+    <h2 id="overview"><span class="hn">01</span> Configuration</h2>
+    <p>
+      The key deviation from Longhorn defaults is
+      <strong>replica count 1</strong>. With a single node there is no second
+      node to place a replica on — leaving the default at 3 would cause volumes
+      to stay in a degraded state. Everything else is standard.
+    </p>
+
+    <table class="spec-table">
+      <thead>
+        <tr>
+          <th>Property</th>
+          <th>Value</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="k">Namespace</td>
+          <td><span class="mono">longhorn-system</span></td>
+        </tr>
+        <tr>
+          <td class="k">Default replica count</td>
+          <td>1 — single-node cluster; replication has no benefit</td>
+        </tr>
+        <tr>
+          <td class="k">Backup target</td>
+          <td>
+            NFS —
+            <span class="mono">nfs://172.20.20.2:/var/nfs/shared/backups</span>
+          </td>
+        </tr>
+        <tr>
+          <td class="k">Backup poll interval</td>
+          <td>300 seconds</td>
+        </tr>
+        <tr>
+          <td class="k">StorageClass</td>
+          <td>
+            <span class="mono">longhorn</span> (default for stateful apps)
+          </td>
+        </tr>
+        <tr>
+          <td class="k">UI</td>
+          <td>
+            <a
+              href="https://longhorn.in.alybadawy.com"
+              target="_blank"
+              rel="noopener"
+              >longhorn.in.alybadawy.com</a
+            >
+            (LAN and VPN only)
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h2 id="backups"><span class="hn">02</span> Backup annotations</h2>
+    <p>
+      Longhorn's recurring backup jobs are opt-in per PVC via an annotation. Any
+      PVC with
+      <code>recurring-job-group.longhorn.io/default: enabled</code> participates
+      in the default backup schedule. All stateful app PVCs in this cluster
+      carry this annotation.
+    </p>
+
+    <div class="code">
+      <div class="code-head">
+        <span class="dots"><i></i><i></i><i></i></span>
+        <span class="fname">k8s/components/vault/pvc.yaml</span>
+        <button class="copy-btn">copy</button>
+        <span class="lang">yaml</span>
+      </div>
+      <pre><code><span class="t-key">apiVersion</span><span class="t-punc">:</span> <span class="t-str">v1</span>
+<span class="t-key">kind</span><span class="t-punc">:</span> <span class="t-str">PersistentVolumeClaim</span>
+<span class="t-key">metadata</span><span class="t-punc">:</span>
+  <span class="t-key">name</span><span class="t-punc">:</span> <span class="t-str">vault-data-lh</span>
+  <span class="t-key">namespace</span><span class="t-punc">:</span> <span class="t-str">security</span>
+  <span class="t-key">labels</span><span class="t-punc">:</span>
+    <span class="t-key">app.kubernetes.io/name</span><span class="t-punc">:</span> <span class="t-str">vault</span>
+  <span class="t-key">annotations</span><span class="t-punc">:</span>
+    <span class="t-key">recurring-job-group.longhorn.io/default</span><span class="t-punc">:</span> <span class="t-str">enabled</span>  <span class="t-com"># ← joins default backup schedule</span>
+<span class="t-key">spec</span><span class="t-punc">:</span>
+  <span class="t-key">accessModes</span><span class="t-punc">:</span> [<span class="t-str">ReadWriteOnce</span>]
+  <span class="t-key">storageClassName</span><span class="t-punc">:</span> <span class="t-str">longhorn</span>
+  <span class="t-key">resources</span><span class="t-punc">:</span>
+    <span class="t-key">requests</span><span class="t-punc">:</span>
+      <span class="t-key">storage</span><span class="t-punc">:</span> <span class="t-str">5Gi</span></code></pre>
+    </div>
+
+    <div class="callout warn">
+      <span class="ic"
+        ><svg
+          width="18"
+          height="18"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+        >
+          <path d="M12 3l9 16H3z" />
+          <path d="M12 9v5M12 17h.01" /></svg
+      ></span>
+      <div>
+        <b>New PVCs need the annotation.</b> If you add a new stateful app and
+        forget <code>recurring-job-group.longhorn.io/default: enabled</code>,
+        its volume will not be backed up. Check the Longhorn UI under Volumes to
+        verify a new volume shows the recurring job attached.
+      </div>
+    </div>
+
+    <h2 id="rebuild">
+      <span class="hn">03</span> Restoring volumes on a rebuild
+    </h2>
+    <p>
+      When rebuilding from scratch, Longhorn PVCs are restored manually via the
+      Longhorn UI before ArgoCD deploys stateful apps. This is
+      <strong>Step 8</strong> of the provisioning sequence:
+    </p>
+    <ol>
+      <li>
+        <code>provision/restore-volumes</code> installs Longhorn and opens the
+        UI via port-forward on <code>localhost:9000</code>.
+      </li>
+      <li>
+        In the UI: Backup → select each volume → Restore → create PV/PVC with
+        the same name.
+      </li>
+      <li>The script waits for confirmation, then exits.</li>
+      <li>
+        When <code>activate-gitops.sh</code> deploys stateful apps, they bind to
+        the pre-created PVCs instead of triggering dynamic provisioning.
+      </li>
+    </ol>
+
+    <div class="callout ok">
+      <span class="ic"
+        ><svg
+          width="18"
+          height="18"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+        >
+          <path d="M20 6L9 17l-5-5" /></svg
+      ></span>
+      <div>
+        <b>Pre-bound PVCs.</b> Restored PVCs are created with
+        <code>spec.volumeName</code> pointing at the specific Longhorn volume.
+        When ArgoCD syncs the app, the Deployment finds the PVC already bound —
+        no data loss, no re-initialisation.
+      </div>
+    </div>
+
+    <h2 id="access"><span class="hn">04</span> Access</h2>
+
+    <div class="code">
+      <div class="code-head">
+        <span class="dots"><i></i><i></i><i></i></span>
+        <span class="fname">access options</span>
+        <button class="copy-btn">copy</button>
+        <span class="lang">bash</span>
+      </div>
+      <pre><code><span class="t-com"># UI via ingress (once ingress-nginx and cert-manager are live)</span>
+<span class="t-com"># → https://longhorn.in.alybadawy.com</span>
+
+<span class="t-com"># UI via port-forward (bootstrap / before ingress is live)</span>
+<span class="t-prompt">$</span> <span class="t-cmd">kubectl</span> port-forward <span class="t-flag">-n</span> longhorn-system svc/longhorn-frontend <span class="t-num">9000</span>:80
+<span class="t-com"># open http://localhost:9000</span>
+
+<span class="t-com"># check volume status from CLI</span>
+<span class="t-prompt">$</span> <span class="t-cmd">kubectl</span> get pvc <span class="t-flag">-A</span>
+<span class="t-prompt">$</span> <span class="t-cmd">kubectl</span> get volumes.longhorn.io <span class="t-flag">-n</span> longhorn-system</code></pre>
+    </div>
+
+    <nav class="doc-nav">
+      <a class="prev" href="/cluster/vault.html">
+        <span class="dir">← previous</span>
+        <span class="ttl">HashiCorp Vault</span>
+      </a>
+      <a class="next" href="/cluster/cert-manager.html">
+        <span class="dir">next →</span>
+        <span class="ttl">cert-manager</span>
+      </a>
+    </nav>
+
+    <div class="doc-foot">
+      <span
+        >last updated 2026-06-08 ·
+        <a
+          href="{{ site.repo_url }}/tree/main/k8s/components/longhorn"
+          target="_blank"
+          rel="noopener"
+          >view source on GitHub</a
+        ></span
+      >
+    </div>
+  </article>
+</main>
+
+<aside class="toc">
+  <div class="toc-title">On this page</div>
+  <ul>
+    <li><a href="#overview">Configuration</a></li>
+    <li><a href="#backups">Backup annotations</a></li>
+    <li><a href="#rebuild">Restoring on rebuild</a></li>
+    <li><a href="#access">Access</a></li>
+  </ul>
+  <div class="toc-meta">
+    <div class="row">
+      <span>health</span><span style="color: var(--ok)">Healthy</span>
+    </div>
+    <div class="row"><span>namespace</span><span>longhorn-system</span></div>
+    <div class="row"><span>replicas</span><span>1</span></div>
+    <div class="row"><span>reading</span><span>~4 min</span></div>
+  </div>
+</aside>

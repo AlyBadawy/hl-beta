@@ -1,0 +1,15 @@
+title: "homelab.badawy"
+description: "Aly Badawy's self-hosted infrastructure — documented, reproducible, honest about the trade-offs."
+baseurl: ""
+url: "https://homelab.alybadawy.com"
+author: "Aly Badawy"
+repo_url: "https://github.com/AlyBadawy/hl-beta"
+k3s_version: "v1.36.1+k3s1"
+
+markdown: kramdown
+highlighter: rouge
+
+exclude:
+  - Gemfile
+  - Gemfile.lock
+  - README.md

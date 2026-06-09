@@ -1,0 +1,375 @@
+---
+layout: docs
+title: "HashiCorp Vault"
+description: "The cluster's secrets backend. All app secrets live in Vault KV v2 and are synced to namespaces by ESO automatically."
+section: cluster
+---
+
+<main class="doc-main">
+  <nav class="breadcrumb">
+    <a href="/">home</a><span class="s">/</span> <a href="/cluster/">cluster</a
+    ><span class="s">/</span>
+    <span style="color: var(--fg-muted)">vault</span>
+  </nav>
+
+  <header class="doc-header">
+    <div class="htop">
+      <div class="doc-logo">
+        <svg
+          width="26"
+          height="26"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.8"
+        >
+          <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
+        </svg>
+      </div>
+      <div>
+        <span class="eyebrow">// cluster · secrets</span>
+        <h1>HashiCorp Vault</h1>
+      </div>
+    </div>
+    <p class="tagline">
+      The single source of truth for all application secrets. Vault stores
+      credentials as key-value pairs in KV v2; ESO syncs them into app
+      namespaces as Kubernetes Secrets. Post-reboot recovery is fully automatic.
+    </p>
+    <div class="doc-pills">
+      <span class="pill ok"><span class="dot ok"></span> Unsealed</span>
+      <span class="pill">namespace: security</span>
+      <span class="pill">KV v2</span>
+      <span class="pill">auto-unseal CronJob</span>
+    </div>
+  </header>
+
+  <article class="doc-article">
+    <p class="lead">
+      Vault runs as a StatefulSet in the <code>security</code> namespace, backed
+      by a Longhorn PVC. It uses the file storage backend (single-node, no HA
+      needed). TLS is terminated by ingress-nginx — Vault's listener runs plain
+      HTTP inside the cluster. A CronJob unseals it automatically within 60
+      seconds of every reboot.
+    </p>
+
+    <h2 id="overview"><span class="hn">01</span> Architecture</h2>
+    <p>The secrets flow is one-directional and automatic:</p>
+    <ol>
+      <li>
+        Secrets are written to Vault KV v2 under <code>secret/</code> once
+        (manually, or restored from Longhorn backup).
+      </li>
+      <li>
+        ESO reads from Vault via the
+        <code>ClusterSecretStore/k8s-secrets</code> using Kubernetes auth.
+      </li>
+      <li>
+        Each app has one or more <code>ExternalSecret</code> resources that
+        declare what keys to fetch and where to put them.
+      </li>
+      <li>
+        ESO creates/updates native Kubernetes <code>Secret</code> objects in the
+        app namespace. Apps consume these normally — they have no awareness of
+        Vault.
+      </li>
+    </ol>
+
+    <div class="callout info">
+      <span class="ic"
+        ><svg
+          width="18"
+          height="18"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+        >
+          <circle cx="12" cy="12" r="9" />
+          <path d="M12 8h.01M11 12h1v4h1" /></svg
+      ></span>
+      <div>
+        <b>Rebuild requires one secret.</b> On a fresh node, restoring the
+        Longhorn PVC restores Vault's data (all secrets intact). The only thing
+        that needs to be manually seeded is the
+        <code>vault-unseal-key</code> Kubernetes Secret — everything else
+        recovers automatically.
+      </div>
+    </div>
+
+    <h3>Key facts</h3>
+    <table class="spec-table">
+      <thead>
+        <tr>
+          <th>Property</th>
+          <th>Value</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="k">Namespace</td>
+          <td><span class="mono">security</span></td>
+        </tr>
+        <tr>
+          <td class="k">Storage backend</td>
+          <td>
+            file — <span class="mono">/vault/data</span> on Longhorn PVC
+            <span class="mono">vault-data-lh</span>
+          </td>
+        </tr>
+        <tr>
+          <td class="k">Secrets engine</td>
+          <td>KV v2 at <span class="mono">secret/</span></td>
+        </tr>
+        <tr>
+          <td class="k">Auth method</td>
+          <td>
+            Kubernetes auth — ESO ServiceAccount
+            <span class="mono">eso-vault-auth</span>
+          </td>
+        </tr>
+        <tr>
+          <td class="k">Listener</td>
+          <td>
+            Plain HTTP on <span class="mono">[::]:8200</span> — TLS handled by
+            ingress-nginx
+          </td>
+        </tr>
+        <tr>
+          <td class="k">UI</td>
+          <td>
+            <a
+              href="https://vault.in.alybadawy.com"
+              target="_blank"
+              rel="noopener"
+              >vault.in.alybadawy.com</a
+            >
+            (LAN and VPN only)
+          </td>
+        </tr>
+        <tr>
+          <td class="k">AppArmor</td>
+          <td>
+            <span class="mono">Unconfined</span> — required; Go 1.14+ sends
+            SIGURG to itself for goroutine preemption and the default containerd
+            profile denies it
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h2 id="autounseal"><span class="hn">02</span> Auto-unseal CronJob</h2>
+    <p>
+      Vault starts sealed after every reboot. The
+      <code>vault-auto-unseal</code> CronJob runs every minute and unseals it as
+      soon as Longhorn reattaches the PVC (typically 4–5 minutes after boot).
+    </p>
+
+    <div class="callout warn">
+      <span class="ic"
+        ><svg
+          width="18"
+          height="18"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+        >
+          <path d="M12 3l9 16H3z" />
+          <path d="M12 9v5M12 17h.01" /></svg
+      ></span>
+      <div>
+        <b>Why <code>timeout 5 vault status</code>?</b> Plain
+        <code>vault status</code> hangs at the HTTP layer while Longhorn is
+        still reattaching storage — the Vault pod is running but not serving
+        requests. The <code>timeout 5</code> kills the hung call so the CronJob
+        retries next minute instead of blocking.
+      </div>
+    </div>
+
+    <p>
+      The logic is simple: first check TCP connectivity with <code>nc</code>,
+      then check seal status. Exit code 2 means sealed → unseal. Exit code 0
+      means already unsealed → do nothing.
+    </p>
+
+    <div class="code">
+      <div class="code-head">
+        <span class="dots"><i></i><i></i><i></i></span>
+        <span class="fname"
+          >k8s/components/vault/auto-unseal-cronjob.yaml (key section)</span
+        >
+        <button class="copy-btn">copy</button>
+        <span class="lang">bash</span>
+      </div>
+      <pre><code><span class="t-com"># runs every minute in the security namespace</span>
+<span class="t-com"># 1. check TCP port is reachable</span>
+if ! nc -z -w 5 <span class="t-str">"$VAULT_HOST"</span> <span class="t-str">"$VAULT_PORT"</span> 2>/dev/null; then
+  echo <span class="t-str">"Vault port not reachable — will retry next minute"</span>
+  exit 1
+fi
+<span class="t-com"># 2. check seal status (timeout guards against hung HTTP)</span>
+timeout 5 vault status 2>/dev/null; STATUS=$?
+if [ <span class="t-str">"$STATUS"</span> -eq 2 ]; then
+  echo <span class="t-str">"Vault is sealed — unsealing"</span>
+  vault operator unseal <span class="t-str">"$UNSEAL_KEY"</span>
+elif [ <span class="t-str">"$STATUS"</span> -eq 0 ]; then
+  echo <span class="t-str">"Vault is unsealed — nothing to do"</span>
+else
+  echo <span class="t-str">"Vault not ready yet (status $STATUS) — will retry next minute"</span>
+  exit 1
+fi</code></pre>
+    </div>
+
+    <h2 id="recovery">
+      <span class="hn">03</span> Post-reboot recovery sequence
+    </h2>
+    <p>
+      After a reboot, recovery is fully automatic — no human intervention
+      required. The full sequence takes ~6 minutes:
+    </p>
+
+    <ol>
+      <li>
+        Vault pod starts sealed. ESO enters exponential backoff (<code
+          >ClusterSecretStore</code
+        >
+        degraded).
+      </li>
+      <li>
+        <code>vault-auto-unseal</code> retries every minute. Longhorn reattaches
+        the PVC at ~4–5 min.
+      </li>
+      <li>Vault unseals. <code>vault-0</code> passes its readiness probe.</li>
+      <li>
+        <code>eso-recovery</code> CronJob detects Vault ready + store degraded →
+        restarts ESO deployments to clear backoff.
+      </li>
+      <li>
+        ESO reconnects to Vault. All <code>ExternalSecret</code> resources sync.
+        Apps recover.
+      </li>
+    </ol>
+
+    <div class="callout ok">
+      <span class="ic"
+        ><svg
+          width="18"
+          height="18"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+        >
+          <path d="M20 6L9 17l-5-5" /></svg
+      ></span>
+      <div>
+        <b>Nothing to do after a reboot.</b> Walk away — the cluster heals
+        itself. The <code>eso-recovery</code> CronJob exists specifically
+        because ESO's exponential backoff would otherwise keep the store
+        degraded even after Vault is back. Restarting ESO clears the backoff
+        immediately.
+      </div>
+    </div>
+
+    <h2 id="secrets"><span class="hn">04</span> Managing secrets</h2>
+    <p>
+      Secrets are stored as flat key-value pairs in Vault KV v2. To read, write,
+      or rotate a secret:
+    </p>
+
+    <div class="code">
+      <div class="code-head">
+        <span class="dots"><i></i><i></i><i></i></span>
+        <span class="fname"
+          >vault CLI (port-forward or via vault.in.alybadawy.com)</span
+        >
+        <button class="copy-btn">copy</button>
+        <span class="lang">bash</span>
+      </div>
+      <pre><code><span class="t-com"># port-forward for CLI access</span>
+<span class="t-prompt">$</span> <span class="t-cmd">kubectl</span> port-forward <span class="t-flag">-n</span> security svc/vault <span class="t-num">8200</span>:8200
+<span class="t-prompt">$</span> <span class="t-cmd">export</span> VAULT_ADDR=http://localhost:8200
+
+<span class="t-com"># list all secrets</span>
+<span class="t-prompt">$</span> <span class="t-cmd">vault</span> kv list secret/
+<span class="t-out">postgres-secret  authentik-db  authentik-secret  grafana-admin  ...</span>
+
+<span class="t-com"># write a secret (all keys for a path in one command)</span>
+<span class="t-prompt">$</span> <span class="t-cmd">vault</span> kv put secret/postgres-secret \
+    POSTGRES_USER=<span class="t-str">"homelab"</span> \
+    POSTGRES_PASSWORD=<span class="t-str">"&lt;strong-password&gt;"</span> \
+    POSTGRES_DB=<span class="t-str">"homelab"</span>
+
+<span class="t-com"># rotate one key without touching the others</span>
+<span class="t-prompt">$</span> <span class="t-cmd">vault</span> kv patch secret/postgres-secret POSTGRES_PASSWORD=<span class="t-str">"&lt;new-password&gt;"</span>
+
+<span class="t-com"># KV v2 auto-versions every write — roll back if needed</span>
+<span class="t-prompt">$</span> <span class="t-cmd">vault</span> kv metadata get secret/postgres-secret
+<span class="t-prompt">$</span> <span class="t-cmd">vault</span> kv get <span class="t-flag">-version=1</span> secret/postgres-secret</code></pre>
+    </div>
+
+    <h2 id="access"><span class="hn">05</span> Access</h2>
+    <p>
+      The Vault UI is available at
+      <a href="https://vault.in.alybadawy.com" target="_blank" rel="noopener"
+        >vault.in.alybadawy.com</a
+      >
+      on the LAN. Before ingress is live (e.g. right after a fresh install), use
+      a port-forward:
+    </p>
+
+    <div class="code">
+      <div class="code-head">
+        <span class="dots"><i></i><i></i><i></i></span>
+        <span class="fname">access before ingress is live</span>
+        <button class="copy-btn">copy</button>
+        <span class="lang">bash</span>
+      </div>
+      <pre><code><span class="t-prompt">$</span> <span class="t-cmd">kubectl</span> port-forward <span class="t-flag">-n</span> security svc/vault <span class="t-num">8200</span>:8200
+<span class="t-com"># open http://localhost:8200</span></code></pre>
+    </div>
+
+    <nav class="doc-nav">
+      <a class="prev" href="/cluster/argocd.html">
+        <span class="dir">← previous</span>
+        <span class="ttl">ArgoCD</span>
+      </a>
+      <a class="next" href="/cluster/longhorn.html">
+        <span class="dir">next →</span>
+        <span class="ttl">Longhorn</span>
+      </a>
+    </nav>
+
+    <div class="doc-foot">
+      <span
+        >last updated 2026-06-08 ·
+        <a
+          href="{{ site.repo_url }}/tree/main/k8s/components/vault"
+          target="_blank"
+          rel="noopener"
+          >view source on GitHub</a
+        ></span
+      >
+    </div>
+  </article>
+</main>
+
+<aside class="toc">
+  <div class="toc-title">On this page</div>
+  <ul>
+    <li><a href="#overview">Architecture</a></li>
+    <li><a href="#autounseal">Auto-unseal CronJob</a></li>
+    <li><a href="#recovery">Post-reboot recovery</a></li>
+    <li><a href="#secrets">Managing secrets</a></li>
+    <li><a href="#access">Access</a></li>
+  </ul>
+  <div class="toc-meta">
+    <div class="row">
+      <span>health</span><span style="color: var(--ok)">Unsealed</span>
+    </div>
+    <div class="row"><span>namespace</span><span>security</span></div>
+    <div class="row"><span>engine</span><span>KV v2</span></div>
+    <div class="row"><span>reading</span><span>~5 min</span></div>
+  </div>
+</aside>

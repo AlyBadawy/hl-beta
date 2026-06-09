@@ -1,0 +1,165 @@
+---
+layout: docs
+title: "Physical hardware"
+description: "The machines and devices that make up the homelab. Router, switch, NAS, hypervisor, k3s server, and AREDN node."
+section: networking
+---
+
+<main class="doc-main">
+  <nav class="breadcrumb">
+    <a href="/">home</a><span class="s">/</span>
+    <a href="/networking/">networking</a><span class="s">/</span>
+    <span style="color:var(--fg-muted)">hardware</span>
+  </nav>
+
+  <header class="doc-header">
+    <div class="htop">
+      <div class="doc-logo">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+      </div>
+      <div>
+        <span class="eyebrow">// networking · hardware</span>
+        <h1>Physical hardware</h1>
+      </div>
+    </div>
+    <p class="tagline">Every physical device in the homelab. One router, two managed switches, one NAS, one k3s server, one Proxmox lab machine, one AREDN mesh node. Servers and storage all on VLAN 20 (172.20.20.0/24).</p>
+    <div class="doc-pills">
+      <span class="pill">VLAN 20 · Servers</span>
+      <span class="pill">UniFi stack</span>
+      <span class="pill">Beelink · Proxmox</span>
+    </div>
+  </header>
+
+  <article class="doc-article">
+
+    <h2 id="network-gear"><span class="hn">01</span> Network gear</h2>
+
+    <table class="spec-table">
+      <thead><tr><th>Device</th><th>Role</th><th>IP</th><th>VLAN</th></tr></thead>
+      <tbody>
+        <tr>
+          <td class="k">UniFi Dream Router 7 (UDR7)</td>
+          <td>Router, firewall, DHCP, VLAN trunk. Gateway for all VLANs.</td>
+          <td><span class="mono">172.20.1.1</span></td>
+          <td>Management (1)</td>
+        </tr>
+        <tr>
+          <td class="k">UniFi Flex 2.5G</td>
+          <td>Managed switch (8-port + 2 SFP+ trunk). Connected directly to UDR7. Trunks all VLANs to servers.</td>
+          <td><span class="mono">172.20.1.x</span></td>
+          <td>Management (1)</td>
+        </tr>
+        <tr>
+          <td class="k">UniFi Flex Mini 2.5G</td>
+          <td>Managed switch (5-port). Connected directly to UDR7. Additional VLAN trunk for overflow devices.</td>
+          <td><span class="mono">172.20.1.x</span></td>
+          <td>Management (1)</td>
+        </tr>
+        <tr>
+          <td class="k"><!-- TODO: Wi-Fi AP model --></td>
+          <td>Wireless access point — Personal, IoT, Guest SSIDs on separate VLANs.</td>
+          <td><!-- TODO --></td>
+          <td>Management (1)</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h2 id="servers"><span class="hn">02</span> Servers</h2>
+
+    <table class="spec-table">
+      <thead><tr><th>Device</th><th>Role</th><th>IP</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr>
+          <td class="k">UniFi UNAS 4 (NAS)</td>
+          <td>NFS storage for k3s mounts and Longhorn backups. UniFi NAS appliance.</td>
+          <td><span class="mono">172.20.20.2</span></td>
+          <td>Static reserved. NFS exports at <code>/var/nfs/shared</code>.</td>
+        </tr>
+        <tr>
+          <td class="k">GMKtec NucBox M8</td>
+          <td>k3s cluster node (Ubuntu 26.04 bare-metal). Runs all Kubernetes workloads.</td>
+          <td><span class="mono">172.20.20.3</span></td>
+          <td>AMD Ryzen 5 PRO 6650H · 16 GB LPDDR5 · 512 GB SSD · Dual 2.5GbE (Wi-Fi + BT disabled in BIOS). See <a href="/guides/rebuild.html">rebuild guide</a>.</td>
+        </tr>
+        <tr>
+          <td class="k">Beelink (Proxmox)</td>
+          <td>Lab hypervisor. Runs private test and development VMs. Not part of the k3s cluster.</td>
+          <td><span class="mono">172.20.20.10</span></td>
+          <td>VMs reserved in the <span class="mono">172.20.20.11–.19</span> range on VLAN 20.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h2 id="beelink"><span class="hn">03</span> Beelink — lab server</h2>
+    <p>The Beelink runs Proxmox and is used for private lab and test work independent of the k3s cluster. It sits on VLAN 20 and VMs are bridged onto the same network. VM IPs are reserved in the <code>172.20.20.11–172.20.20.19</code> range.</p>
+    <p>The specific services running on this machine are private and not documented here.</p>
+
+    <table class="spec-table">
+      <thead><tr><th>Property</th><th>Value</th></tr></thead>
+      <tbody>
+        <tr><td class="k">Hypervisor IP</td><td><span class="mono">172.20.20.10</span></td></tr>
+        <tr><td class="k">VM IP range</td><td><span class="mono">172.20.20.11 – 172.20.20.19</span> (reserved)</td></tr>
+        <tr><td class="k">VLAN</td><td>Servers (20) — all VMs on the same Linux bridge</td></tr>
+      </tbody>
+    </table>
+
+    <h2 id="aredn"><span class="hn">04</span> AREDN mesh node</h2>
+    <p>An amateur radio emergency data network node connects to the homelab on its own isolated VLANs.</p>
+
+    <table class="spec-table">
+      <thead><tr><th>Interface</th><th>VLAN</th><th>IP</th><th>Role</th></tr></thead>
+      <tbody>
+        <tr>
+          <td class="k"><!-- TODO: AREDN node model --></td>
+          <td>AREDN-WAN (40)</td>
+          <td><span class="mono">172.20.40.2</span></td>
+          <td>Node's WAN interface — uplink from UDR7.</td>
+        </tr>
+        <tr>
+          <td class="k">AREDN node LAN</td>
+          <td>AREDN-LAN-1 (41)</td>
+          <td><span class="mono">10.6.229.9</span></td>
+          <td>Node-managed LAN (AREDN assigns addresses in <code>10.6.229.8/29</code>).</td>
+        </tr>
+        <tr>
+          <td class="k">UDR7 on AREDN LAN</td>
+          <td>AREDN-LAN-1 (41)</td>
+          <td><span class="mono">10.6.229.10</span></td>
+          <td>UDR7 acts as gateway on the AREDN LAN network.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="callout info">
+      <span class="ic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 8h.01M11 12h1v4h1"/></svg></span>
+      <div><b>AREDN port wiring.</b> The AREDN node's WAN and LAN interfaces connect on separate switch ports, each tagged to a different VLAN. This keeps mesh traffic isolated from the node's own LAN clients. The <code>local.mesh</code> domain and address ranges are managed by the AREDN firmware — see <a href="https://www.arednmesh.org" target="_blank" rel="noopener">arednmesh.org</a> for details on the mesh IP schema.</div>
+    </div>
+
+    <nav class="doc-nav">
+      <a class="next" href="/networking/vlans.html">
+        <span class="dir">next →</span>
+        <span class="ttl">VLAN segmentation</span>
+      </a>
+    </nav>
+
+    <div class="doc-foot">
+      <span>last updated 2026-06-08</span>
+    </div>
+  </article>
+</main>
+
+<aside class="toc">
+  <div class="toc-title">On this page</div>
+  <ul>
+    <li><a href="#network-gear">Network gear</a></li>
+    <li><a href="#servers">Servers</a></li>
+    <li><a href="#beelink">Beelink lab server</a></li>
+    <li><a href="#aredn">AREDN mesh node</a></li>
+  </ul>
+  <div class="toc-meta">
+    <div class="row"><span>router</span><span>UDR7</span></div>
+    <div class="row"><span>NAS</span><span>UNAS 4</span></div>
+    <div class="row"><span>hypervisor</span><span>Proxmox</span></div>
+    <div class="row"><span>reading</span><span>~3 min</span></div>
+  </div>
+</aside>

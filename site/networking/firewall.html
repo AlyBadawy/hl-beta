@@ -1,0 +1,209 @@
+---
+layout: docs
+title: "Firewall rules"
+description: "Zone-based firewall on the UDR7. Each VLAN is a zone with defined trust levels and inter-zone rules."
+section: networking
+---
+
+<main class="doc-main">
+  <nav class="breadcrumb">
+    <a href="/">home</a><span class="s">/</span>
+    <a href="/networking/">networking</a><span class="s">/</span>
+    <span style="color:var(--fg-muted)">firewall</span>
+  </nav>
+
+  <header class="doc-header">
+    <div class="htop">
+      <div class="doc-logo">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 2s-7 4.5-7 10.5a7 7 0 0014 0C19 6.5 12 2 12 2z"/></svg>
+      </div>
+      <div>
+        <span class="eyebrow">// networking · security</span>
+        <h1>Firewall rules</h1>
+      </div>
+    </div>
+    <p class="tagline">The UDR7 runs a zone-based firewall. Each VLAN maps to a zone. Traffic between zones is denied by default — explicit rules allow only what's needed.</p>
+    <div class="doc-pills">
+      <span class="pill">UDR7</span>
+      <span class="pill">zone-based</span>
+      <span class="pill">deny by default</span>
+    </div>
+  </header>
+
+  <article class="doc-article">
+
+    <h2 id="model"><span class="hn">01</span> Zone model</h2>
+    <p>The UDR7 uses a zone-based firewall model. Rather than writing rules per-interface, each VLAN is assigned to a zone, and rules govern traffic flowing between zones. This is more scalable than per-VLAN rule lists — adding a new VLAN means assigning it to an existing zone, and all zone rules apply automatically.</p>
+
+    <table class="spec-table">
+      <thead><tr><th>Zone</th><th>VLANs</th><th>Default posture</th></tr></thead>
+      <tbody>
+        <tr>
+          <td class="k">WAN</td>
+          <td>Internet uplink</td>
+          <td>Deny inbound. NAT outbound for all internal VLANs.</td>
+        </tr>
+        <tr>
+          <td class="k">Management</td>
+          <td>VLAN 1</td>
+          <td>Reachable only from Trusted zone. No outbound to other VLANs.</td>
+        </tr>
+        <tr>
+          <td class="k">Trusted</td>
+          <td>Personal (10), VPN (15)</td>
+          <td>Full LAN access to Servers. Full internet access. Blocked from IoT and Isolated zones outbound.</td>
+        </tr>
+        <tr>
+          <td class="k">Servers</td>
+          <td>Servers (20)</td>
+          <td>Accepts inbound from Trusted and VPN. Allows outbound to internet (for package updates, DDNS, etc.).</td>
+        </tr>
+        <tr>
+          <td class="k">IoT</td>
+          <td>IoT (100)</td>
+          <td>Internet only. Selective outbound to specific Servers IPs (e.g. Home Assistant). No inbound from any zone.</td>
+        </tr>
+        <tr>
+          <td class="k">Isolated</td>
+          <td>Guest (200), Work (30)</td>
+          <td>Internet only. No LAN access. No inter-VLAN communication — not even between Guest and Work.</td>
+        </tr>
+        <tr>
+          <td class="k">AREDN</td>
+          <td>AREDN-WAN (40), AREDN-LAN-1 (41)</td>
+          <td>Isolated from all homelab VLANs. AREDN mesh traffic only.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h2 id="rules"><span class="hn">02</span> Key rules</h2>
+
+    <div class="callout info">
+      <span class="ic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 8h.01M11 12h1v4h1"/></svg></span>
+      <div><b>Full rule documentation</b> lives in the UDR7 rebuild guide in Notion. The table below documents the intent of each key rule — not a raw ACL dump.</div>
+    </div>
+
+    <table class="ns-table">
+      <thead>
+        <tr><th>Direction</th><th>Source zone</th><th>Destination</th><th>Action</th><th>Reason</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>→</td>
+          <td class="k">Trusted → Servers</td>
+          <td class="apps">172.20.20.0/24</td>
+          <td>Allow</td>
+          <td>Personal and VPN devices can reach all servers</td>
+        </tr>
+        <tr>
+          <td>→</td>
+          <td class="k">Trusted → WAN</td>
+          <td class="apps">Any</td>
+          <td>Allow</td>
+          <td>Internet access for personal devices</td>
+        </tr>
+        <tr>
+          <td>→</td>
+          <td class="k">IoT → WAN</td>
+          <td class="apps">Any</td>
+          <td>Allow</td>
+          <td>IoT devices need internet for cloud services</td>
+        </tr>
+        <tr>
+          <td>→</td>
+          <td class="k">IoT → Servers</td>
+          <td class="apps"><!-- TODO: specific IPs --></td>
+          <td>Allow (selective)</td>
+          <td>IoT devices can reach specific services (e.g. Home Assistant, MQTT broker)</td>
+        </tr>
+        <tr>
+          <td>→</td>
+          <td class="k">IoT → LAN</td>
+          <td class="apps">172.20.0.0/16</td>
+          <td>Deny</td>
+          <td>IoT cannot reach any device not explicitly whitelisted</td>
+        </tr>
+        <tr>
+          <td>→</td>
+          <td class="k">Isolated → WAN</td>
+          <td class="apps">Any</td>
+          <td>Allow</td>
+          <td>Guest / Work devices get internet</td>
+        </tr>
+        <tr>
+          <td>→</td>
+          <td class="k">Isolated → LAN</td>
+          <td class="apps">172.20.0.0/16</td>
+          <td>Deny</td>
+          <td>Guest and Work are completely isolated from local network</td>
+        </tr>
+        <tr>
+          <td>→</td>
+          <td class="k">WAN → LAN</td>
+          <td class="apps">Any</td>
+          <td>Deny</td>
+          <td>Default deny inbound from internet</td>
+        </tr>
+        <tr>
+          <td>→</td>
+          <td class="k">Servers → Servers</td>
+          <td class="apps">172.20.20.0/24</td>
+          <td>Allow</td>
+          <td>Server-to-server communication (k3s → NAS NFS, Proxmox VMs, etc.)</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h2 id="k3s-port"><span class="hn">03</span> k3s-specific rules</h2>
+    <p>The k3s API server runs on port <code>6443</code>. kubectl access from the Personal VLAN requires this port to be open from <code>172.20.10.0/24</code> → k3s server IP. UFW on the node itself opens these ports as a second layer after the UDR7 perimeter.</p>
+
+    <div class="code">
+      <div class="code-head">
+        <span class="dots"><i></i><i></i><i></i></span>
+        <span class="fname">UFW open ports on the k3s node (172.20.20.3)</span>
+        <button class="copy-btn">copy</button>
+        <span class="lang">text</span>
+      </div>
+<pre><code>  22/TCP   — SSH (remote access to the cluster node)
+  80/TCP   — HTTP (web traffic — redirected to HTTPS by ingress-nginx)
+ 443/TCP   — HTTPS (ingress-nginx — all cluster services)
+5432/TCP   — PostgreSQL (connections from services on VLAN 20)
+6443/TCP   — Kubernetes API server (kubectl, ArgoCD webhooks)</code></pre>
+    </div>
+
+    <div class="callout warn">
+      <span class="ic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l9 16H3z"/><path d="M12 9v5M12 17h.01"/></svg></span>
+      <div><b>UFW is a second layer, not the only layer.</b> The UDR7 firewall is the perimeter. UFW on the node enforces the same rules locally. Those ports are not exposed on the UDR7 WAN interface, so these services are not accessible from the internet — but they are open on the LAN side to allow access from devices on the trusted networks (Personal VLAN 10, VPN VLAN 15). If any service times out, run <code>sudo ufw status verbose</code> on the server and check the corresponding UDR7 LAN zone rule.</div>
+    </div>
+
+    <nav class="doc-nav">
+      <a class="prev" href="/networking/nas.html">
+        <span class="dir">← previous</span>
+        <span class="ttl">NAS &amp; storage</span>
+      </a>
+      <a class="next" href="/networking/backups.html">
+        <span class="dir">next →</span>
+        <span class="ttl">Backups</span>
+      </a>
+    </nav>
+
+    <div class="doc-foot">
+      <span>last updated 2026-06-08</span>
+    </div>
+  </article>
+</main>
+
+<aside class="toc">
+  <div class="toc-title">On this page</div>
+  <ul>
+    <li><a href="#model">Zone model</a></li>
+    <li><a href="#rules">Key rules</a></li>
+    <li><a href="#k3s-port">k3s-specific rules</a></li>
+  </ul>
+  <div class="toc-meta">
+    <div class="row"><span>firewall</span><span>UDR7 zone-based</span></div>
+    <div class="row"><span>default</span><span>deny inter-zone</span></div>
+    <div class="row"><span>zones</span><span>7</span></div>
+    <div class="row"><span>reading</span><span>~4 min</span></div>
+  </div>
+</aside>

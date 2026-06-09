@@ -1,0 +1,158 @@
+---
+layout: docs
+title: "Ingress (nginx)"
+description: "All inbound HTTPS traffic flows through ingress-nginx. One wildcard cert, one controller, no per-Ingress TLS configuration needed."
+section: cluster
+---
+
+<main class="doc-main">
+  <nav class="breadcrumb">
+    <a href="/">home</a><span class="s">/</span>
+    <a href="/cluster/">cluster</a><span class="s">/</span>
+    <span style="color:var(--fg-muted)">ingress</span>
+  </nav>
+
+  <header class="doc-header">
+    <div class="htop">
+      <div class="doc-logo">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 2L2 12h3v8h14v-8h3L12 2z"/></svg>
+      </div>
+      <div>
+        <span class="eyebrow">// cluster · ingress</span>
+        <h1>Ingress (nginx)</h1>
+      </div>
+    </div>
+    <p class="tagline">ingress-nginx is the cluster-wide default IngressClass. It terminates TLS at the controller level using the shared wildcard cert — no per-Ingress <code>tls[]</code> blocks, no <code>cert-manager.io/cluster-issuer</code> annotations.</p>
+    <div class="doc-pills">
+      <span class="pill ok"><span class="dot ok"></span> Healthy</span>
+      <span class="pill">namespace: networking</span>
+      <span class="pill">default IngressClass</span>
+      <span class="pill">wildcard TLS</span>
+    </div>
+  </header>
+
+  <article class="doc-article">
+    <p class="lead">k3s ships with Traefik enabled by default — this cluster disables it and installs ingress-nginx instead. ingress-nginx is installed on k3s via a ServiceLB LoadBalancer Service, which binds ports 80 and 443 directly to the node IP. The <code>default-ssl-certificate</code> flag tells nginx to use <code>wildcard-tls</code> for every HTTPS connection whose SNI hostname isn't matched by a per-Ingress cert (which is every connection, since no per-Ingress certs exist).</p>
+
+    <h2 id="config"><span class="hn">01</span> Key configuration</h2>
+
+    <div class="code">
+      <div class="code-head">
+        <span class="dots"><i></i><i></i><i></i></span>
+        <span class="fname">k8s/components/ingress-nginx/values.yaml</span>
+        <button class="copy-btn">copy</button>
+        <span class="lang">yaml</span>
+      </div>
+<pre><code><span class="t-key">controller</span><span class="t-punc">:</span>
+  <span class="t-key">ingressClassResource</span><span class="t-punc">:</span>
+    <span class="t-key">default</span><span class="t-punc">:</span> <span class="t-num">true</span>  <span class="t-com"># cluster-wide default IngressClass</span>
+
+  <span class="t-key">extraArgs</span><span class="t-punc">:</span>
+    <span class="t-key">default-ssl-certificate</span><span class="t-punc">:</span> <span class="t-str">networking/wildcard-tls</span>  <span class="t-com"># wildcard cert for all vhosts</span>
+
+  <span class="t-key">service</span><span class="t-punc">:</span>
+    <span class="t-key">type</span><span class="t-punc">:</span> <span class="t-str">LoadBalancer</span>      <span class="t-com"># fulfilled by k3s ServiceLB (klipper-lb)</span>
+    <span class="t-key">externalTrafficPolicy</span><span class="t-punc">:</span> <span class="t-str">Local</span>  <span class="t-com"># preserve real client IPs</span>
+
+  <span class="t-key">config</span><span class="t-punc">:</span>
+    <span class="t-key">use-forwarded-headers</span><span class="t-punc">:</span> <span class="t-str">"true"</span>
+    <span class="t-key">ssl-protocols</span><span class="t-punc">:</span> <span class="t-str">"TLSv1.2 TLSv1.3"</span>  <span class="t-com"># no TLS 1.0/1.1</span>
+    <span class="t-key">client-max-body-size</span><span class="t-punc">:</span> <span class="t-str">"100m"</span>  <span class="t-com"># needed for Nextcloud / Immich uploads</span></code></pre>
+    </div>
+
+    <h2 id="ingresspattern"><span class="hn">02</span> What an Ingress looks like</h2>
+    <p>Because TLS is handled at the controller level, every Ingress in this cluster is clean and minimal — just routing rules and a redirect annotation:</p>
+
+    <div class="code">
+      <div class="code-head">
+        <span class="dots"><i></i><i></i><i></i></span>
+        <span class="fname">k8s/components/whoami/ingress.yaml</span>
+        <button class="copy-btn">copy</button>
+        <span class="lang">yaml</span>
+      </div>
+<pre><code><span class="t-key">apiVersion</span><span class="t-punc">:</span> <span class="t-str">networking.k8s.io/v1</span>
+<span class="t-key">kind</span><span class="t-punc">:</span> <span class="t-str">Ingress</span>
+<span class="t-key">metadata</span><span class="t-punc">:</span>
+  <span class="t-key">name</span><span class="t-punc">:</span> <span class="t-str">whoami</span>
+  <span class="t-key">namespace</span><span class="t-punc">:</span> <span class="t-str">whoami</span>
+  <span class="t-key">annotations</span><span class="t-punc">:</span>
+    <span class="t-key">nginx.ingress.kubernetes.io/ssl-redirect</span><span class="t-punc">:</span> <span class="t-str">"true"</span>
+    <span class="t-key">nginx.ingress.kubernetes.io/force-ssl-redirect</span><span class="t-punc">:</span> <span class="t-str">"true"</span>
+    <span class="t-com"># no cert-manager.io/cluster-issuer — not needed</span>
+<span class="t-key">spec</span><span class="t-punc">:</span>
+  <span class="t-key">ingressClassName</span><span class="t-punc">:</span> <span class="t-str">nginx</span>
+  <span class="t-com"># no tls[] block — wildcard cert is served automatically</span>
+  <span class="t-key">rules</span><span class="t-punc">:</span>
+    <span class="t-punc">-</span> <span class="t-key">host</span><span class="t-punc">:</span> <span class="t-str">whoami.in.alybadawy.com</span>
+      <span class="t-key">http</span><span class="t-punc">:</span>
+        <span class="t-key">paths</span><span class="t-punc">:</span>
+          <span class="t-punc">-</span> <span class="t-key">path</span><span class="t-punc">:</span> <span class="t-str">/</span>
+            <span class="t-key">pathType</span><span class="t-punc">:</span> <span class="t-str">Prefix</span>
+            <span class="t-key">backend</span><span class="t-punc">:</span>
+              <span class="t-key">service</span><span class="t-punc">:</span>
+                <span class="t-key">name</span><span class="t-punc">:</span> <span class="t-str">whoami</span>
+                <span class="t-key">port</span><span class="t-punc">:</span>
+                  <span class="t-key">number</span><span class="t-punc">:</span> <span class="t-num">80</span></code></pre>
+    </div>
+
+    <h2 id="addservice"><span class="hn">03</span> Adding a new service</h2>
+    <p>Copy the pattern above. The only required annotations are the two <code>ssl-redirect</code> ones. The wildcard cert covers any <code>*.in.alybadawy.com</code> hostname automatically.</p>
+
+    <div class="callout warn">
+      <span class="ic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l9 16H3z"/><path d="M12 9v5M12 17h.01"/></svg></span>
+      <div><b>Don't add a <code>tls[]</code> block.</b> If you add a <code>tls[]</code> section referencing a non-existent secret, nginx will fall back to a self-signed cert for that host. If you add <code>cert-manager.io/cluster-issuer</code>, cert-manager will try to create a redundant per-hostname cert. Both are unnecessary and break the clean architecture.</div>
+    </div>
+
+    <h2 id="argocd-note"><span class="hn">04</span> ArgoCD special case</h2>
+    <p>ArgoCD's server runs in <code>--insecure</code> mode because nginx handles TLS termination. Without this, you get double-TLS: nginx decrypts HTTPS, then tries to re-encrypt to the backend, which causes connection failures with ArgoCD's gRPC. The <code>backend-protocol: HTTP</code> annotation tells nginx to use plain HTTP to the backend:</p>
+
+    <div class="code">
+      <div class="code-head">
+        <span class="dots"><i></i><i></i><i></i></span>
+        <span class="fname">k8s/components/argocd/values.yaml (ingress section)</span>
+        <button class="copy-btn">copy</button>
+        <span class="lang">yaml</span>
+      </div>
+<pre><code><span class="t-key">server</span><span class="t-punc">:</span>
+  <span class="t-key">ingress</span><span class="t-punc">:</span>
+    <span class="t-key">annotations</span><span class="t-punc">:</span>
+      <span class="t-key">nginx.ingress.kubernetes.io/backend-protocol</span><span class="t-punc">:</span> <span class="t-str">HTTP</span>  <span class="t-com"># nginx → argocd: plain HTTP</span>
+      <span class="t-key">nginx.ingress.kubernetes.io/force-ssl-redirect</span><span class="t-punc">:</span> <span class="t-str">"true"</span>
+    <span class="t-key">tls</span><span class="t-punc">:</span> <span class="t-num">false</span>  <span class="t-com"># no per-ingress cert; wildcard handles it</span>
+<span class="t-key">configs</span><span class="t-punc">:</span>
+  <span class="t-key">params</span><span class="t-punc">:</span>
+    <span class="t-key">server.insecure</span><span class="t-punc">:</span> <span class="t-num">true</span>  <span class="t-com"># argocd-server: accept plain HTTP from nginx</span></code></pre>
+    </div>
+
+    <nav class="doc-nav">
+      <a class="prev" href="/cluster/cert-manager.html">
+        <span class="dir">← previous</span>
+        <span class="ttl">cert-manager</span>
+      </a>
+      <a class="next" href="/cluster/external-secrets.html">
+        <span class="dir">next →</span>
+        <span class="ttl">External Secrets (ESO)</span>
+      </a>
+    </nav>
+
+    <div class="doc-foot">
+      <span>last updated 2026-06-08 · <a href="{{ site.repo_url }}/tree/main/k8s/components/ingress-nginx" target="_blank" rel="noopener">view source on GitHub</a></span>
+    </div>
+  </article>
+</main>
+
+<aside class="toc">
+  <div class="toc-title">On this page</div>
+  <ul>
+    <li><a href="#config">Key configuration</a></li>
+    <li><a href="#ingresspattern">What an Ingress looks like</a></li>
+    <li><a href="#addservice">Adding a new service</a></li>
+    <li><a href="#argocd-note">ArgoCD special case</a></li>
+  </ul>
+  <div class="toc-meta">
+    <div class="row"><span>health</span><span style="color:var(--ok)">Healthy</span></div>
+    <div class="row"><span>namespace</span><span>networking</span></div>
+    <div class="row"><span>tls</span><span>wildcard</span></div>
+    <div class="row"><span>reading</span><span>~4 min</span></div>
+  </div>
+</aside>

@@ -1,0 +1,215 @@
+---
+layout: docs
+title: "How to rebuild"
+description: "Full step-by-step walkthrough for reprovisioning the cluster from a bare Ubuntu 26.04 server to a fully running GitOps cluster."
+section: guides
+---
+
+<main class="doc-main">
+  <nav class="breadcrumb">
+    <a href="/">home</a><span class="s">/</span>
+    <a href="/guides/">guides</a><span class="s">/</span>
+    <span style="color:var(--fg-muted)">rebuild</span>
+  </nav>
+
+  <header class="doc-header">
+    <div class="htop">
+      <div class="doc-logo">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0118.8-4.3M22 12.5a10 10 0 01-18.8 4.2"/></svg>
+      </div>
+      <div>
+        <span class="eyebrow">// guides · provisioning</span>
+        <h1>How to rebuild</h1>
+      </div>
+    </div>
+    <p class="tagline">Complete walkthrough for reprovisioning from a blank Ubuntu 26.04 server. Steps 1–8 run unattended after three prompts. The Longhorn restore is the only manual gate.</p>
+    <div class="doc-pills">
+      <span class="pill">~30 min hands-on</span>
+      <span class="pill">Ubuntu 26.04</span>
+      <span class="pill">k3s v1.36.1+k3s1</span>
+    </div>
+  </header>
+
+  <article class="doc-article">
+
+    <h2 id="prereqs"><span class="hn">01</span> Prerequisites</h2>
+    <p>Before running anything, have these ready:</p>
+
+    <table class="spec-table">
+      <thead><tr><th>Item</th><th>Details</th></tr></thead>
+      <tbody>
+        <tr><td class="k">Server</td><td>Ubuntu 26.04, reachable by SSH, with NOPASSWD sudo for user <code>homelab</code>.</td></tr>
+        <tr><td class="k">SSH key</td><td>Your key in <code>~/.ssh/authorized_keys</code> on the server. <code>ssh homelab@&lt;ip&gt;</code> must work without a password prompt.</td></tr>
+        <tr><td class="k">Vault unseal key</td><td>From your offline backup. Seeded as a Kubernetes Secret in Step 6 — Vault cannot unseal without it.</td></tr>
+        <tr><td class="k">Cloudflare API token</td><td>Zone:DNS:Edit permission for <code>alybadawy.com</code>. cert-manager uses it for DNS-01 wildcard TLS.</td></tr>
+        <tr><td class="k">Local tools</td><td><code>kubectl</code>, <code>kustomize</code>, <code>helm</code>, <code>git</code> installed and on PATH on the machine running the scripts.</td></tr>
+        <tr><td class="k">NAS reachable</td><td><code>172.20.20.2</code> reachable from the server for NFS mounts and backup restore.</td></tr>
+      </tbody>
+    </table>
+
+    <h2 id="run"><span class="hn">02</span> Run <code>rebuild.sh</code></h2>
+    <p>One script orchestrates Steps 1–8. It collects all three inputs upfront, then runs fully unattended until the Longhorn restore step.</p>
+
+    <div class="code">
+      <div class="code-head">
+        <span class="dots"><i></i><i></i><i></i></span>
+        <span class="fname">terminal</span>
+        <button class="copy-btn">copy</button>
+        <span class="lang">bash</span>
+      </div>
+<pre><code><span class="t-com"># clone the repo if you haven't already</span>
+<span class="t-prompt">$</span> <span class="t-cmd">git</span> clone https://github.com/AlyBadawy/hl-beta && cd hl-beta
+
+<span class="t-com"># run the rebuild orchestrator — prompts for IP, Vault key, Cloudflare token</span>
+<span class="t-prompt">$</span> <span class="t-cmd">./provision/rebuild.sh</span></code></pre>
+    </div>
+
+    <p>The script prompts for three values then runs unattended:</p>
+    <ol>
+      <li><strong>Server IP address</strong> — validated as a valid IPv4 address.</li>
+      <li><strong>Vault unseal key</strong> — entered silently (no echo). From your offline backup.</li>
+      <li><strong>Cloudflare API token</strong> — entered silently. Must have Zone:DNS:Edit on <code>alybadawy.com</code>.</li>
+    </ol>
+
+    <h2 id="steps"><span class="hn">03</span> What each step does</h2>
+
+    <table class="spec-table">
+      <thead><tr><th>Step</th><th>Script</th><th>What happens</th></tr></thead>
+      <tbody>
+        <tr>
+          <td class="k">1 — SSH check</td>
+          <td><span class="mono">check-ssh-connection</span></td>
+          <td>Validates SSH key auth works and NOPASSWD sudo is configured. Blocks if either fails.</td>
+        </tr>
+        <tr>
+          <td class="k">2 — Dependencies</td>
+          <td><span class="mono">update-dependencies</span></td>
+          <td>Runs <code>apt upgrade</code>, installs packages (nfs-common, open-iscsi, apparmor, socat, etc.), disables SWAP. Optional — can skip with N.</td>
+        </tr>
+        <tr>
+          <td class="k">3 — NAS mounts</td>
+          <td><span class="mono">mount-nas</span></td>
+          <td>Creates <code>/mnt/nas/{homelab,backups,immich,nextcloud}</code>, adds NFS entries to <code>/etc/fstab</code>, mounts and verifies. Idempotent.</td>
+        </tr>
+        <tr>
+          <td class="k">4 — k3s install</td>
+          <td><span class="mono">install-k3s</span></td>
+          <td>Installs k3s v1.36.1+k3s1 with Traefik disabled. Waits for node Ready. Copies kubeconfig locally. Skips if already installed.</td>
+        </tr>
+        <tr>
+          <td class="k">5 — Cluster config</td>
+          <td><span class="mono">configure-cluster</span></td>
+          <td>Creates <code>cluster-config</code> namespace and ConfigMap with domain, NAS paths, admin email, server IP. Applies kernel tuning (<code>inotify</code>, <code>vm.max_map_count</code>).</td>
+        </tr>
+        <tr>
+          <td class="k">6 — Vault key</td>
+          <td><em>inline in rebuild.sh</em></td>
+          <td>Creates the <code>security</code> namespace and seeds <code>vault-unseal-key</code> Secret. Required before GitOps runs — without it Vault stays sealed and ESO cannot sync.</td>
+        </tr>
+        <tr>
+          <td class="k">7 — ArgoCD</td>
+          <td><span class="mono">bootstrap-argocd</span></td>
+          <td>Installs ArgoCD via Kustomize + Helm, waits for <code>argocd-server</code> ready, creates <code>networking</code> namespace and <code>cloudflare-api-token</code> Secret. Stops before deploying any apps.</td>
+        </tr>
+        <tr>
+          <td class="k">8 — Longhorn</td>
+          <td><span class="mono">restore-volumes</span></td>
+          <td>Installs Longhorn, configures NAS backup target. On a rebuild: opens the UI on <code>localhost:9000</code> and waits for manual volume restore confirmation.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h2 id="longhorn-restore"><span class="hn">04</span> Longhorn volume restore (Step 8)</h2>
+    <p>This is the only manual step. The script opens the Longhorn UI via port-forward and waits for you to confirm before continuing.</p>
+
+    <div class="callout info">
+      <span class="ic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 8h.01M11 12h1v4h1"/></svg></span>
+      <div><b>Fresh cluster?</b> If there are no backups to restore, answer <code>y</code> when the script asks "Is this a fresh cluster?" — it configures the backup target and exits immediately. Skip to Step 5 below.</div>
+    </div>
+
+    <p>For a rebuild (restoring from NAS backups):</p>
+    <ol>
+      <li>Open <a href="http://localhost:9000" target="_blank" rel="noopener">http://localhost:9000</a> (the script starts the port-forward automatically).</li>
+      <li>In the left sidebar, click <strong>Backup</strong>. Click the sync icon if no backups appear.</li>
+      <li>For each volume, select the latest backup → <strong>Restore</strong>. Use the PVC name from the mapping table below.</li>
+      <li>Go to <strong>Volume</strong> and wait for each volume to show state <code>Detached</code> (restore complete).</li>
+      <li>For each restored volume, click <strong>Create PV/PVC</strong> and set the correct namespace and PVC name.</li>
+      <li>Return to the terminal and press Enter to confirm.</li>
+    </ol>
+
+    <div class="code">
+      <div class="code-head">
+        <span class="dots"><i></i><i></i><i></i></span>
+        <span class="fname">volume → namespace/PVC mapping</span>
+        <button class="copy-btn">copy</button>
+        <span class="lang">text</span>
+      </div>
+<pre><code>Longhorn volume name   →   namespace / PVC name
+────────────────────────────────────────────────
+vault-data-lh          →   security / vault-data-lh
+postgres-data-lh       →   db       / postgres-data-lh
+nextcloud-data-lh      →   cloud    / nextcloud-data-lh
+authentik-media-lh     →   security / authentik-media-lh
+authentik-templates-lh →   security / authentik-templates-lh</code></pre>
+    </div>
+
+    <h2 id="gitops"><span class="hn">05</span> Activate GitOps</h2>
+    <p>After <code>rebuild.sh</code> completes, verify everything is in place, then hand cluster ownership to ArgoCD:</p>
+
+    <div class="code">
+      <div class="code-head">
+        <span class="dots"><i></i><i></i><i></i></span>
+        <span class="fname">verification + activation</span>
+        <button class="copy-btn">copy</button>
+        <span class="lang">bash</span>
+      </div>
+<pre><code><span class="t-com"># verify secrets are seeded</span>
+<span class="t-prompt">$</span> <span class="t-cmd">kubectl</span> get secret vault-unseal-key <span class="t-flag">-n</span> security
+<span class="t-prompt">$</span> <span class="t-cmd">kubectl</span> get secret cloudflare-api-token <span class="t-flag">-n</span> networking
+
+<span class="t-com"># verify ArgoCD is healthy</span>
+<span class="t-prompt">$</span> <span class="t-cmd">kubectl</span> get pods <span class="t-flag">-n</span> argocd
+
+<span class="t-com"># verify Longhorn PVCs are bound (if rebuild mode)</span>
+<span class="t-prompt">$</span> <span class="t-cmd">kubectl</span> get pvc <span class="t-flag">-A</span> | grep <span class="t-flag">-E</span> <span class="t-str">'lh$'</span>
+
+<span class="t-com"># activate GitOps — applies root.yaml and hands ownership to ArgoCD</span>
+<span class="t-prompt">$</span> <span class="t-cmd">./provision/activate-gitops.sh</span></code></pre>
+    </div>
+
+    <p>After activation, ArgoCD discovers all applications in <code>k8s/apps/</code> and syncs them. Vault starts first (sync-wave -1), unseals within ~6 minutes, then ESO syncs all secrets and the rest of the apps come up. See <a href="/guides/gitops.html">Bootstrapping GitOps</a> for the full wave sequence.</p>
+
+    <div class="callout ok">
+      <span class="ic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg></span>
+      <div><b>Total rebuild time: ~30–45 minutes.</b> About 5 minutes is hands-on (prompts + Longhorn restore). The rest is waiting for packages to install, k3s to start, ArgoCD to sync, and Vault to unseal.</div>
+    </div>
+
+    <nav class="doc-nav">
+      <a class="next" href="/guides/gitops.html">
+        <span class="dir">next →</span>
+        <span class="ttl">Bootstrapping GitOps</span>
+      </a>
+    </nav>
+
+    <div class="doc-foot">
+      <span>last updated 2026-06-08 · <a href="{{ site.repo_url }}/tree/main/provision" target="_blank" rel="noopener">view source on GitHub</a></span>
+    </div>
+  </article>
+</main>
+
+<aside class="toc">
+  <div class="toc-title">On this page</div>
+  <ul>
+    <li><a href="#prereqs">Prerequisites</a></li>
+    <li><a href="#run">Run rebuild.sh</a></li>
+    <li><a href="#steps">What each step does</a></li>
+    <li><a href="#longhorn-restore">Longhorn restore</a></li>
+    <li><a href="#gitops">Activate GitOps</a></li>
+  </ul>
+  <div class="toc-meta">
+    <div class="row"><span>hands-on time</span><span>~5 min</span></div>
+    <div class="row"><span>total time</span><span>~30–45 min</span></div>
+    <div class="row"><span>manual step</span><span>Longhorn restore</span></div>
+    <div class="row"><span>reading</span><span>~6 min</span></div>
+  </div>
+</aside>

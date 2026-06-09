@@ -1,0 +1,51 @@
+<aside class="sidebar">
+  <div class="side-search">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+    Search docs… <span class="kbd">/</span>
+  </div>
+
+  <div class="nav-group">
+    <div class="nav-grouphead">Cluster <span class="chev">▾</span></div>
+    <ul class="nav-items">
+      <li><a href="/cluster/">Overview</a></li>
+      <li><a href="/cluster/argocd.html" {% if page.url contains 'argocd' %}class="active"{% endif %}>ArgoCD <span class="sd dot ok"></span></a></li>
+      <li><a href="/cluster/vault.html" {% if page.url contains 'vault' %}class="active"{% endif %}>HashiCorp Vault <span class="sd dot ok"></span></a></li>
+      <li><a href="/cluster/longhorn.html" {% if page.url contains 'longhorn' %}class="active"{% endif %}>Longhorn <span class="sd dot ok"></span></a></li>
+      <li><a href="/cluster/cert-manager.html" {% if page.url contains 'cert-manager' %}class="active"{% endif %}>cert-manager <span class="sd dot ok"></span></a></li>
+      <li><a href="/cluster/ingress.html" {% if page.url contains 'ingress' %}class="active"{% endif %}>Ingress (nginx)</a></li>
+      <li><a href="/cluster/external-secrets.html" {% if page.url contains 'external-secrets' %}class="active"{% endif %}>External Secrets (ESO)</a></li>
+      <li><a href="/cluster/monitoring.html" {% if page.url contains 'monitoring' %}class="active"{% endif %}>Monitoring</a></li>
+      <li><a href="/cluster/apps.html" {% if page.url contains '/cluster/apps' %}class="active"{% endif %}>Applications</a></li>
+    </ul>
+  </div>
+
+  <div class="nav-group">
+    <div class="nav-grouphead">Networking &amp; Infra <span class="chev">▾</span></div>
+    <ul class="nav-items">
+      <li><a href="/networking/hardware.html" {% if page.url contains 'hardware' %}class="active"{% endif %}>Physical hardware</a></li>
+      <li><a href="/networking/vlans.html" {% if page.url contains 'vlans' %}class="active"{% endif %}>VLAN segmentation</a></li>
+      <li><a href="/networking/dns.html" {% if page.url contains '/dns' %}class="active"{% endif %}>DNS (UniFi)</a></li>
+      <li><a href="/networking/nas.html" {% if page.url contains '/nas' %}class="active"{% endif %}>NAS &amp; storage</a></li>
+      <li><a href="/networking/firewall.html" {% if page.url contains 'firewall' %}class="active"{% endif %}>Firewall rules</a></li>
+      <li><a href="/networking/backups.html" {% if page.url contains 'backups' %}class="active"{% endif %}>Backups</a></li>
+    </ul>
+  </div>
+
+  <div class="nav-group">
+    <div class="nav-grouphead">Guides <span class="chev">▾</span></div>
+    <ul class="nav-items">
+      <li><a href="/guides/rebuild.html" {% if page.url contains 'rebuild' %}class="active"{% endif %}>How to rebuild</a></li>
+      <li><a href="/guides/gitops.html" {% if page.url contains 'gitops' %}class="active"{% endif %}>Bootstrapping GitOps</a></li>
+      <li><a href="/guides/disaster-recovery.html" {% if page.url contains 'disaster' %}class="active"{% endif %}>Disaster recovery</a></li>
+    </ul>
+  </div>
+
+  <div class="nav-group">
+    <div class="nav-grouphead">Decisions <span class="chev">▾</span></div>
+    <ul class="nav-items">
+      <li><a href="/adrs/" {% if page.url == '/adrs/' %}class="active"{% endif %}>ADR index</a></li>
+      <li><a href="/adrs/001-k3s.html">0001 · Why k3s</a></li>
+      <li><a href="/adrs/007-vault.html">0007 · Vault over SealedSecrets</a></li>
+    </ul>
+  </div>
+</aside>
