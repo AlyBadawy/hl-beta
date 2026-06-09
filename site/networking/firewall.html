@@ -50,7 +50,7 @@ section: networking
         </tr>
         <tr>
           <td class="k">Trusted</td>
-          <td>Personal (10), VPN (30)</td>
+          <td>Personal (10), VPN (15)</td>
           <td>Full LAN access to Servers. Full internet access. Blocked from IoT and Isolated zones outbound.</td>
         </tr>
         <tr>
@@ -65,12 +65,12 @@ section: networking
         </tr>
         <tr>
           <td class="k">Isolated</td>
-          <td>Guest (200), Work (210)</td>
+          <td>Guest (200), Work (30)</td>
           <td>Internet only. No LAN access. No inter-VLAN communication — not even between Guest and Work.</td>
         </tr>
         <tr>
           <td class="k">AREDN</td>
-          <td>AREDN-WAN (40), AREDN-Node1 (42)</td>
+          <td>AREDN-WAN (40), AREDN-LAN-1 (41)</td>
           <td>Isolated from all homelab VLANs. AREDN mesh traffic only.</td>
         </tr>
       </tbody>
@@ -173,7 +173,7 @@ section: networking
 
     <div class="callout warn">
       <span class="ic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l9 16H3z"/><path d="M12 9v5M12 17h.01"/></svg></span>
-      <div><b>UFW is a second layer, not the only layer.</b> The UDR7 firewall is the perimeter. UFW on the node enforces the same rules locally. All five ports must be open in both places. If any service times out, run <code>sudo ufw status verbose</code> on the server and check the corresponding UDR7 zone rule.</div>
+      <div><b>UFW is a second layer, not the only layer.</b> The UDR7 firewall is the perimeter. UFW on the node enforces the same rules locally. Those ports are not exposed on the UDR7 WAN interface, so these services are not accessible from the internet — but they are open on the LAN side to allow access from devices on the trusted networks (Personal VLAN 10, VPN VLAN 15). If any service times out, run <code>sudo ufw status verbose</code> on the server and check the corresponding UDR7 LAN zone rule.</div>
     </div>
 
     <nav class="doc-nav">

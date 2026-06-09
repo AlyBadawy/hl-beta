@@ -40,7 +40,7 @@ section: networking
         <tr><td class="k">Router / firewall</td><td>UniFi Dream Router 7 (UDR7) at <span class="mono">172.20.1.1</span> — gateway for all VLANs, zone-based firewall</td></tr>
         <tr><td class="k">Switches</td><td>UniFi Flex 2.5G (8-port + 2 trunk) · UniFi Flex Mini 2.5G (5-port) — both connected directly to UDR7</td></tr>
         <tr><td class="k">IP scheme</td><td><span class="mono">172.20.Y.Z</span> — site <code>20</code>, Y = VLAN ID, Z = host. Every IP is self-documenting.</td></tr>
-        <tr><td class="k">VLANs</td><td>10 — Management, Personal, Servers, VPN, AREDN-WAN, AREDN-DtD, AREDN-Node1, IoT, Guest, Work</td></tr>
+        <tr><td class="k">VLANs</td><td>10 — Management, Personal, Servers, VPN, AREDN-WAN, AREDN-DtD, AREDN-LAN-1, IoT, Guest, Work</td></tr>
         <tr><td class="k">NAS</td><td>UniFi UNAS 4 at <span class="mono">172.20.20.2</span> — NFS exports for k3s mounts and Longhorn backup target</td></tr>
         <tr><td class="k">k3s server</td><td>GMKtec NucBox M8 at <span class="mono">172.20.20.3</span> — Ubuntu 26.04 bare-metal, AMD Ryzen 5 PRO 6650H, 16 GB RAM</td></tr>
         <tr><td class="k">Lab server</td><td>Beelink at <span class="mono">172.20.20.10</span> — Proxmox hypervisor for private lab and test VMs (range .11–.19)</td></tr>
@@ -61,16 +61,21 @@ section: networking
       <div class="arch-inner" style="padding: 20px;">
         <div style="display:flex; flex-direction:column; gap:12px; font-size:13px;">
 
-          <!-- Internet → UDR7 row -->
-          <div style="display:flex; align-items:center; gap:12px;">
+          <!-- WAN uplink → UDR7 ↔ Other sites row -->
+          <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
             <div style="background:var(--bg-2); border:1px solid var(--line); border-radius:8px; padding:10px 16px; min-width:140px; text-align:center;">
               <div style="font-size:11px; color:var(--fg-dim); font-family:var(--mono); text-transform:uppercase; letter-spacing:.06em; margin-bottom:4px;">internet</div>
               <div style="color:var(--fg); font-weight:600;">WAN uplink</div>
             </div>
-            <div style="color:var(--fg-dim);">↓</div>
+            <div style="color:var(--fg-dim); font-size:16px; font-weight:600;">→</div>
             <div style="background:var(--surface); border:1px solid var(--accent-line); border-radius:8px; padding:10px 16px; min-width:180px; text-align:center;">
               <div style="font-size:11px; color:var(--accent); font-family:var(--mono); text-transform:uppercase; letter-spacing:.06em; margin-bottom:4px;">router · firewall · dns</div>
               <div style="color:var(--fg); font-weight:600;">UDR7 <span style="font-family:var(--mono); font-size:11px; color:var(--fg-dim);">172.20.1.1</span></div>
+            </div>
+            <div style="color:var(--fg-dim); font-size:16px; font-weight:600;">↔</div>
+            <div style="background:var(--bg-2); border:1px solid var(--line); border-radius:8px; padding:10px 16px; min-width:140px; text-align:center;">
+              <div style="font-size:11px; color:var(--fg-dim); font-family:var(--mono); text-transform:uppercase; letter-spacing:.06em; margin-bottom:4px;">vpn / remote</div>
+              <div style="color:var(--fg); font-weight:600;">Other sites</div>
             </div>
           </div>
 

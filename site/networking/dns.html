@@ -48,7 +48,7 @@ section: networking
         <tr><td class="k">Device</td><td>UniFi Dream Router 7 (UDR7)</td></tr>
         <tr><td class="k">DNS IP (per VLAN)</td><td><span class="mono">172.20.Y.1</span> — each VLAN's gateway is its DNS server (e.g. VLAN 20 → <span class="mono">172.20.20.1</span>, VLAN 10 → <span class="mono">172.20.10.1</span>)</td></tr>
         <tr><td class="k">Management UI</td><td>UniFi Network application on UDR7 (<span class="mono">172.20.1.1</span>)</td></tr>
-        <tr><td class="k">Upstream resolvers</td><td><!-- TODO: upstream DNS servers configured in UniFi --></td></tr>
+        <tr><td class="k">Upstream resolvers</td><td><strong>Primary:</strong> CleanBrowsing-Security — blocks access to malicious websites and content. <strong>Secondary:</strong> CleanBrowsing-Family — blocks adult content and other inappropriate websites.</td></tr>
       </tbody>
     </table>
 
@@ -104,10 +104,10 @@ photos.in.alybadawy.com    →  k3s server</code></pre>
         <tr><td class="k">Management (1)</td><td><span class="mono">172.20.1.0/24</span></td><td><span class="mono">172.20.1.1</span></td></tr>
         <tr><td class="k">Personal (10)</td><td><span class="mono">172.20.10.0/24</span></td><td><span class="mono">172.20.10.1</span></td></tr>
         <tr><td class="k">Servers (20)</td><td><span class="mono">172.20.20.0/24</span></td><td><span class="mono">172.20.20.1</span></td></tr>
-        <tr><td class="k">VPN (30)</td><td><span class="mono">172.20.30.0/24</span></td><td><span class="mono">172.20.30.1</span></td></tr>
+        <tr><td class="k">VPN (15)</td><td><span class="mono">172.20.15.0/24</span></td><td><span class="mono">172.20.15.1</span></td></tr>
         <tr><td class="k">IoT (100)</td><td><span class="mono">172.20.100.0/24</span></td><td><span class="mono">172.20.100.1</span></td></tr>
         <tr><td class="k">Guest (200)</td><td><span class="mono">172.20.200.0/24</span></td><td><span class="mono">172.20.200.1</span></td></tr>
-        <tr><td class="k">Work (210)</td><td><span class="mono">172.20.210.0/24</span></td><td><span class="mono">172.20.210.1</span></td></tr>
+        <tr><td class="k">Work (30)</td><td><span class="mono">172.20.30.0/24</span></td><td><span class="mono">172.20.30.1</span></td></tr>
       </tbody>
     </table>
 

@@ -98,7 +98,36 @@ immich      immich-pvc (see note)     Immich app data (not the photo library)</c
   <span class="t-key">backupPollInterval</span><span class="t-punc">:</span> <span class="t-num">300</span>  <span class="t-com"># seconds between polls</span></code></pre>
     </div>
 
-    <h2 id="pg-dump"><span class="hn">03</span> PostgreSQL SQL dumps</h2>
+    <h2 id="schedule"><span class="hn">03</span> Backup schedule</h2>
+    <p>All layers run on a coordinated schedule. Longhorn snapshots run first, backups to NAS run 30 minutes later, and NAS snapshots run 29 minutes after that — giving Longhorn time to finish before the NAS preserves its own state.</p>
+
+    <table class="ns-table">
+      <thead><tr><th>Layer</th><th>Event</th><th>Times (daily)</th></tr></thead>
+      <tbody>
+        <tr>
+          <td class="k">Longhorn</td>
+          <td>Volume snapshot</td>
+          <td class="apps">12:00 AM · 6:00 AM · 12:00 PM · 6:00 PM</td>
+        </tr>
+        <tr>
+          <td class="k">Longhorn → NAS</td>
+          <td>Backup to NFS target</td>
+          <td class="apps">12:30 AM · 6:30 AM · 12:30 PM · 6:30 PM</td>
+        </tr>
+        <tr>
+          <td class="k">NAS (UNAS 4)</td>
+          <td>Filesystem snapshot (RAID 5)</td>
+          <td class="apps">12:59 AM · 6:59 AM · 12:59 PM · 6:59 PM</td>
+        </tr>
+        <tr>
+          <td class="k">NAS → Remote NAS</td>
+          <td>Off-site backup</td>
+          <td class="apps">3:00 AM (daily)</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h2 id="pg-dump"><span class="hn">04</span> PostgreSQL SQL dumps</h2>
     <p>A <code>pg-dump</code> CronJob in the <code>db</code> namespace runs periodic SQL dumps of all databases and writes them to <code>/mnt/nas/backups</code>. This provides a second, SQL-level backup independent of Longhorn — useful for point-in-time restore of specific tables or schemas without needing to restore an entire volume.</p>
 
     <div class="code">
@@ -118,27 +147,27 @@ immich      immich-pvc (see note)     Immich app data (not the photo library)</c
 <span class="t-prompt">$</span> <span class="t-cmd">ls</span> <span class="t-flag">-lh</span> /mnt/nas/backups/*.sql 2>/dev/null</code></pre>
     </div>
 
-    <h2 id="nas-backup"><span class="hn">04</span> NAS storage protection</h2>
-    <p>The NAS itself needs protection — if it fails, all Longhorn backups and SQL dumps are lost. Current NAS-level protection:</p>
+    <h2 id="nas-backup"><span class="hn">05</span> NAS storage protection</h2>
+    <p>The NAS itself needs protection — if it fails, all Longhorn backups and SQL dumps are lost. The UNAS 4 uses RAID 5, so a single drive failure results in no data loss. Snapshots and off-site replication add additional recovery options.</p>
 
     <table class="spec-table">
       <thead><tr><th>Property</th><th>Value</th></tr></thead>
       <tbody>
-        <tr><td class="k">RAID / redundancy</td><td><!-- TODO: RAID level, number of drives --></td></tr>
-        <tr><td class="k">Off-site / cloud backup</td><td><!-- TODO: does NAS back up to cloud? B2, S3, etc.? --></td></tr>
-        <tr><td class="k">Snapshot schedule</td><td><!-- TODO: any ZFS or filesystem snapshots? --></td></tr>
+        <tr><td class="k">RAID / redundancy</td><td>RAID 5 — single drive failure tolerated. NAS self-rebuilds when a replacement drive is inserted.</td></tr>
+        <tr><td class="k">Snapshot schedule</td><td>Every 6 hours at 12:59, 6:59, 12:59, 18:59 — timed 29 min after Longhorn backups complete.</td></tr>
+        <tr><td class="k">Off-site backup</td><td>Backed up to a remote NAS every 24 hours at 3:00 AM.</td></tr>
       </tbody>
     </table>
 
-    <h2 id="rto-rpo"><span class="hn">05</span> Recovery objectives</h2>
+    <h2 id="rto-rpo"><span class="hn">06</span> Recovery objectives</h2>
 
     <table class="spec-table">
       <thead><tr><th>Scenario</th><th>RPO (max data loss)</th><th>RTO (recovery time)</th><th>Method</th></tr></thead>
       <tbody>
         <tr>
           <td class="k">k3s node failure</td>
-          <td>Since last Longhorn backup</td>
-          <td>~45 min</td>
+          <td>Since last Longhorn backup (≤6 hours)</td>
+          <td>~30 min</td>
           <td>Full rebuild — <a href="/guides/rebuild.html">rebuild guide</a></td>
         </tr>
         <tr>
@@ -149,21 +178,33 @@ immich      immich-pvc (see note)     Immich app data (not the photo library)</c
         </tr>
         <tr>
           <td class="k">Database corruption</td>
-          <td>Since last pg-dump</td>
+          <td>Since last Longhorn backup or pg-dump (≤6 hours)</td>
           <td>~15 min</td>
-          <td>Restore from <code>.sql</code> dump</td>
+          <td>Restore from Longhorn backup (preferred); fall back to <code>.sql</code> dump if backup is not recent enough</td>
         </tr>
         <tr>
-          <td class="k">NAS failure</td>
-          <td>Since last NAS backup</td>
-          <td><!-- TODO: depends on NAS replacement time --></td>
-          <td>Replace NAS hardware, restore from <!-- TODO --></td>
+          <td class="k">NAS drive failure</td>
+          <td>0 — RAID 5, no data loss on single drive failure</td>
+          <td>RAID rebuild time (varies by drive size)</td>
+          <td>Replace failed drive; NAS automatically rebuilds RAID array</td>
         </tr>
         <tr>
-          <td class="k">Secret loss (Vault)</td>
+          <td class="k">NAS server failure</td>
+          <td>Since last off-site backup (≤24 hours)</td>
+          <td>~1 hour</td>
+          <td>Restore from remote NAS backup to replacement hardware</td>
+        </tr>
+        <tr>
+          <td class="k">Vault data loss</td>
+          <td>Since last Longhorn backup (≤6 hours)</td>
+          <td>~15 min</td>
+          <td>Vault data lives in a Longhorn PVC — restore the PVC, then unseal with the offline unseal key</td>
+        </tr>
+        <tr>
+          <td class="k">Vault unseal key lost</td>
           <td>N/A</td>
-          <td>N/A</td>
-          <td>Vault data is in the Longhorn PVC. Only risk is losing the unseal key — store it offline.</td>
+          <td>Significantly longer — manual</td>
+          <td>Without the unseal key, Vault cannot be unsealed. Recovery requires manual re-initialization and re-seeding all secrets. <strong>Store the unseal key offline and never commit it to Git.</strong></td>
         </tr>
       </tbody>
     </table>
@@ -186,13 +227,14 @@ immich      immich-pvc (see note)     Immich app data (not the photo library)</c
   <ul>
     <li><a href="#overview">Backup layers</a></li>
     <li><a href="#longhorn">Longhorn volume backups</a></li>
+    <li><a href="#schedule">Backup schedule</a></li>
     <li><a href="#pg-dump">PostgreSQL SQL dumps</a></li>
     <li><a href="#nas-backup">NAS storage protection</a></li>
     <li><a href="#rto-rpo">Recovery objectives</a></li>
   </ul>
   <div class="toc-meta">
     <div class="row"><span>Longhorn target</span><span>NAS NFS</span></div>
-    <div class="row"><span>k3s RTO</span><span>~45 min</span></div>
+    <div class="row"><span>k3s RTO</span><span>~30 min</span></div>
     <div class="row"><span>app RTO</span><span>&lt;5 min</span></div>
     <div class="row"><span>reading</span><span>~4 min</span></div>
   </div>

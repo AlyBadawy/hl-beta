@@ -64,8 +64,15 @@ section: networking
           <td class="k">Management</td>
           <td class="apps">1</td>
           <td class="apps">172.20.1.0/24</td>
-          <td>Network gear only — UDR7, switch, APs</td>
-          <td>Restricted — no general devices</td>
+          <td>Network gear only — UDR7, switches, APs</td>
+          <td>Restricted — no general devices · no DHCP</td>
+        </tr>
+        <tr>
+          <td class="k">AREDN-DtD</td>
+          <td class="apps">2</td>
+          <td class="apps"><em>self-assigned</em></td>
+          <td>Device-to-Device AREDN links</td>
+          <td>No DHCP — devices self-assign IPs. See note ↓</td>
         </tr>
         <tr>
           <td class="k">Personal</td>
@@ -75,18 +82,25 @@ section: networking
           <td>Can access Servers</td>
         </tr>
         <tr>
+          <td class="k">VPN</td>
+          <td class="apps">15</td>
+          <td class="apps">172.20.15.0/24</td>
+          <td>Remote access clients</td>
+          <td>Same trust as Personal</td>
+        </tr>
+        <tr>
           <td class="k">Servers</td>
           <td class="apps">20</td>
           <td class="apps">172.20.20.0/24</td>
-          <td>NAS, Proxmox VMs, k3s cluster, Docker services</td>
+          <td>NAS, Proxmox lab server, k3s cluster</td>
           <td>Accessible from Personal &amp; VPN</td>
         </tr>
         <tr>
-          <td class="k">VPN</td>
+          <td class="k">Work</td>
           <td class="apps">30</td>
           <td class="apps">172.20.30.0/24</td>
-          <td>Remote access clients</td>
-          <td>Same trust as Personal</td>
+          <td>Work-issued devices</td>
+          <td>Fully isolated — internet only</td>
         </tr>
         <tr>
           <td class="k">AREDN-WAN</td>
@@ -96,18 +110,11 @@ section: networking
           <td>Connects UDR7 to AREDN WAN</td>
         </tr>
         <tr>
-          <td class="k">AREDN-DtD</td>
+          <td class="k">AREDN-LAN-1</td>
           <td class="apps">41</td>
-          <td class="apps"><em>reserved</em></td>
-          <td>Device-to-Device AREDN links</td>
-          <td>Not in use — future expansion</td>
-        </tr>
-        <tr>
-          <td class="k">AREDN-Node1</td>
-          <td class="apps">42</td>
           <td class="apps">10.6.229.8/29</td>
           <td>AREDN node LAN (node-managed addresses)</td>
-          <td>Managed by AREDN node</td>
+          <td>Managed by AREDN firmware</td>
         </tr>
         <tr>
           <td class="k">IoT</td>
@@ -123,19 +130,12 @@ section: networking
           <td>Guest devices</td>
           <td>Fully isolated — internet only</td>
         </tr>
-        <tr>
-          <td class="k">Work</td>
-          <td class="apps">210</td>
-          <td class="apps">172.20.210.0/24</td>
-          <td>Work-issued devices</td>
-          <td>Fully isolated — internet only</td>
-        </tr>
       </tbody>
     </table>
 
     <div class="callout info">
       <span class="ic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 8h.01M11 12h1v4h1"/></svg></span>
-      <div><b>Future AREDN nodes</b> will use VLANs 43, 44, etc., each with their own node-assigned LAN range. The DtD VLAN 41 is reserved for direct device-to-device mesh links when needed.</div>
+      <div><b>AREDN-DtD uses VLAN 2</b> — an exception to the 172.20.Y.Z scheme. AREDN firmware defaults to VLAN 2 for Device-to-Device (DtD) links between nodes, so VLAN 2 was chosen here to stay compatible with AREDN's own convention, even though it breaks local numbering. Future AREDN LAN VLANs will be numbered 42, 43, etc.</div>
     </div>
 
     <h2 id="trust"><span class="hn">03</span> Trust hierarchy</h2>
@@ -146,7 +146,7 @@ section: networking
       <tbody>
         <tr>
           <td class="k">Trusted</td>
-          <td><span class="mono">Personal (10), VPN (30)</span></td>
+          <td><span class="mono">Personal (10), VPN (15)</span></td>
           <td>Can reach Servers. Can reach internet. Can access self-hosted services.</td>
         </tr>
         <tr>
@@ -161,12 +161,12 @@ section: networking
         </tr>
         <tr>
           <td class="k">Isolated</td>
-          <td><span class="mono">Guest (200), Work (210)</span></td>
+          <td><span class="mono">Guest (200), Work (30)</span></td>
           <td>Internet only. No access to any local VLANs. No inter-device communication.</td>
         </tr>
         <tr>
           <td class="k">Mesh</td>
-          <td><span class="mono">AREDN-WAN (40), AREDN-Node1 (42)</span></td>
+          <td><span class="mono">AREDN-WAN (40), AREDN-LAN-1 (41)</span></td>
           <td>AREDN mesh traffic. Isolated from all other homelab VLANs.</td>
         </tr>
       </tbody>
@@ -223,13 +223,13 @@ section: networking
         </tr>
         <tr>
           <td class="k">AREDN node LAN</td>
-          <td class="apps">AREDN-Node1 (42)</td>
+          <td class="apps">AREDN-LAN-1 (41)</td>
           <td class="apps">10.6.229.9</td>
           <td>Node's LAN interface (mesh-assigned by AREDN firmware — see <a href="https://www.arednmesh.org" target="_blank" rel="noopener">arednmesh.org</a>)</td>
         </tr>
         <tr>
           <td class="k">UDR7 on AREDN LAN</td>
-          <td class="apps">AREDN-Node1 (42)</td>
+          <td class="apps">AREDN-LAN-1 (41)</td>
           <td class="apps">10.6.229.10</td>
           <td>UDR7 as gateway on AREDN LAN</td>
         </tr>
