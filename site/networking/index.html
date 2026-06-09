@@ -1,0 +1,178 @@
+---
+layout: docs
+title: "Networking & Infra"
+description: "The physical and logical network underpinning the homelab. UDR7 router, 10 VLANs, UNAS Pro, Beelink hypervisor, and an AREDN mesh node."
+section: networking
+---
+
+<main class="doc-main">
+  <nav class="breadcrumb">
+    <a href="/">home</a><span class="s">/</span>
+    <span style="color:var(--fg-muted)">networking</span>
+  </nav>
+
+  <header class="doc-header">
+    <div class="htop">
+      <div class="doc-logo">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="5" r="2"/><circle cx="5" cy="19" r="2"/><circle cx="19" cy="19" r="2"/><path d="M12 7v4M5 17l7-6 7 6"/></svg>
+      </div>
+      <div>
+        <span class="eyebrow">// the homelab</span>
+        <h1>Networking &amp; Infra</h1>
+      </div>
+    </div>
+    <p class="tagline">The physical and logical foundation the cluster sits on. A UniFi stack handles routing, switching, and VLAN segmentation. A UNAS Pro provides NFS storage. A Beelink runs utility VMs on Proxmox. An AREDN node connects to the amateur radio mesh.</p>
+    <div class="doc-pills">
+      <span class="pill">UDR7 router</span>
+      <span class="pill">10 VLANs</span>
+      <span class="pill">172.20.Y.Z</span>
+      <span class="pill">UNAS Pro</span>
+    </div>
+  </header>
+
+  <article class="doc-article">
+    <p class="lead">Everything outside the k3s cluster: the physical devices, the network segmentation, DNS resolution, NFS storage, firewall zones, and backup strategy. The cluster is just one server on VLAN 20 — the network around it is where the homelab's operational resilience lives.</p>
+
+    <h2 id="facts"><span class="hn">01</span> Key facts</h2>
+    <table class="spec-table">
+      <thead><tr><th>Property</th><th>Value</th></tr></thead>
+      <tbody>
+        <tr><td class="k">Router / firewall</td><td>UniFi Dream Router 7 (UDR7) at <span class="mono">172.20.1.1</span> — gateway for all VLANs, zone-based firewall</td></tr>
+        <tr><td class="k">Switch</td><td>UniFi Flex 2.5G — managed, trunks all VLANs between UDR7 and servers</td></tr>
+        <tr><td class="k">IP scheme</td><td><span class="mono">172.20.Y.Z</span> — site <code>20</code>, Y = VLAN ID, Z = host. Every IP is self-documenting.</td></tr>
+        <tr><td class="k">VLANs</td><td>10 — Management, Personal, Servers, VPN, AREDN-WAN, AREDN-DtD, AREDN-Node1, IoT, Guest, Work</td></tr>
+        <tr><td class="k">NAS</td><td>UNAS Pro at <span class="mono">172.20.20.2</span> — NFS exports for k3s mounts and Longhorn backup target</td></tr>
+        <tr><td class="k">Hypervisor</td><td>Beelink at <span class="mono">172.20.20.10</span> — Proxmox, 3 VMs: Utils (.20), State (.30), Apps (.40)</td></tr>
+        <tr><td class="k">DNS</td><td>AdGuard Home — resolves <span class="mono">*.in.alybadawy.com</span> to the k3s server; ad-blocking for all VLANs</td></tr>
+        <tr><td class="k">Mesh radio</td><td>AREDN node — WAN at <span class="mono">172.20.40.2</span>, LAN at <span class="mono">10.6.229.9</span></td></tr>
+      </tbody>
+    </table>
+
+    <h2 id="topology"><span class="hn">02</span> Physical topology</h2>
+    <p>All servers sit on VLAN 20 (Servers). The UDR7 trunks every VLAN down to the Flex switch, which connects all devices. Wireless clients land on Personal, IoT, or Guest VLANs depending on which SSID they join.</p>
+
+    <div class="arch" style="margin: 24px 0;">
+      <div class="arch-inner" style="padding: 20px;">
+        <div style="display:flex; flex-direction:column; gap:12px; font-size:13px;">
+
+          <!-- Internet row -->
+          <div style="display:flex; align-items:center; gap:12px;">
+            <div style="background:var(--bg-2); border:1px solid var(--line); border-radius:8px; padding:10px 16px; min-width:140px; text-align:center;">
+              <div style="font-size:11px; color:var(--fg-dim); font-family:var(--mono); text-transform:uppercase; letter-spacing:.06em; margin-bottom:4px;">internet</div>
+              <div style="color:var(--fg); font-weight:600;">WAN uplink</div>
+            </div>
+            <div style="color:var(--fg-dim);">↓</div>
+            <div style="background:var(--surface); border:1px solid var(--accent-line); border-radius:8px; padding:10px 16px; min-width:180px; text-align:center;">
+              <div style="font-size:11px; color:var(--accent); font-family:var(--mono); text-transform:uppercase; letter-spacing:.06em; margin-bottom:4px;">router · firewall</div>
+              <div style="color:var(--fg); font-weight:600;">UDR7 <span style="font-family:var(--mono); font-size:11px; color:var(--fg-dim);">172.20.1.1</span></div>
+            </div>
+            <div style="color:var(--fg-dim);">↓</div>
+            <div style="background:var(--bg-2); border:1px solid var(--line); border-radius:8px; padding:10px 16px; min-width:160px; text-align:center;">
+              <div style="font-size:11px; color:var(--fg-dim); font-family:var(--mono); text-transform:uppercase; letter-spacing:.06em; margin-bottom:4px;">switch</div>
+              <div style="color:var(--fg); font-weight:600;">Flex 2.5G <span style="font-family:var(--mono); font-size:11px; color:var(--fg-dim);">VLAN trunk</span></div>
+            </div>
+          </div>
+
+          <!-- VLAN row label -->
+          <div style="font-family:var(--mono); font-size:11px; color:var(--fg-dim); text-transform:uppercase; letter-spacing:.08em; padding-left:2px; margin-top:4px;">VLANs on the trunk ↓</div>
+
+          <!-- Devices grid -->
+          <div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap:10px;">
+            <div style="background:var(--bg-2); border:1px solid var(--line); border-radius:8px; padding:10px 14px;">
+              <div style="font-size:10px; color:var(--accent); font-family:var(--mono); margin-bottom:4px;">VLAN 20 · Servers</div>
+              <div style="font-weight:600; font-size:13px; color:var(--fg);">UNAS Pro</div>
+              <div style="font-family:var(--mono); font-size:11px; color:var(--fg-dim);">172.20.20.2</div>
+            </div>
+            <div style="background:var(--bg-2); border:1px solid var(--line); border-radius:8px; padding:10px 14px;">
+              <div style="font-size:10px; color:var(--accent); font-family:var(--mono); margin-bottom:4px;">VLAN 20 · Servers</div>
+              <div style="font-weight:600; font-size:13px; color:var(--fg);">Beelink</div>
+              <div style="font-family:var(--mono); font-size:11px; color:var(--fg-dim);">172.20.20.10</div>
+            </div>
+            <div style="background:var(--surface); border:1px solid var(--accent-line); border-radius:8px; padding:10px 14px;">
+              <div style="font-size:10px; color:var(--accent); font-family:var(--mono); margin-bottom:4px;">VLAN 20 · Servers</div>
+              <div style="font-weight:600; font-size:13px; color:var(--fg);">k3s cluster</div>
+              <div style="font-family:var(--mono); font-size:11px; color:var(--fg-dim);">Ubuntu 26.04</div>
+            </div>
+            <div style="background:var(--bg-2); border:1px solid var(--line); border-radius:8px; padding:10px 14px;">
+              <div style="font-size:10px; color:var(--fg-dim); font-family:var(--mono); margin-bottom:4px;">VLAN 10 · Personal</div>
+              <div style="font-weight:600; font-size:13px; color:var(--fg);">Trusted devices</div>
+              <div style="font-family:var(--mono); font-size:11px; color:var(--fg-dim);">172.20.10.0/24</div>
+            </div>
+            <div style="background:var(--bg-2); border:1px solid var(--line); border-radius:8px; padding:10px 14px;">
+              <div style="font-size:10px; color:var(--fg-dim); font-family:var(--mono); margin-bottom:4px;">VLAN 100 · IoT</div>
+              <div style="font-weight:600; font-size:13px; color:var(--fg);">IoT devices</div>
+              <div style="font-family:var(--mono); font-size:11px; color:var(--fg-dim);">172.20.100.0/24</div>
+            </div>
+            <div style="background:var(--bg-2); border:1px solid var(--line); border-radius:8px; padding:10px 14px;">
+              <div style="font-size:10px; color:var(--fg-dim); font-family:var(--mono); margin-bottom:4px;">VLAN 40 · AREDN</div>
+              <div style="font-weight:600; font-size:13px; color:var(--fg);">AREDN node</div>
+              <div style="font-family:var(--mono); font-size:11px; color:var(--fg-dim);">172.20.40.2</div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+    <h2 id="sections"><span class="hn">03</span> Documentation sections</h2>
+
+    <div class="comp-grid">
+      <a class="comp-card" href="/networking/hardware.html">
+        <div class="cc-top"><span class="cc-name">Physical hardware</span><span class="cc-ns">VLAN 1 · 20</span></div>
+        <span class="cc-desc">Every device in the homelab: UDR7, Flex switch, UNAS Pro, Beelink Proxmox VMs, k3s server, and AREDN node.</span>
+        <span class="cc-go">Read docs <span class="arrow">→</span></span>
+      </a>
+      <a class="comp-card" href="/networking/vlans.html">
+        <div class="cc-top"><span class="cc-name">VLAN segmentation</span><span class="cc-ns">172.20.Y.Z</span></div>
+        <span class="cc-desc">10 VLANs with defined trust levels. Full subnet table, isolation policies, and device IP reference.</span>
+        <span class="cc-go">Read docs <span class="arrow">→</span></span>
+      </a>
+      <a class="comp-card" href="/networking/dns.html">
+        <div class="cc-top"><span class="cc-name">DNS &amp; AdGuard</span><span class="cc-ns">resolver</span></div>
+        <span class="cc-desc">AdGuard Home handles DNS for all VLANs. Internal rewrites resolve cluster hostnames without leaving the LAN.</span>
+        <span class="cc-go">Read docs <span class="arrow">→</span></span>
+      </a>
+      <a class="comp-card" href="/networking/nas.html">
+        <div class="cc-top"><span class="cc-name">NAS &amp; storage</span><span class="cc-ns">172.20.20.2</span></div>
+        <span class="cc-desc">UNAS Pro NFS exports for k3s mounts and Longhorn backups. Mount options, paths, and backup target config.</span>
+        <span class="cc-go">Read docs <span class="arrow">→</span></span>
+      </a>
+      <a class="comp-card" href="/networking/firewall.html">
+        <div class="cc-top"><span class="cc-name">Firewall rules</span><span class="cc-ns">UDR7 zones</span></div>
+        <span class="cc-desc">Zone-based firewall model on the UDR7. Seven zones, deny-by-default inter-zone policy, key rules documented.</span>
+        <span class="cc-go">Read docs <span class="arrow">→</span></span>
+      </a>
+      <a class="comp-card" href="/networking/backups.html">
+        <div class="cc-top"><span class="cc-name">Backups</span><span class="cc-ns">3 layers</span></div>
+        <span class="cc-desc">Longhorn PVC snapshots to NAS, PostgreSQL SQL dumps, and NAS-level storage protection. RTO/RPO per scenario.</span>
+        <span class="cc-go">Read docs <span class="arrow">→</span></span>
+      </a>
+    </div>
+
+    <nav class="doc-nav">
+      <a class="next" href="/networking/hardware.html">
+        <span class="dir">next →</span>
+        <span class="ttl">Physical hardware</span>
+      </a>
+    </nav>
+
+    <div class="doc-foot">
+      <span>last updated 2026-06-08</span>
+    </div>
+  </article>
+</main>
+
+<aside class="toc">
+  <div class="toc-title">On this page</div>
+  <ul>
+    <li><a href="#facts">Key facts</a></li>
+    <li><a href="#topology">Physical topology</a></li>
+    <li><a href="#sections">Documentation sections</a></li>
+  </ul>
+  <div class="toc-meta">
+    <div class="row"><span>router</span><span>UDR7</span></div>
+    <div class="row"><span>VLANs</span><span>10</span></div>
+    <div class="row"><span>NAS</span><span>172.20.20.2</span></div>
+    <div class="row"><span>reading</span><span>~3 min</span></div>
+  </div>
+</aside>
