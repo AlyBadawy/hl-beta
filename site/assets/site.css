@@ -443,12 +443,7 @@ pre code { font-family: inherit; }
   border-right: 1px solid var(--line);
   padding: 22px 16px 60px;
 }
-.side-search {
-  display: flex; align-items: center; gap: 9px; width: 100%;
-  background: var(--inset); border: 1px solid var(--line); border-radius: 8px;
-  padding: 9px 12px; margin-bottom: 22px; color: var(--fg-faint);
-  font-family: var(--mono); font-size: 13px; cursor: text;
-}
+.side-search { display: none; }
 .side-search .kbd { margin-left: auto; }
 .nav-group { margin-bottom: 8px; }
 .nav-grouphead {
@@ -628,4 +623,8 @@ pre code { font-family: inherit; }
   .doc-main { padding: 30px 22px 80px; }
   .aoa-children { grid-template-columns: repeat(2, 1fr); }
   .topnav { display: none; }
+}
+@media (min-width: 1081px) {
+  .sidebar { display: none; }
+  .docs .sidebar { display: block; }
 }
