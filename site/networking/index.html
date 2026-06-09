@@ -1,7 +1,7 @@
 ---
 layout: docs
 title: "Networking & Infra"
-description: "The physical and logical network underpinning the homelab. UDR7 router, 10 VLANs, UNAS Pro, Beelink hypervisor, and an AREDN mesh node."
+description: "The physical and logical network underpinning the homelab. UDR7 router, 10 VLANs, UNAS 4, GMKtec NucBox M8 k3s server, and an AREDN mesh node."
 section: networking
 ---
 
@@ -21,12 +21,12 @@ section: networking
         <h1>Networking &amp; Infra</h1>
       </div>
     </div>
-    <p class="tagline">The physical and logical foundation the cluster sits on. A UniFi stack handles routing, switching, and VLAN segmentation. A UNAS Pro provides NFS storage. A Beelink runs utility VMs on Proxmox. An AREDN node connects to the amateur radio mesh.</p>
+    <p class="tagline">The physical and logical foundation the cluster sits on. A UniFi stack handles routing, switching, and VLAN segmentation. A UNAS 4 provides NFS storage. A GMKtec NucBox M8 runs the k3s cluster. An AREDN node connects to the amateur radio mesh.</p>
     <div class="doc-pills">
       <span class="pill">UDR7 router</span>
       <span class="pill">10 VLANs</span>
       <span class="pill">172.20.Y.Z</span>
-      <span class="pill">UNAS Pro</span>
+      <span class="pill">UNAS 4</span>
     </div>
   </header>
 
@@ -38,24 +38,30 @@ section: networking
       <thead><tr><th>Property</th><th>Value</th></tr></thead>
       <tbody>
         <tr><td class="k">Router / firewall</td><td>UniFi Dream Router 7 (UDR7) at <span class="mono">172.20.1.1</span> — gateway for all VLANs, zone-based firewall</td></tr>
-        <tr><td class="k">Switch</td><td>UniFi Flex 2.5G — managed, trunks all VLANs between UDR7 and servers</td></tr>
+        <tr><td class="k">Switches</td><td>UniFi Flex 2.5G (8-port + 2 trunk) · UniFi Flex Mini 2.5G (5-port) — both connected directly to UDR7</td></tr>
         <tr><td class="k">IP scheme</td><td><span class="mono">172.20.Y.Z</span> — site <code>20</code>, Y = VLAN ID, Z = host. Every IP is self-documenting.</td></tr>
         <tr><td class="k">VLANs</td><td>10 — Management, Personal, Servers, VPN, AREDN-WAN, AREDN-DtD, AREDN-Node1, IoT, Guest, Work</td></tr>
-        <tr><td class="k">NAS</td><td>UNAS Pro at <span class="mono">172.20.20.2</span> — NFS exports for k3s mounts and Longhorn backup target</td></tr>
-        <tr><td class="k">Hypervisor</td><td>Beelink at <span class="mono">172.20.20.10</span> — Proxmox, 3 VMs: Utils (.20), State (.30), Apps (.40)</td></tr>
+        <tr><td class="k">NAS</td><td>UniFi UNAS 4 at <span class="mono">172.20.20.2</span> — NFS exports for k3s mounts and Longhorn backup target</td></tr>
+        <tr><td class="k">k3s server</td><td>GMKtec NucBox M8 at <span class="mono">172.20.20.3</span> — Ubuntu 26.04 bare-metal, AMD Ryzen 5 PRO 6650H, 16 GB RAM</td></tr>
+        <tr><td class="k">Lab server</td><td>Beelink at <span class="mono">172.20.20.10</span> — Proxmox hypervisor for private lab and test VMs (range .11–.19)</td></tr>
         <tr><td class="k">DNS</td><td>UniFi (UDR7) built-in — DHCP and DNS for all VLANs, rewrites <span class="mono">*.in.alybadawy.com</span> to the k3s server</td></tr>
         <tr><td class="k">Mesh radio</td><td>AREDN node — WAN at <span class="mono">172.20.40.2</span>, LAN at <span class="mono">10.6.229.9</span></td></tr>
       </tbody>
     </table>
 
     <h2 id="topology"><span class="hn">02</span> Physical topology</h2>
-    <p>All servers sit on VLAN 20 (Servers). The UDR7 trunks every VLAN down to the Flex switch, which connects all devices. Wireless clients land on Personal, IoT, or Guest VLANs depending on which SSID they join.</p>
+    <p>All servers sit on VLAN 20 (Servers). The UDR7 connects to two switches — a Flex 2.5G and a Flex Mini 2.5G — which together connect all devices. Wireless clients land on Personal, IoT, or Guest VLANs depending on which SSID they join.</p>
+
+    <div class="callout info">
+      <span class="ic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 8h.01M11 12h1v4h1"/></svg></span>
+      <div><b>LAN-only access.</b> The homelab network is not exposed to the internet. All services are accessible only from trusted networks — Personal (VLAN 10) or VPN (VLAN 30). The UDR7 firewall blocks all inbound traffic from WAN by default.</div>
+    </div>
 
     <div class="arch" style="margin: 24px 0;">
       <div class="arch-inner" style="padding: 20px;">
         <div style="display:flex; flex-direction:column; gap:12px; font-size:13px;">
 
-          <!-- Internet row -->
+          <!-- Internet → UDR7 row -->
           <div style="display:flex; align-items:center; gap:12px;">
             <div style="background:var(--bg-2); border:1px solid var(--line); border-radius:8px; padding:10px 16px; min-width:140px; text-align:center;">
               <div style="font-size:11px; color:var(--fg-dim); font-family:var(--mono); text-transform:uppercase; letter-spacing:.06em; margin-bottom:4px;">internet</div>
@@ -63,13 +69,21 @@ section: networking
             </div>
             <div style="color:var(--fg-dim);">↓</div>
             <div style="background:var(--surface); border:1px solid var(--accent-line); border-radius:8px; padding:10px 16px; min-width:180px; text-align:center;">
-              <div style="font-size:11px; color:var(--accent); font-family:var(--mono); text-transform:uppercase; letter-spacing:.06em; margin-bottom:4px;">router · firewall</div>
+              <div style="font-size:11px; color:var(--accent); font-family:var(--mono); text-transform:uppercase; letter-spacing:.06em; margin-bottom:4px;">router · firewall · dns</div>
               <div style="color:var(--fg); font-weight:600;">UDR7 <span style="font-family:var(--mono); font-size:11px; color:var(--fg-dim);">172.20.1.1</span></div>
             </div>
-            <div style="color:var(--fg-dim);">↓</div>
-            <div style="background:var(--bg-2); border:1px solid var(--line); border-radius:8px; padding:10px 16px; min-width:160px; text-align:center;">
-              <div style="font-size:11px; color:var(--fg-dim); font-family:var(--mono); text-transform:uppercase; letter-spacing:.06em; margin-bottom:4px;">switch</div>
-              <div style="color:var(--fg); font-weight:600;">Flex 2.5G <span style="font-family:var(--mono); font-size:11px; color:var(--fg-dim);">VLAN trunk</span></div>
+          </div>
+
+          <!-- Two switches row -->
+          <div style="font-family:var(--mono); font-size:11px; color:var(--fg-dim); text-transform:uppercase; letter-spacing:.08em; padding-left:2px;">↓ two switches, both connected directly to UDR7</div>
+          <div style="display:flex; gap:12px; flex-wrap:wrap;">
+            <div style="background:var(--bg-2); border:1px solid var(--line); border-radius:8px; padding:10px 16px; text-align:center; flex:1; min-width:160px;">
+              <div style="font-size:11px; color:var(--fg-dim); font-family:var(--mono); text-transform:uppercase; letter-spacing:.06em; margin-bottom:4px;">switch A</div>
+              <div style="color:var(--fg); font-weight:600;">Flex 2.5G <span style="font-family:var(--mono); font-size:11px; color:var(--fg-dim);">8p + 2 trunk</span></div>
+            </div>
+            <div style="background:var(--bg-2); border:1px solid var(--line); border-radius:8px; padding:10px 16px; text-align:center; flex:1; min-width:160px;">
+              <div style="font-size:11px; color:var(--fg-dim); font-family:var(--mono); text-transform:uppercase; letter-spacing:.06em; margin-bottom:4px;">switch B</div>
+              <div style="color:var(--fg); font-weight:600;">Flex Mini 2.5G <span style="font-family:var(--mono); font-size:11px; color:var(--fg-dim);">5p</span></div>
             </div>
           </div>
 
@@ -80,18 +94,18 @@ section: networking
           <div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap:10px;">
             <div style="background:var(--bg-2); border:1px solid var(--line); border-radius:8px; padding:10px 14px;">
               <div style="font-size:10px; color:var(--accent); font-family:var(--mono); margin-bottom:4px;">VLAN 20 · Servers</div>
-              <div style="font-weight:600; font-size:13px; color:var(--fg);">UNAS Pro</div>
+              <div style="font-weight:600; font-size:13px; color:var(--fg);">UNAS 4</div>
               <div style="font-family:var(--mono); font-size:11px; color:var(--fg-dim);">172.20.20.2</div>
+            </div>
+            <div style="background:var(--surface); border:1px solid var(--accent-line); border-radius:8px; padding:10px 14px;">
+              <div style="font-size:10px; color:var(--accent); font-family:var(--mono); margin-bottom:4px;">VLAN 20 · Servers</div>
+              <div style="font-weight:600; font-size:13px; color:var(--fg);">GMKtec NucBox M8</div>
+              <div style="font-family:var(--mono); font-size:11px; color:var(--fg-dim);">172.20.20.3 · k3s</div>
             </div>
             <div style="background:var(--bg-2); border:1px solid var(--line); border-radius:8px; padding:10px 14px;">
               <div style="font-size:10px; color:var(--accent); font-family:var(--mono); margin-bottom:4px;">VLAN 20 · Servers</div>
               <div style="font-weight:600; font-size:13px; color:var(--fg);">Beelink</div>
-              <div style="font-family:var(--mono); font-size:11px; color:var(--fg-dim);">172.20.20.10</div>
-            </div>
-            <div style="background:var(--surface); border:1px solid var(--accent-line); border-radius:8px; padding:10px 14px;">
-              <div style="font-size:10px; color:var(--accent); font-family:var(--mono); margin-bottom:4px;">VLAN 20 · Servers</div>
-              <div style="font-weight:600; font-size:13px; color:var(--fg);">k3s cluster</div>
-              <div style="font-family:var(--mono); font-size:11px; color:var(--fg-dim);">Ubuntu 26.04</div>
+              <div style="font-family:var(--mono); font-size:11px; color:var(--fg-dim);">172.20.20.10 · Proxmox</div>
             </div>
             <div style="background:var(--bg-2); border:1px solid var(--line); border-radius:8px; padding:10px 14px;">
               <div style="font-size:10px; color:var(--fg-dim); font-family:var(--mono); margin-bottom:4px;">VLAN 10 · Personal</div>
@@ -119,7 +133,7 @@ section: networking
     <div class="comp-grid">
       <a class="comp-card" href="/networking/hardware.html">
         <div class="cc-top"><span class="cc-name">Physical hardware</span><span class="cc-ns">VLAN 1 · 20</span></div>
-        <span class="cc-desc">Every device in the homelab: UDR7, Flex switch, UNAS Pro, Beelink Proxmox VMs, k3s server, and AREDN node.</span>
+        <span class="cc-desc">Every device in the homelab: UDR7, two Flex switches, UNAS 4 NAS, GMKtec NucBox M8 k3s server, Beelink lab server, and AREDN node.</span>
         <span class="cc-go">Read docs <span class="arrow">→</span></span>
       </a>
       <a class="comp-card" href="/networking/vlans.html">
@@ -134,7 +148,7 @@ section: networking
       </a>
       <a class="comp-card" href="/networking/nas.html">
         <div class="cc-top"><span class="cc-name">NAS &amp; storage</span><span class="cc-ns">172.20.20.2</span></div>
-        <span class="cc-desc">UNAS Pro NFS exports for k3s mounts and Longhorn backups. Mount options, paths, and backup target config.</span>
+        <span class="cc-desc">UNAS 4 NFS exports for k3s mounts and Longhorn backups. Mount options, paths, and backup target config.</span>
         <span class="cc-go">Read docs <span class="arrow">→</span></span>
       </a>
       <a class="comp-card" href="/networking/firewall.html">

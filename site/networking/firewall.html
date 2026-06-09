@@ -155,22 +155,25 @@ section: networking
     </table>
 
     <h2 id="k3s-port"><span class="hn">03</span> k3s-specific rules</h2>
-    <p>The k3s API server runs on port <code>6443</code>. kubectl access from the Personal VLAN requires this port to be open from <code>172.20.10.0/24</code> → k3s server IP.</p>
+    <p>The k3s API server runs on port <code>6443</code>. kubectl access from the Personal VLAN requires this port to be open from <code>172.20.10.0/24</code> → k3s server IP. UFW on the node itself opens these ports as a second layer after the UDR7 perimeter.</p>
 
     <div class="code">
       <div class="code-head">
         <span class="dots"><i></i><i></i><i></i></span>
-        <span class="fname">ports required for k3s</span>
+        <span class="fname">UFW open ports on the k3s node (172.20.20.3)</span>
         <button class="copy-btn">copy</button>
         <span class="lang">text</span>
       </div>
-<pre><code>6443/TCP   — Kubernetes API server (kubectl, ArgoCD webhook)
-<!-- TODO: any other ports needed? flannel/CNI, NodePort services? --></code></pre>
+<pre><code>  22/TCP   — SSH (remote access to the cluster node)
+  80/TCP   — HTTP (web traffic — redirected to HTTPS by ingress-nginx)
+ 443/TCP   — HTTPS (ingress-nginx — all cluster services)
+5432/TCP   — PostgreSQL (connections from services on VLAN 20)
+6443/TCP   — Kubernetes API server (kubectl, ArgoCD webhooks)</code></pre>
     </div>
 
     <div class="callout warn">
       <span class="ic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l9 16H3z"/><path d="M12 9v5M12 17h.01"/></svg></span>
-      <div><b>UFW is also enabled on the k3s node.</b> The UDR7 firewall is the perimeter; UFW is a second layer on the server itself. Port 6443 must be open in both. If kubectl gives a connection timeout, check both the UDR7 rules and <code>sudo ufw status</code> on the server.</div>
+      <div><b>UFW is a second layer, not the only layer.</b> The UDR7 firewall is the perimeter. UFW on the node enforces the same rules locally. All five ports must be open in both places. If any service times out, run <code>sudo ufw status verbose</code> on the server and check the corresponding UDR7 zone rule.</div>
     </div>
 
     <nav class="doc-nav">

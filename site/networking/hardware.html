@@ -22,7 +22,7 @@ section: networking
         <h1>Physical hardware</h1>
       </div>
     </div>
-    <p class="tagline">Every physical device in the rack. One router, one switch, one NAS, one hypervisor, one k3s server, one AREDN mesh node. All in the Servers VLAN (172.20.20.0/24) except network gear.</p>
+    <p class="tagline">Every physical device in the homelab. One router, two managed switches, one NAS, one k3s server, one Proxmox lab machine, one AREDN mesh node. Servers and storage all on VLAN 20 (172.20.20.0/24).</p>
     <div class="doc-pills">
       <span class="pill">VLAN 20 · Servers</span>
       <span class="pill">UniFi stack</span>
@@ -45,7 +45,13 @@ section: networking
         </tr>
         <tr>
           <td class="k">UniFi Flex 2.5G</td>
-          <td>Managed switch. Trunks VLANs between the UDR7 and servers.</td>
+          <td>Managed switch (8-port + 2 SFP+ trunk). Connected directly to UDR7. Trunks all VLANs to servers.</td>
+          <td><span class="mono">172.20.1.x</span></td>
+          <td>Management (1)</td>
+        </tr>
+        <tr>
+          <td class="k">UniFi Flex Mini 2.5G</td>
+          <td>Managed switch (5-port). Connected directly to UDR7. Additional VLAN trunk for overflow devices.</td>
           <td><span class="mono">172.20.1.x</span></td>
           <td>Management (1)</td>
         </tr>
@@ -64,47 +70,36 @@ section: networking
       <thead><tr><th>Device</th><th>Role</th><th>IP</th><th>Notes</th></tr></thead>
       <tbody>
         <tr>
-          <td class="k">UNAS Pro (NAS)</td>
+          <td class="k">UniFi UNAS 4 (NAS)</td>
           <td>NFS storage for k3s mounts and Longhorn backups. UniFi NAS appliance.</td>
           <td><span class="mono">172.20.20.2</span></td>
           <td>Static reserved. NFS exports at <code>/var/nfs/shared</code>.</td>
         </tr>
         <tr>
-          <td class="k">Beelink <!-- TODO: model --></td>
-          <td>Proxmox hypervisor. Hosts three VMs: Utils, State, Apps.</td>
-          <td><span class="mono">172.20.20.10</span></td>
-          <td>Single LAN port; Linux bridge lets all three VMs share one cable on VLAN 20.</td>
+          <td class="k">GMKtec NucBox M8</td>
+          <td>k3s cluster node (Ubuntu 26.04 bare-metal). Runs all Kubernetes workloads.</td>
+          <td><span class="mono">172.20.20.3</span></td>
+          <td>AMD Ryzen 5 PRO 6650H · 16 GB LPDDR5 · 512 GB SSD · Dual 2.5GbE (Wi-Fi + BT disabled in BIOS). See <a href="/guides/rebuild.html">rebuild guide</a>.</td>
         </tr>
         <tr>
-          <td class="k"><!-- TODO: k3s server model --></td>
-          <td>k3s cluster node (Ubuntu 26.04). Runs all Kubernetes workloads.</td>
-          <td><span class="mono"><!-- TODO: static IP --></span></td>
-          <td>16+ GB RAM recommended. Longhorn requires open-iSCSI. See <a href="/guides/rebuild.html">rebuild guide</a>.</td>
+          <td class="k">Beelink (Proxmox)</td>
+          <td>Lab hypervisor. Runs private test and development VMs. Not part of the k3s cluster.</td>
+          <td><span class="mono">172.20.20.10</span></td>
+          <td>VMs reserved in the <span class="mono">172.20.20.11–.19</span> range on VLAN 20.</td>
         </tr>
       </tbody>
     </table>
 
-    <h2 id="vms"><span class="hn">03</span> Beelink VMs (Proxmox)</h2>
-    <p>The Beelink runs Proxmox and hosts three VMs, all on VLAN 20 via the Linux bridge.</p>
+    <h2 id="beelink"><span class="hn">03</span> Beelink — lab server</h2>
+    <p>The Beelink runs Proxmox and is used for private lab and test work independent of the k3s cluster. It sits on VLAN 20 and VMs are bridged onto the same network. VM IPs are reserved in the <code>172.20.20.11–172.20.20.19</code> range.</p>
+    <p>The specific services running on this machine are private and not documented here.</p>
 
     <table class="spec-table">
-      <thead><tr><th>VM</th><th>IP</th><th>Purpose</th></tr></thead>
+      <thead><tr><th>Property</th><th>Value</th></tr></thead>
       <tbody>
-        <tr>
-          <td class="k">Utils VM</td>
-          <td><span class="mono">172.20.20.20</span></td>
-          <td>SSL termination, DDNS updates, cron jobs.</td>
-        </tr>
-        <tr>
-          <td class="k">State VM</td>
-          <td><span class="mono">172.20.20.30</span></td>
-          <td>Databases, Authentik (legacy — migrated to k3s cluster).</td>
-        </tr>
-        <tr>
-          <td class="k">Apps VM</td>
-          <td><span class="mono">172.20.20.40</span></td>
-          <td>Docker services.</td>
-        </tr>
+        <tr><td class="k">Hypervisor IP</td><td><span class="mono">172.20.20.10</span></td></tr>
+        <tr><td class="k">VM IP range</td><td><span class="mono">172.20.20.11 – 172.20.20.19</span> (reserved)</td></tr>
+        <tr><td class="k">VLAN</td><td>Servers (20) — all VMs on the same Linux bridge</td></tr>
       </tbody>
     </table>
 
@@ -137,7 +132,7 @@ section: networking
 
     <div class="callout info">
       <span class="ic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 8h.01M11 12h1v4h1"/></svg></span>
-      <div><b>AREDN port wiring.</b> The AREDN node's WAN and LAN interfaces connect on separate switch ports (P7 and P8), each tagged to a different VLAN. This keeps mesh traffic isolated from the node's own LAN clients.</div>
+      <div><b>AREDN port wiring.</b> The AREDN node's WAN and LAN interfaces connect on separate switch ports, each tagged to a different VLAN. This keeps mesh traffic isolated from the node's own LAN clients. The <code>local.mesh</code> domain and address ranges are managed by the AREDN firmware — see <a href="https://www.arednmesh.org" target="_blank" rel="noopener">arednmesh.org</a> for details on the mesh IP schema.</div>
     </div>
 
     <nav class="doc-nav">
@@ -158,12 +153,12 @@ section: networking
   <ul>
     <li><a href="#network-gear">Network gear</a></li>
     <li><a href="#servers">Servers</a></li>
-    <li><a href="#vms">Beelink VMs</a></li>
+    <li><a href="#beelink">Beelink lab server</a></li>
     <li><a href="#aredn">AREDN mesh node</a></li>
   </ul>
   <div class="toc-meta">
     <div class="row"><span>router</span><span>UDR7</span></div>
-    <div class="row"><span>NAS</span><span>UNAS Pro</span></div>
+    <div class="row"><span>NAS</span><span>UNAS 4</span></div>
     <div class="row"><span>hypervisor</span><span>Proxmox</span></div>
     <div class="row"><span>reading</span><span>~3 min</span></div>
   </div>

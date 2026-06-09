@@ -189,43 +189,31 @@ section: networking
           <td class="k">UniFi Flex 2.5G</td>
           <td class="apps">Management (1)</td>
           <td class="apps">172.20.1.x</td>
-          <td>Managed via UDR7</td>
+          <td>8-port + 2 trunk. Managed via UDR7.</td>
         </tr>
         <tr>
-          <td class="k">UNAS Pro (NAS)</td>
+          <td class="k">UniFi Flex Mini 2.5G</td>
+          <td class="apps">Management (1)</td>
+          <td class="apps">172.20.1.x</td>
+          <td>5-port. Managed via UDR7.</td>
+        </tr>
+        <tr>
+          <td class="k">UniFi UNAS 4 (NAS)</td>
           <td class="apps">Servers (20)</td>
           <td class="apps">172.20.20.2</td>
           <td>Static reserved</td>
         </tr>
         <tr>
-          <td class="k">Beelink — Proxmox host</td>
+          <td class="k">GMKtec NucBox M8 (k3s)</td>
+          <td class="apps">Servers (20)</td>
+          <td class="apps">172.20.20.3</td>
+          <td>Ubuntu 26.04 bare-metal. Kubernetes cluster node. See <a href="/guides/rebuild.html">rebuild guide</a>.</td>
+        </tr>
+        <tr>
+          <td class="k">Beelink (Proxmox)</td>
           <td class="apps">Servers (20)</td>
           <td class="apps">172.20.20.10</td>
-          <td>Hypervisor</td>
-        </tr>
-        <tr>
-          <td class="k">Beelink — Utils VM</td>
-          <td class="apps">Servers (20)</td>
-          <td class="apps">172.20.20.20</td>
-          <td>SSL, DDNS, cron jobs</td>
-        </tr>
-        <tr>
-          <td class="k">Beelink — State VM</td>
-          <td class="apps">Servers (20)</td>
-          <td class="apps">172.20.20.30</td>
-          <td>Databases, Authentik</td>
-        </tr>
-        <tr>
-          <td class="k">Beelink — Apps VM</td>
-          <td class="apps">Servers (20)</td>
-          <td class="apps">172.20.20.40</td>
-          <td>Docker services</td>
-        </tr>
-        <tr>
-          <td class="k">k3s server (Ubuntu 26.04)</td>
-          <td class="apps">Servers (20)</td>
-          <td class="apps"><!-- TODO: static IP --></td>
-          <td>Kubernetes cluster node. See <a href="/guides/rebuild.html">rebuild guide</a>.</td>
+          <td>Lab hypervisor. VMs reserved at .11–.19.</td>
         </tr>
         <tr>
           <td class="k">AREDN node WAN</td>
@@ -237,7 +225,7 @@ section: networking
           <td class="k">AREDN node LAN</td>
           <td class="apps">AREDN-Node1 (42)</td>
           <td class="apps">10.6.229.9</td>
-          <td>Node's LAN interface (mesh-assigned)</td>
+          <td>Node's LAN interface (mesh-assigned by AREDN firmware — see <a href="https://www.arednmesh.org" target="_blank" rel="noopener">arednmesh.org</a>)</td>
         </tr>
         <tr>
           <td class="k">UDR7 on AREDN LAN</td>
