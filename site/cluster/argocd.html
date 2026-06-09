@@ -160,71 +160,69 @@ section: cluster
     <div class="aoa">
       <div class="aoa-wrap">
         <div class="aoa-root">
-          <span class="dot ok"></span> root · app-of-apps · k8s/apps/ <span class="tag">self-managed</span>
+          <span class="dot ok"></span> root · app-of-apps · k8s/apps/
+          <span class="tag">self-managed</span>
         </div>
         <div class="aoa-stem"></div>
       </div>
       <div class="aoa-children">
         <div class="aoa-child">
-          <span class="cn">argocd <span class="tag">self-managed</span></span
-          ><span class="cs"><span class="dot ok"></span>Synced</span>
+          <span class="cn">argocd</span>
+          <span class="cs"><span class="dot ok"></span>Synced</span>
         </div>
         <div class="aoa-child">
-          <span class="cn">longhorn <span class="tag">self-managed</span></span
-          ><span class="cs"><span class="dot ok"></span>Synced</span>
+          <span class="cn">longhorn</span>
+          <span class="cs"><span class="dot ok"></span>Synced</span>
         </div>
         <div class="aoa-child">
-          <span class="cn">vault</span
-          ><span class="cs"><span class="dot ok"></span>Synced</span>
+          <span class="cn">vault</span>
+          <span class="cs"><span class="dot ok"></span>Synced</span>
         </div>
         <div class="aoa-child">
-          <span class="cn">ingress-nginx</span
-          ><span class="cs"><span class="dot ok"></span>Synced</span>
+          <span class="cn">ingress-nginx</span>
+          <span class="cs"><span class="dot ok"></span>Synced</span>
         </div>
         <div class="aoa-child">
-          <span class="cn">cert-manager</span
-          ><span class="cs"><span class="dot ok"></span>Synced</span>
+          <span class="cn">cert-manager</span>
+          <span class="cs"><span class="dot ok"></span>Synced</span>
         </div>
         <div class="aoa-child">
-          <span class="cn">external-secrets</span
-          ><span class="cs"><span class="dot ok"></span>Synced</span>
+          <span class="cn">external-secrets</span>
+          <span class="cs"><span class="dot ok"></span>Synced</span>
         </div>
         <div class="aoa-child">
-          <span class="cn">monitor</span
-          ><span class="cs"><span class="dot ok"></span>Synced</span>
+          <span class="cn">monitor</span>
+          <span class="cs"><span class="dot ok"></span>Synced</span>
         </div>
         <div class="aoa-child">
-          <span class="cn">auth</span
-          ><span class="cs"><span class="dot ok"></span>Synced</span>
+          <span class="cn">auth</span>
+          <span class="cs"><span class="dot ok"></span>Synced</span>
         </div>
         <div class="aoa-child">
-          <span class="cn">db</span
-          ><span class="cs"><span class="dot ok"></span>Synced</span>
+          <span class="cn">db</span>
+          <span class="cs"><span class="dot ok"></span>Synced</span>
         </div>
         <div class="aoa-child">
-          <span class="cn">cloud</span
-          ><span class="cs"><span class="dot ok"></span>Synced</span>
+          <span class="cn">cloud</span>
+          <span class="cs"><span class="dot ok"></span>Synced</span>
         </div>
         <div class="aoa-child">
-          <span class="cn">immich</span
-          ><span class="cs"><span class="dot ok"></span>Synced</span>
+          <span class="cn">immich</span>
+          <span class="cs"><span class="dot ok"></span>Synced</span>
         </div>
         <div class="aoa-child">
-          <span class="cn">whoami</span
-          ><span class="cs"><span class="dot ok"></span>Synced</span>
-        </div>
-        <div class="aoa-child">
-          <span class="cn">aly</span
-          ><span class="cs"><span class="dot ok"></span>Synced</span>
+          <span class="cn">whoami</span>
+          <span class="cs"><span class="dot ok"></span>Synced</span>
         </div>
       </div>
     </div>
 
     <p>
-      The three <span class="tag">self-managed</span> entries — root, argocd, and longhorn — are installed
-      imperatively during bootstrap and then adopted by their own Application manifests in
-      <code>k8s/apps/</code> with zero diff on first sync. Root watches the same directory
-      it lives in, making the whole tree self-sustaining after a single
+      The three <span class="tag">self-managed</span> entries — root, argocd,
+      and longhorn — are installed imperatively during bootstrap and then
+      adopted by their own Application manifests in <code>k8s/apps/</code> with
+      zero diff on first sync. Root watches the same directory it lives in,
+      making the whole tree self-sustaining after a single
       <code>kubectl apply</code>.
     </p>
 

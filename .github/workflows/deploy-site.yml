@@ -1,0 +1,38 @@
+name: Deploy site to Cloudflare Pages
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'site/**'
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      deployments: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.3'
+          bundler-cache: true
+          working-directory: site
+
+      - name: Build Jekyll site
+        run: bundle exec jekyll build
+        working-directory: site
+
+      - name: Deploy to Cloudflare Pages
+        uses: cloudflare/pages-action@v1
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          projectName: homelab-alybadawy-com
+          directory: site/_site
+          gitHubToken: ${{ secrets.GITHUB_TOKEN }}
