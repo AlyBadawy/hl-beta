@@ -43,7 +43,7 @@ section: networking
         <tr><td class="k">VLANs</td><td>10 — Management, Personal, Servers, VPN, AREDN-WAN, AREDN-DtD, AREDN-Node1, IoT, Guest, Work</td></tr>
         <tr><td class="k">NAS</td><td>UNAS Pro at <span class="mono">172.20.20.2</span> — NFS exports for k3s mounts and Longhorn backup target</td></tr>
         <tr><td class="k">Hypervisor</td><td>Beelink at <span class="mono">172.20.20.10</span> — Proxmox, 3 VMs: Utils (.20), State (.30), Apps (.40)</td></tr>
-        <tr><td class="k">DNS</td><td>AdGuard Home — resolves <span class="mono">*.in.alybadawy.com</span> to the k3s server; ad-blocking for all VLANs</td></tr>
+        <tr><td class="k">DNS</td><td>UniFi (UDR7) built-in — DHCP and DNS for all VLANs, rewrites <span class="mono">*.in.alybadawy.com</span> to the k3s server</td></tr>
         <tr><td class="k">Mesh radio</td><td>AREDN node — WAN at <span class="mono">172.20.40.2</span>, LAN at <span class="mono">10.6.229.9</span></td></tr>
       </tbody>
     </table>
@@ -128,8 +128,8 @@ section: networking
         <span class="cc-go">Read docs <span class="arrow">→</span></span>
       </a>
       <a class="comp-card" href="/networking/dns.html">
-        <div class="cc-top"><span class="cc-name">DNS &amp; AdGuard</span><span class="cc-ns">resolver</span></div>
-        <span class="cc-desc">AdGuard Home handles DNS for all VLANs. Internal rewrites resolve cluster hostnames without leaving the LAN.</span>
+        <div class="cc-top"><span class="cc-name">DNS (UniFi)</span><span class="cc-ns">UDR7 built-in</span></div>
+        <span class="cc-desc">UDR7 handles DNS and DHCP for all VLANs. Internal rewrites resolve cluster hostnames without leaving the LAN.</span>
         <span class="cc-go">Read docs <span class="arrow">→</span></span>
       </a>
       <a class="comp-card" href="/networking/nas.html">

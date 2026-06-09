@@ -62,10 +62,10 @@ description: "Field notes and reference docs for a home Kubernetes cluster — h
           <!-- edge column -->
           <div class="edge-col">
             <div class="panel edge">
-              <div class="ph">Edge <span class="tag">vlan 10</span></div>
+              <div class="ph">Edge <span class="tag">vlan 20</span></div>
               <div class="node"><span class="dot ok"></span><span class="nm">Internet</span><span class="meta">WAN</span></div>
-              <div class="node"><span class="dot ok"></span><span class="nm">OPNsense</span><span class="meta">firewall</span></div>
-              <div class="node"><span class="dot ok"></span><span class="nm">AdGuard</span><span class="meta">dns</span></div>
+              <div class="node"><span class="dot ok"></span><span class="nm">UDR7</span><span class="meta">router · firewall</span></div>
+              <div class="node"><span class="dot ok"></span><span class="nm">internal DNS</span><span class="meta">dns · dhcp</span></div>
             </div>
             <div class="conn">│<br>▼</div>
             <div class="panel">
@@ -198,7 +198,7 @@ description: "Field notes and reference docs for a home Kubernetes cluster — h
   <!-- FOOTER -->
   <footer class="foot">
     <div class="foot-row">
-      <span>built with <a href="https://jekyllrb.com" target="_blank" rel="noopener">Jekyll</a> · hosted on <a href="https://pages.cloudflare.com" target="_blank" rel="noopener">Cloudflare Pages</a> · source on <a href="{{ site.repo_url }}" target="_blank" rel="noopener">GitHub</a></span>
+      <span>Developed by <a href="https://alybadawy.com" target="_blank" rel="noopener">Aly Badawy</a></span>
       <span class="deploy"><span class="dot ok live"></span> GitOps-managed · <a href="{{ site.repo_url }}" style="color:var(--fg-faint)">AlyBadawy/hl-beta</a></span>
     </div>
   </footer>

@@ -1,7 +1,7 @@
 ---
 layout: docs
-title: "DNS & AdGuard"
-description: "AdGuard Home handles DNS for the homelab. Internal hostnames, ad-blocking, and DNS-over-HTTPS — all in one place."
+title: "DNS (UniFi)"
+description: "The UDR7's built-in DNS and DHCP server handles all VLANs. Internal rewrites resolve cluster hostnames to the k3s server without leaving the LAN."
 section: networking
 ---
 
@@ -19,45 +19,45 @@ section: networking
       </div>
       <div>
         <span class="eyebrow">// networking · dns</span>
-        <h1>DNS &amp; AdGuard</h1>
+        <h1>DNS (UniFi)</h1>
       </div>
     </div>
-    <p class="tagline">AdGuard Home acts as the recursive resolver for all homelab VLANs. It handles ad-blocking, DNS rewrites for internal services, and upstream forwarding to public resolvers.</p>
+    <p class="tagline">The UniFi Dream Router 7 provides DNS and DHCP for every VLAN. DNS rewrites for <code>*.in.alybadawy.com</code> resolve directly to the k3s server — no traffic leaves the LAN for internal services.</p>
     <div class="doc-pills">
-      <span class="pill">AdGuard Home</span>
-      <span class="pill"><!-- TODO: AdGuard IP --></span>
+      <span class="pill">UDR7 built-in</span>
+      <span class="pill">172.20.1.1</span>
       <span class="pill">DNS rewrites</span>
+      <span class="pill">per-VLAN DHCP</span>
     </div>
   </header>
 
   <article class="doc-article">
 
     <h2 id="overview"><span class="hn">01</span> Overview</h2>
-    <p>All VLANs on the UDR7 point to AdGuard Home as their DNS server. This gives a single control plane for:</p>
+    <p>DNS and DHCP are both handled by the UDR7's built-in resolver. Each VLAN gets its own DHCP scope and is assigned the UDR7 as its DNS server. This gives a single control plane for all network segments:</p>
     <ul>
-      <li><strong>Ad &amp; tracker blocking</strong> — filters applied to all VLANs equally.</li>
       <li><strong>DNS rewrites</strong> — internal hostnames (e.g. <code>argo.in.alybadawy.com</code>) resolve to the k3s server IP without leaving the LAN.</li>
-      <li><strong>Upstream forwarding</strong> — all other queries forwarded upstream over <!-- TODO: DoH or plain DNS? -->.</li>
+      <li><strong>Per-VLAN DHCP scopes</strong> — each VLAN hands out addresses from its own <code>172.20.Y.0/24</code> range with the UDR7 gateway and DNS server.</li>
+      <li><strong>Upstream forwarding</strong> — queries not matched by a local rewrite are forwarded to public upstream resolvers.</li>
     </ul>
 
     <table class="spec-table">
       <thead><tr><th>Property</th><th>Value</th></tr></thead>
       <tbody>
-        <tr><td class="k">Host</td><td><!-- TODO: which server / VM runs AdGuard? --></td></tr>
-        <tr><td class="k">IP</td><td><span class="mono"><!-- TODO: AdGuard IP --></span></td></tr>
-        <tr><td class="k">Port</td><td><span class="mono"><!-- TODO: 53 or custom? --></span></td></tr>
-        <tr><td class="k">UI</td><td><!-- TODO: AdGuard UI URL --></td></tr>
-        <tr><td class="k">Upstream</td><td><!-- TODO: upstream DNS servers --></td></tr>
+        <tr><td class="k">Device</td><td>UniFi Dream Router 7 (UDR7)</td></tr>
+        <tr><td class="k">DNS IP (all VLANs)</td><td><span class="mono">172.20.1.1</span> — gateway is DNS server for every VLAN</td></tr>
+        <tr><td class="k">Management UI</td><td>UniFi Network application on UDR7 (<span class="mono">172.20.1.1</span>)</td></tr>
+        <tr><td class="k">Upstream resolvers</td><td><!-- TODO: upstream DNS servers configured in UniFi --></td></tr>
       </tbody>
     </table>
 
     <h2 id="rewrites"><span class="hn">02</span> DNS rewrites for cluster services</h2>
-    <p>All <code>*.in.alybadawy.com</code> hostnames resolve to the k3s server's IP address on the LAN. Traffic never leaves the network for internal services — it hits the ingress-nginx controller directly.</p>
+    <p>All <code>*.in.alybadawy.com</code> hostnames are rewritten in the UDR7 to the k3s server's IP address. Traffic never leaves the network for internal services — it hits the ingress-nginx controller directly on the LAN.</p>
 
     <div class="code">
       <div class="code-head">
         <span class="dots"><i></i><i></i><i></i></span>
-        <span class="fname">DNS rewrite rules (AdGuard Home format)</span>
+        <span class="fname">DNS rewrite rule</span>
         <button class="copy-btn">copy</button>
         <span class="lang">text</span>
       </div>
@@ -72,18 +72,26 @@ cloud.in.alybadawy.com     →  k3s server
 photos.in.alybadawy.com    →  k3s server</code></pre>
     </div>
 
+    <p>The rewrite is a wildcard entry in the UniFi DNS settings. All subdomains under <code>in.alybadawy.com</code> resolve to the same IP — the k3s node's address on VLAN 20. ingress-nginx on the cluster then routes each hostname to the correct service based on the <code>Ingress</code> rules.</p>
+
     <div class="callout info">
       <span class="ic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 8h.01M11 12h1v4h1"/></svg></span>
-      <div><b>Why Cloudflare CNAME records still exist.</b> The <code>in.alybadawy.com</code> subdomain has CNAME records in Cloudflare pointing to <code>alybadawy.com</code> (unproxied). These are needed so cert-manager's DNS-01 ACME challenge can create <code>_acme-challenge.in.alybadawy.com</code> TXT records that Cloudflare's DNS actually serves. Without them, Cloudflare's DNS wouldn't serve child TXT records. External DNS for <code>in.alybadawy.com</code> is intentionally a dead end — the services are LAN-only.</div>
+      <div><b>Why Cloudflare CNAME records still exist.</b> The <code>in.alybadawy.com</code> subdomain has CNAME records in Cloudflare pointing to <code>alybadawy.com</code> (unproxied). These are needed so cert-manager's DNS-01 ACME challenge can create <code>_acme-challenge.in.alybadawy.com</code> TXT records that Cloudflare's DNS actually serves. Without them, Cloudflare's DNS wouldn't serve child TXT records. External DNS for <code>in.alybadawy.com</code> intentionally resolves to nothing useful — the services are LAN-only.</div>
     </div>
 
-    <h2 id="blocklists"><span class="hn">03</span> Blocklists</h2>
-    <p>AdGuard Home applies blocklists to all VLANs. The IoT and Guest VLANs benefit most — devices on those networks cannot make DNS queries that bypass AdGuard (the UDR7 firewall intercepts and redirects port 53 traffic).</p>
+    <h2 id="dhcp"><span class="hn">03</span> Per-VLAN DHCP</h2>
+    <p>The UDR7 runs a DHCP scope for each VLAN. Clients on each segment get an address from their VLAN's range and the UDR7 as their default gateway and DNS server.</p>
 
     <table class="spec-table">
-      <thead><tr><th>List</th><th>Purpose</th></tr></thead>
+      <thead><tr><th>VLAN</th><th>Subnet</th><th>Gateway / DNS</th></tr></thead>
       <tbody>
-        <tr><td class="k"><!-- TODO: blocklist names --></td><td><!-- TODO --></td></tr>
+        <tr><td class="k">Management (1)</td><td><span class="mono">172.20.1.0/24</span></td><td><span class="mono">172.20.1.1</span></td></tr>
+        <tr><td class="k">Personal (10)</td><td><span class="mono">172.20.10.0/24</span></td><td><span class="mono">172.20.10.1</span></td></tr>
+        <tr><td class="k">Servers (20)</td><td><span class="mono">172.20.20.0/24</span></td><td><span class="mono">172.20.20.1</span></td></tr>
+        <tr><td class="k">VPN (30)</td><td><span class="mono">172.20.30.0/24</span></td><td><span class="mono">172.20.30.1</span></td></tr>
+        <tr><td class="k">IoT (100)</td><td><span class="mono">172.20.100.0/24</span></td><td><span class="mono">172.20.100.1</span></td></tr>
+        <tr><td class="k">Guest (200)</td><td><span class="mono">172.20.200.0/24</span></td><td><span class="mono">172.20.200.1</span></td></tr>
+        <tr><td class="k">Work (210)</td><td><span class="mono">172.20.210.0/24</span></td><td><span class="mono">172.20.210.1</span></td></tr>
       </tbody>
     </table>
 
@@ -109,11 +117,12 @@ photos.in.alybadawy.com    →  k3s server</code></pre>
   <ul>
     <li><a href="#overview">Overview</a></li>
     <li><a href="#rewrites">DNS rewrites</a></li>
-    <li><a href="#blocklists">Blocklists</a></li>
+    <li><a href="#dhcp">Per-VLAN DHCP</a></li>
   </ul>
   <div class="toc-meta">
-    <div class="row"><span>resolver</span><span>AdGuard Home</span></div>
+    <div class="row"><span>resolver</span><span>UDR7 built-in</span></div>
     <div class="row"><span>cluster domain</span><span>*.in.alybadawy.com</span></div>
+    <div class="row"><span>DHCP scopes</span><span>7 VLANs</span></div>
     <div class="row"><span>reading</span><span>~3 min</span></div>
   </div>
 </aside>
