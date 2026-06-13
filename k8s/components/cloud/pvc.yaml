@@ -1,12 +1,12 @@
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: nextcloud-data-lh
+  name: nextcloud-config
   namespace: cloud
   labels:
     app.kubernetes.io/name: nextcloud
     homelab/stack: cloud
-    longhorn.io/pvc-name: nextcloud-data-lh
+    longhorn.io/pvc-name: nextcloud-config
     longhorn.io/pvc-namespace: cloud
   annotations:
     recurring-job-group.longhorn.io/default: enabled

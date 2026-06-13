@@ -11,26 +11,26 @@ Step-by-step instructions for rebuilding the entire cluster on a new node and re
 
 ### What is automatically restored
 
-| Data | Backup mechanism | Restored in step |
-|---|---|---|
-| Vault KV secrets (all app credentials) | Longhorn PVC backup (`vault-data-lh`) → NAS | Step 6 |
-| PostgreSQL databases (authentik, immich, nextcloud) | Daily `pg_dump` → NAS (`/mnt/nas/backups/postgres`) | Step 8 (manual) |
-| Longhorn volumes (all `-lh` PVCs) | Longhorn backup every 6h → NAS | Step 6 |
-| Immich photos | NAS (`/mnt/nas/immich`) — live, not backed up separately | Available immediately after NAS mounts |
-| Nextcloud files | NAS (`/mnt/nas/nextcloud`) — live, not backed up separately | Available immediately after NAS mounts |
-| Grafana dashboards | `local-path` PVC — NOT backed up by Longhorn | Must be re-imported manually |
-| Prometheus metrics history | `local-path` PVC — NOT backed up | Lost on rebuild (expected) |
+| Data                                                | Backup mechanism                                            | Restored in step                       |
+| --------------------------------------------------- | ----------------------------------------------------------- | -------------------------------------- |
+| Vault KV secrets (all app credentials)              | Longhorn PVC backup (`vault-data`) → NAS                    | Step 6                                 |
+| PostgreSQL databases (authentik, immich, nextcloud) | Daily `pg_dump` → NAS (`/mnt/nas/backups/postgres`)         | Step 8 (manual)                        |
+| Longhorn volumes (all `-lh` PVCs)                   | Longhorn backup every 6h → NAS                              | Step 6                                 |
+| Immich photos                                       | NAS (`/mnt/nas/immich`) — live, not backed up separately    | Available immediately after NAS mounts |
+| Nextcloud files                                     | NAS (`/mnt/nas/nextcloud`) — live, not backed up separately | Available immediately after NAS mounts |
+| Grafana dashboards                                  | `local-path` PVC — NOT backed up by Longhorn                | Must be re-imported manually           |
+| Prometheus metrics history                          | `local-path` PVC — NOT backed up                            | Lost on rebuild (expected)             |
 
 ### What requires manual intervention
 
 These values are never stored in git and must be supplied from your offline backup / password manager before the cluster can sync:
 
-| Credential | Where it's needed |
-|---|---|
-| New node IP address | All provisioning scripts |
-| SSH private key for `homelab` user | Your local `~/.ssh/` |
+| Credential                             | Where it's needed                       |
+| -------------------------------------- | --------------------------------------- |
+| New node IP address                    | All provisioning scripts                |
+| SSH private key for `homelab` user     | Your local `~/.ssh/`                    |
 | Vault unseal key (from offline backup) | `rebuild.sh` Step 6 — prompted at start |
-| Cloudflare API token (Zone:DNS:Edit) | `rebuild.sh` Step 7 — prompted at start |
+| Cloudflare API token (Zone:DNS:Edit)   | `rebuild.sh` Step 7 — prompted at start |
 
 ### Required tools on your local machine
 
@@ -51,6 +51,7 @@ Perform these steps on the **new server** before running any provisioning script
 ### 1.1 Install Ubuntu 24.04 LTS (or 26.04)
 
 Fresh install. No desktop environment needed. Minimum specs:
+
 - 4 vCPU, 8 GB RAM
 - 100 GB disk (SSD preferred)
 - Static IP or DHCP reservation — record the IP
@@ -98,6 +99,7 @@ cd ~/hl-beta
 ```
 
 When prompted:
+
 - **Server IP:** enter the new node's IP
 - **Vault unseal key:** from your offline backup / password manager
 - **Cloudflare API token:** Zone:DNS:Edit for `alybadawy.com`
@@ -105,13 +107,13 @@ When prompted:
 `rebuild.sh` runs all steps unattended from this point. It covers Steps 1–8 (server
 provisioning, secret seeding, ArgoCD bootstrap, Longhorn install + volume restore).
 
-| Step | Script | What it does |
-|---|---|---|
-| 1 | `check-ssh-connection` | Validates SSH + NOPASSWD sudo |
-| 2 | `update-dependencies` | `apt upgrade`, installs packages incl. `open-iscsi`, disables swap |
-| 3 | `mount-nas` | Creates `/mnt/nas/{homelab,backups,immich,nextcloud}`, adds NFS fstab entries |
-| 4 | `install-k3s` | Installs k3s v1.36.1 (Traefik disabled), copies kubeconfig to `~/.kube/config` |
-| 5 | `configure-cluster` | Creates `cluster-config` namespace and ConfigMap, applies kernel tuning |
+| Step | Script                 | What it does                                                                   |
+| ---- | ---------------------- | ------------------------------------------------------------------------------ |
+| 1    | `check-ssh-connection` | Validates SSH + NOPASSWD sudo                                                  |
+| 2    | `update-dependencies`  | `apt upgrade`, installs packages incl. `open-iscsi`, disables swap             |
+| 3    | `mount-nas`            | Creates `/mnt/nas/{homelab,backups,immich,nextcloud}`, adds NFS fstab entries  |
+| 4    | `install-k3s`          | Installs k3s v1.36.1 (Traefik disabled), copies kubeconfig to `~/.kube/config` |
+| 5    | `configure-cluster`    | Creates `cluster-config` namespace and ConfigMap, applies kernel tuning        |
 
 When Steps 1–5 complete, verify:
 
@@ -129,7 +131,7 @@ kubectl get configmap cluster-config -n cluster-config
 
 The Vault unseal key must exist before ArgoCD runs. When GitOps activates, Vault starts first (sync-wave `-1`) and the `vault-auto-unseal` CronJob uses this secret to unseal it within 60 seconds. Without it, Vault stays sealed, ESO cannot sync, and all apps fail to start.
 
-On a rebuild, Vault's data volume (`vault-data-lh`) is restored from the Longhorn backup — so all KV secrets are already inside Vault. You only need to provide the unseal key to let the CronJob open it.
+On a rebuild, Vault's data volume (`vault-data`) is restored from the Longhorn backup — so all KV secrets are already inside Vault. You only need to provide the unseal key to let the CronJob open it.
 
 **`rebuild.sh` handles this automatically** (Step 6) — it prompts for the unseal key at the start and seeds it after the k3s cluster is up. For reference, the commands it runs are:
 
@@ -151,9 +153,9 @@ kubectl create secret generic vault-unseal-key \
 
 Only **two secrets** require manual intervention on a rebuild. Everything else is either seeded automatically or lives inside Vault (which is restored from the Longhorn backup in Step 6).
 
-| Secret | Namespace | How it's created | Why it's needed |
-|---|---|---|---|
-| `vault-unseal-key` | `security` | `rebuild.sh` Step 6 (prompted at start) | CronJob unseals Vault within 60s of each pod restart |
+| Secret                 | Namespace    | How it's created                        | Why it's needed                                                 |
+| ---------------------- | ------------ | --------------------------------------- | --------------------------------------------------------------- |
+| `vault-unseal-key`     | `security`   | `rebuild.sh` Step 6 (prompted at start) | CronJob unseals Vault within 60s of each pod restart            |
 | `cloudflare-api-token` | `networking` | `rebuild.sh` Step 7 (prompted at start) | DNS-01 TLS challenges for `*.in.alybadawy.com` via cert-manager |
 
 **All other app secrets** (postgres credentials, authentik secret key, immich credentials, nextcloud credentials, SMTP, grafana admin, etc.) are stored in Vault's KV store at `secret/`. ESO reads them from Vault and distributes copies into each app namespace automatically. Because Vault's data PVC is part of the Longhorn backup, no manual seeding of these secrets is required.
@@ -196,6 +198,7 @@ kubectl get secret cloudflare-api-token -n networking
 the Cloudflare token you entered at the start. No separate invocation is needed.
 
 For reference, this step:
+
 1. Installs ArgoCD from `k8s/components/argocd` via Kustomize + Helm
 2. Waits for `argocd-server` and `argocd-repo-server` to be ready
 3. Creates the `networking` namespace and seeds `cloudflare-api-token` into it (used by cert-manager for DNS-01 challenges)
@@ -249,13 +252,13 @@ With `http://localhost:9000` open in your browser:
 
 ### Volume → namespace/PVC mapping
 
-| Backup volume (shown in UI) | Namespace | PVC name |
-|---|---|---|
-| `pvc-cc69b622-...` (vault) | `security` | `vault-data-lh` |
-| `pvc-156223fb-...` (postgres) | `db` | `postgres-data-lh` |
-| `pvc-6b246721-...` (nextcloud) | `cloud` | `nextcloud-data-lh` |
-| `pvc-fa03ae85-...` (authentik media) | `security` | `authentik-media-lh` |
-| `pvc-5081ced2-...` (authentik templates) | `security` | `authentik-templates-lh` |
+| Backup volume (shown in UI)              | Namespace  | PVC name              |
+| ---------------------------------------- | ---------- | --------------------- |
+| `pvc-cc69b622-...` (vault)               | `security` | `vault-data`          |
+| `pvc-156223fb-...` (postgres)            | `db`       | `postgres-data`       |
+| `pvc-6b246721-...` (nextcloud)           | `cloud`    | `nextcloud-config`    |
+| `pvc-fa03ae85-...` (authentik media)     | `security` | `authentik-media`     |
+| `pvc-5081ced2-...` (authentik templates) | `security` | `authentik-templates` |
 
 > The backup volume names in the UI are the internal Longhorn IDs (long UUIDs). The `lastBackupName` field and the Longhorn UI label can help you identify which is which by size. If unsure, check the `volumeName` shown in each backup volume's detail page.
 
@@ -267,7 +270,7 @@ After the script exits, verify the PVCs exist:
 kubectl get pvc -A | grep -E "lh$"
 ```
 
-All `-lh` PVCs should show `Bound` status.
+All PVCs should show `Bound` status.
 
 ---
 
@@ -296,9 +299,9 @@ kubectl port-forward -n argocd svc/argocd-server 8080:80
 2. `external-secrets` — ESO operator deploys; `ClusterSecretStore/k8s-secrets` connects to Vault and becomes Ready
 3. `cert-manager` — cert-manager deploys; ClusterIssuers created; TLS certs begin issuing via DNS-01
 4. `ingress-nginx` — nginx controller gets an external IP; ingress routes become active
-5. `db` — PostgreSQL deploys with restored `postgres-data-lh` PVC; ESO syncs credentials from Vault
+5. `db` — PostgreSQL deploys with restored `postgres-data` PVC; ESO syncs credentials from Vault
 6. `auth` — Authentik deploys with restored media PVCs; ESO syncs SMTP and secret key from Vault
-7. `cloud` — Nextcloud deploys with restored `nextcloud-data-lh` PVC
+7. `cloud` — Nextcloud deploys with restored `nextcloud-config` PVC
 8. `immich` — Immich deploys; photos immediately available from NAS mount
 9. `monitor` — Prometheus + Grafana deploy; ESO syncs Grafana admin password from Vault
 10. `aly`, `whoami` — static sites deploy
@@ -309,7 +312,7 @@ Allow 10–15 minutes for all apps to reach `Synced / Healthy`.
 
 ## Step 8: Restore PostgreSQL Databases
 
-Longhorn restores the PostgreSQL *data volume*, which should contain all databases intact. However, if the Longhorn backup was taken when PostgreSQL was mid-write (unlikely with the daily pg_dump schedule, but possible), you may need to fall back to the pg_dump backups.
+Longhorn restores the PostgreSQL _data volume_, which should contain all databases intact. However, if the Longhorn backup was taken when PostgreSQL was mid-write (unlikely with the daily pg_dump schedule, but possible), you may need to fall back to the pg_dump backups.
 
 ### 8.1 Verify databases are intact
 
@@ -397,15 +400,15 @@ kubectl get externalsecrets -A
 
 ### 9.4 Application smoke tests
 
-| Service | URL | What to check |
-|---|---|---|
-| ArgoCD | `https://argo.in.alybadawy.com` | Login with admin; all apps green |
-| Vault | `https://vault.in.alybadawy.com` | UI loads; status shows unsealed |
-| Authentik | `https://auth.in.alybadawy.com` | Login; users and flows intact |
-| Immich | `https://immich.in.alybadawy.com` | Login; photos visible |
-| Nextcloud | `https://cloud.in.alybadawy.com` | Login; files accessible |
-| Longhorn | `https://longhorn.in.alybadawy.com` | All volumes healthy; backup target connected |
-| Grafana | `https://grafana.in.alybadawy.com` | Login; dashboards load |
+| Service   | URL                                 | What to check                                |
+| --------- | ----------------------------------- | -------------------------------------------- |
+| ArgoCD    | `https://argo.in.alybadawy.com`     | Login with admin; all apps green             |
+| Vault     | `https://vault.in.alybadawy.com`    | UI loads; status shows unsealed              |
+| Authentik | `https://auth.in.alybadawy.com`     | Login; users and flows intact                |
+| Immich    | `https://immich.in.alybadawy.com`   | Login; photos visible                        |
+| Nextcloud | `https://cloud.in.alybadawy.com`    | Login; files accessible                      |
+| Longhorn  | `https://longhorn.in.alybadawy.com` | All volumes healthy; backup target connected |
+| Grafana   | `https://grafana.in.alybadawy.com`  | Login; dashboards load                       |
 
 ### 9.5 Restore Grafana dashboards
 
@@ -421,12 +424,12 @@ kubectl port-forward -n monitor svc/monitor-grafana 3000:80
 
 Recommended dashboards to re-import from grafana.com:
 
-| Dashboard | ID |
-|---|---|
-| Kubernetes cluster overview | 7249 |
-| Longhorn | 16888 |
-| Node Exporter Full | 1860 |
-| Nginx Ingress Controller | 9614 |
+| Dashboard                   | ID    |
+| --------------------------- | ----- |
+| Kubernetes cluster overview | 7249  |
+| Longhorn                    | 16888 |
+| Node Exporter Full          | 1860  |
+| Nginx Ingress Controller    | 9614  |
 
 ### 9.6 Re-enroll Longhorn PVCs in recurring backup jobs
 
@@ -436,7 +439,7 @@ After ArgoCD syncs the `longhorn` app, the `RecurringJob` resources are created.
 # List all Longhorn-backed PVCs
 kubectl get pvc -A | grep longhorn
 
-# For each PVC that should be backed up (all -lh PVCs), confirm the annotation:
+# For each PVC that should be backed up (all PVCs), confirm the annotation:
 kubectl get pvc <name> -n <namespace> -o jsonpath='{.metadata.annotations}'
 # Look for: recurring-job-group.longhorn.io/default: enabled
 

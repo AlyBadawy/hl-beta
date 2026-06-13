@@ -141,11 +141,11 @@ Restore volumes from the UI:
      namespace and PVC name so apps can bind to them automatically.
 
 Volume → namespace/PVC mapping:
-  pvc-cc69b622-...  →  security / vault-data-lh
-  pvc-156223fb-...  →  db       / postgres-data-lh
-  pvc-6b246721-...  →  cloud    / nextcloud-data-lh
-  pvc-fa03ae85-...  →  security / authentik-media-lh
-  pvc-5081ced2-...  →  security / authentik-templates-lh
+  pvc-cc69b622-...  →  security / vault-data
+  pvc-156223fb-...  →  db       / postgres-data
+  pvc-6b246721-...  →  cloud    / nextcloud-config
+  pvc-fa03ae85-...  →  security / authentik-media
+  pvc-5081ced2-...  →  security / authentik-templates
 
 EOF
 

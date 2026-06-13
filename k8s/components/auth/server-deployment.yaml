@@ -65,7 +65,7 @@ spec:
       volumes:
         - name: media
           persistentVolumeClaim:
-            claimName: authentik-media-lh
+            claimName: authentik-media
         - name: templates
           persistentVolumeClaim:
-            claimName: authentik-templates-lh
+            claimName: authentik-templates

@@ -80,7 +80,7 @@ spec:
       volumes:
         - name: postgres-data
           persistentVolumeClaim:
-            claimName: postgres-data-lh
+            claimName: postgres-data
         - name: dshm
           emptyDir:
             medium: Memory

@@ -17,7 +17,7 @@ server:
         path = "/vault/data"
       }
 
-  # PVC is managed separately in pvc.yaml (vault-data-lh) so we can apply
+  # PVC is managed separately in pvc.yaml (vault-data) so we can apply
   # Longhorn labels and recurring-backup annotations consistently.
   dataStorage:
     enabled: false
@@ -26,7 +26,7 @@ server:
   volumes:
     - name: data
       persistentVolumeClaim:
-        claimName: vault-data-lh
+        claimName: vault-data
 
   volumeMounts:
     - name: data

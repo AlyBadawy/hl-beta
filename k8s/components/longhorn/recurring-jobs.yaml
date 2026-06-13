@@ -7,7 +7,7 @@
 #
 # All Longhorn PVCs with the annotation
 #   recurring-job-group.longhorn.io/default: enabled
-# are enrolled automatically. This annotation is applied to each -lh PVC by
+# are enrolled automatically. This annotation is applied to each PVC by
 # 10-apply-stacks.sh after Longhorn is ready.
 #
 # Backup target (NFS) is set in helm-values.yaml:

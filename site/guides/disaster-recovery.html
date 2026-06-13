@@ -130,7 +130,7 @@ section: guides
 <span class="t-prompt">$</span> <span class="t-cmd">kubectl</span> get pod vault-0 <span class="t-flag">-n</span> security
 
 <span class="t-com"># check the PVC is bound (Longhorn might still be reattaching)</span>
-<span class="t-prompt">$</span> <span class="t-cmd">kubectl</span> get pvc vault-data-lh <span class="t-flag">-n</span> security
+<span class="t-prompt">$</span> <span class="t-cmd">kubectl</span> get pvc vault-data <span class="t-flag">-n</span> security
 
 <span class="t-com"># check if the unseal key is present</span>
 <span class="t-prompt">$</span> <span class="t-cmd">kubectl</span> get secret vault-unseal-key <span class="t-flag">-n</span> security
