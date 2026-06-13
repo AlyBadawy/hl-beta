@@ -6,6 +6,7 @@
 defaultSettings:
   defaultReplicaCount: 1 # single-node cluster — no benefit from extra replicas
   backupstorePollInterval: 300
+  defaultDataPath: /mnt/ssd-1tb/longhorn
 
 persistence:
   defaultClassReplicaCount: 1 # single-node cluster — keeps StorageClass in sync with the setting above
