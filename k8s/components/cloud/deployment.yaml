@@ -74,6 +74,5 @@ spec:
           persistentVolumeClaim:
             claimName: nextcloud-config
         - name: data
-          hostPath:
-            path: /mnt/nas/nextcloud
-            type: Directory
+          persistentVolumeClaim:
+            claimName: nextcloud-data
