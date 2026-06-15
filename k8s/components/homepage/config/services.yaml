@@ -1,0 +1,45 @@
+- Infrastructure:
+    - ArgoCD:
+        href: https://argo.in.alybadawy.com
+        description: GitOps deployments
+        icon: argocd.svg
+    - Vault:
+        href: https://vault.in.alybadawy.com
+        description: Secrets management
+        icon: vault.svg
+    - Longhorn:
+        href: https://longhorn.in.alybadawy.com
+        description: Distributed storage
+        icon: longhorn.svg
+    - Authentik:
+        href: https://auth.in.alybadawy.com
+        description: Identity provider
+        icon: authentik.svg
+
+- Monitoring:
+    - Grafana:
+        href: https://grafana.in.alybadawy.com
+        description: Metrics dashboards
+        icon: grafana.svg
+    - Prometheus:
+        href: https://prometheus.in.alybadawy.com
+        description: Metrics collection
+        icon: prometheus.svg
+    - Alertmanager:
+        href: https://alerts.in.alybadawy.com
+        description: Alert routing
+        icon: alertmanager.svg
+
+- Applications:
+    - Nextcloud:
+        href: https://cloud.in.alybadawy.com
+        description: File storage & sync
+        icon: nextcloud.svg
+    - Immich:
+        href: https://photos.in.alybadawy.com
+        description: Photo management
+        icon: immich.svg
+    - pgAdmin:
+        href: https://pgadmin.in.alybadawy.com
+        description: Database management
+        icon: pgadmin.svg

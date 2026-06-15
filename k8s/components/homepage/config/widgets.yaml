@@ -1,0 +1,12 @@
+- greeting:
+    text_size: xl
+    text: Welcome home, Aly
+- datetime:
+    text_size: l
+    format:
+      timeStyle: short
+      dateStyle: long
+      hourCycle: h23
+- search:
+    provider: google
+    target: _blank
