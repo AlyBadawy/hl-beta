@@ -12,6 +12,8 @@ data:
     theme: dark
     color: slate
     headerStyle: clean
+    allowedHosts:
+      - in.alybadawy.com
     layout:
       Infrastructure:
         style: row
