@@ -7,13 +7,14 @@ metadata:
     app.kubernetes.io/name: vault
     homelab/stack: security
 spec:
-  schedule: "*/1 * * * *"
+  schedule: "*/2 * * * *"
   concurrencyPolicy: Replace
   successfulJobsHistoryLimit: 1
   failedJobsHistoryLimit: 1
   jobTemplate:
     spec:
       activeDeadlineSeconds: 50
+      ttlSecondsAfterFinished: 10
       template:
         spec:
           restartPolicy: Never
@@ -26,8 +27,8 @@ spec:
                   VAULT_HOST=$(echo "$VAULT_ADDR" | sed 's|http://||' | cut -d: -f1)
                   VAULT_PORT=$(echo "$VAULT_ADDR" | sed 's|http://||' | cut -d: -f2)
                   if ! nc -z -w 5 "$VAULT_HOST" "$VAULT_PORT" 2>/dev/null; then
-                    echo "Vault port not reachable — will retry next minute"
-                    exit 1
+                    echo "Vault port not reachable — will retry next run"
+                    exit 0
                   fi
                   timeout 5 vault status 2>/dev/null; STATUS=$?
                   if [ "$STATUS" -eq 2 ]; then
@@ -36,8 +37,8 @@ spec:
                   elif [ "$STATUS" -eq 0 ]; then
                     echo "Vault is unsealed — nothing to do"
                   else
-                    echo "Vault not ready yet (status $STATUS) — will retry next minute"
-                    exit 1
+                    echo "Vault not ready yet (status $STATUS) — will retry next run"
+                    exit 0
                   fi
               env:
                 - name: VAULT_ADDR
