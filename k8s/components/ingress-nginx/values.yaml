@@ -33,3 +33,6 @@ controller:
     proxy-read-timeout: "60"
     proxy-send-timeout: "60"
     client-max-body-size: "100m"
+    # Required for Authentik forward auth (auth-snippet annotation)
+    allow-snippet-annotations: "true"
+    annotations-risk-level: Critical

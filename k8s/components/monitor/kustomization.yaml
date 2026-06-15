@@ -15,3 +15,4 @@ resources:
   - namespace.yaml
   - ingress.yaml
   - external-secret.yaml
+  - authentik-external-service.yaml

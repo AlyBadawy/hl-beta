@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: authentik-server
+  namespace: monitor
+  labels:
+    app.kubernetes.io/name: authentik
+    app.kubernetes.io/component: server
+spec:
+  type: ExternalName
+  externalName: authentik-server.security.svc.cluster.local
+  ports:
+    - port: 9000
+      targetPort: 9000
+      protocol: TCP
