@@ -52,7 +52,7 @@ apparmor, socat, etc.), disables SWAP, and installs Helm.
 
 ### Step 3: `mount-nas`
 
-Configures NFS mounts for `/mnt/nas/{homelab,backups,immich,nextcloud}` via `/etc/fstab`.
+Configures NFS mounts for `/mnt/nas/{homelab,backups}` via `/etc/fstab`.
 Idempotent — safe to re-run.
 
 ### Step 4: `install-k3s`

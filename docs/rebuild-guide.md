@@ -16,8 +16,6 @@ Step-by-step instructions for rebuilding the entire cluster on a new node and re
 | Vault KV secrets (all app credentials)              | Longhorn PVC backup (`vault-data`) → NAS                    | Step 6                                 |
 | PostgreSQL databases (authentik, immich, nextcloud) | Daily `pg_dump` → NAS (`/mnt/nas/backups/postgres`)         | Step 8 (manual)                        |
 | Longhorn volumes (all `-lh` PVCs)                   | Longhorn backup every 6h → NAS                              | Step 6                                 |
-| Immich photos                                       | NAS (`/mnt/nas/immich`) — live, not backed up separately    | Available immediately after NAS mounts |
-| Nextcloud files                                     | NAS (`/mnt/nas/nextcloud`) — live, not backed up separately | Available immediately after NAS mounts |
 | Grafana dashboards                                  | `local-path` PVC — NOT backed up by Longhorn                | Must be re-imported manually           |
 | Prometheus metrics history                          | `local-path` PVC — NOT backed up                            | Lost on rebuild (expected)             |
 
@@ -111,7 +109,7 @@ provisioning, secret seeding, ArgoCD bootstrap, Longhorn install + volume restor
 | ---- | ---------------------- | ------------------------------------------------------------------------------ |
 | 1    | `check-ssh-connection` | Validates SSH + NOPASSWD sudo                                                  |
 | 2    | `update-dependencies`  | `apt upgrade`, installs packages incl. `open-iscsi`, disables swap             |
-| 3    | `mount-nas`            | Creates `/mnt/nas/{homelab,backups,immich,nextcloud}`, adds NFS fstab entries  |
+| 3    | `mount-nas`            | Creates `/mnt/nas/{homelab,backups}`, adds NFS fstab entries                   |
 | 4    | `install-k3s`          | Installs k3s v1.36.1 (Traefik disabled), copies kubeconfig to `~/.kube/config` |
 | 5    | `configure-cluster`    | Creates `cluster-config` namespace and ConfigMap, applies kernel tuning        |
 
@@ -302,7 +300,7 @@ kubectl port-forward -n argocd svc/argocd-server 8080:80
 5. `db` — PostgreSQL deploys with restored `postgres-data` PVC; ESO syncs credentials from Vault
 6. `auth` — Authentik deploys with restored media PVCs; ESO syncs SMTP and secret key from Vault
 7. `cloud` — Nextcloud deploys with restored `nextcloud-config` PVC
-8. `immich` — Immich deploys; photos immediately available from NAS mount
+8. `immich` — Immich deploys
 9. `monitor` — Prometheus + Grafana deploy; ESO syncs Grafana admin password from Vault
 10. `aly`, `whoami` — static sites deploy
 

@@ -86,7 +86,7 @@ Prepares the Ubuntu server with essential packages and configuration:
 Configures NFS mounts for persistent storage:
 
 - Tests NAS connectivity
-- Creates mount directories (`/mnt/nas/{homelab,backups,immich,nextcloud}`)
+- Creates mount directories (`/mnt/nas/{homelab,backups}`)
 - Adds NFS entries to `/etc/fstab` with duplicate checking
 - Mounts filesystems and verifies success
 - Optimized NFS options for Kubernetes (automount, nofail, network timeout)

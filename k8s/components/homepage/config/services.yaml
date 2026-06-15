@@ -31,14 +31,6 @@
         icon: alertmanager.svg
 
 - Applications:
-    - Nextcloud:
-        href: https://cloud.in.alybadawy.com
-        description: File storage & sync
-        icon: nextcloud.svg
-    - Immich:
-        href: https://photos.in.alybadawy.com
-        description: Photo management
-        icon: immich.svg
     - pgAdmin:
         href: https://pgadmin.in.alybadawy.com
         description: Database management

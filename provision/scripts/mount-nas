@@ -10,7 +10,7 @@ source "$(dirname "$SCRIPT_DIR")/lib/defaults.sh"
 require_server_ip
 
 NFS_OPTIONS="defaults,_netdev,nofail,x-systemd.automount,x-systemd.mount-timeout=10"
-MOUNT_POINTS=(homelab backups immich nextcloud)
+MOUNT_POINTS=(homelab backups)
 
 log_output "${BLUE}=== NAS Mount Setup ===${NC}\n"
 log_output "  NAS IP:     ${BLUE}$NAS_IP${NC}"
