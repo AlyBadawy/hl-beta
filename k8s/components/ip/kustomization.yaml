@@ -4,6 +4,7 @@ kind: Kustomization
 namespace: websites
 
 resources:
+  - nginx-config.yaml
   - deployment.yaml
   - service.yaml
   - ingress.yaml
