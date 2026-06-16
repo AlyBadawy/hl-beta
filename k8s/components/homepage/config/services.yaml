@@ -57,3 +57,14 @@
         href: https://alerts.in.alybadawy.com
         description: Alert routing
         icon: alertmanager.svg
+
+- Network:
+    - External IP:
+        description: Current WAN IP
+        icon: mdi-ip-network
+        widget:
+          type: customapi
+          url: https://api.ipify.org?format=json
+          mappings:
+            - field: ip
+              label: WAN IP
