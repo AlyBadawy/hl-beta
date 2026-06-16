@@ -31,13 +31,6 @@
         href: "https://longhorn.in.alybadawy.com"
         description: Distributed storage
         icon: longhorn.svg
-        widget:
-          type: longhorn
-          url: http://longhorn-frontend.longhorn-system.svc.cluster.local
-          expanded: true
-          total: true
-          labels: true
-          nodes: true
     - Authentik:
         href: "https://auth.in.alybadawy.com"
         description: Identity provider
