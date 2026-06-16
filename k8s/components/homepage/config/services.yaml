@@ -64,7 +64,7 @@
         icon: mdi-vpn
         widget:
           type: customapi
-          url: http://ip.in.alybadawy.com
+          url: https://ip.in.alybadawy.com
           mappings:
             - field: ip
               label: LAN IP
