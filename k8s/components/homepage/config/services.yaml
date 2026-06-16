@@ -68,3 +68,7 @@
           mappings:
             - field: ip
               label: WAN IP
+    - My VPN IP:
+        href: https://whoami.in.alybadawy.com
+        description: Click to see your VPN IP (X-Real-Ip)
+        icon: mdi-vpn
