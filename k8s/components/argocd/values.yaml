@@ -7,6 +7,7 @@ configs:
     # `helmCharts:` field (Helm inflation). Without this, every child app that
     # inflates a Helm chart fails to render. Keep this enabled.
     kustomize.buildOptions: --enable-helm
+    accounts.admin: apiKey
   params:
     # nginx terminates TLS at the edge and talks plain HTTP to argocd-server.
     # This avoids the double-TLS / gRPC passthrough complications on k3s.
