@@ -1,66 +1,71 @@
 - Applications:
-    - Nextcloud:
-        href: https://cloud.in.alybadawy.com
-        description: File sharing and collaboration
-        icon: nextcloud.svg
-    - Immich:
-        href: https://photos.in.alybadawy.com
-        description: Photo management
-        icon: immich.svg
-
+    - Nextcloud: null
+      href: "https://cloud.in.alybadawy.com"
+      description: File sharing and collaboration
+      icon: nextcloud.svg
+    - Immich: null
+      href: "https://photos.in.alybadawy.com"
+      description: Photo management
+      icon: immich.svg
 - Database:
-    - pgAdmin:
-        href: https://pgadmin.in.alybadawy.com
-        description: Database management
-        icon: pgadmin.svg
-
+    - pgAdmin: null
+      href: "https://pgadmin.in.alybadawy.com"
+      description: Database management
+      icon: pgadmin.svg
 - Infrastructure:
-    - ArgoCD:
-        href: https://argo.in.alybadawy.com
-        description: GitOps deployments
-        icon: argo-cd.svg
-        widget:
-          type: argocd
-          url: https://argo.in.alybadawy.com
-          key: "{{HOMEPAGE_VAR_ARGOCD_TOKEN}}"
-    - Vault:
-        href: https://secrets.in.alybadawy.com
-        description: Secrets management
-        icon: vault.svg
-    - Longhorn:
-        href: https://longhorn.in.alybadawy.com
-        description: Distributed storage
-        icon: longhorn.svg
-    - Authentik:
-        href: https://auth.in.alybadawy.com
-        description: Identity provider
-        icon: authentik.svg
-
+    - ArgoCD: null
+      href: "https://argo.in.alybadawy.com"
+      description: GitOps deployments
+      icon: argo-cd.svg
+      widget:
+        type: argocd
+        url: "https://argo.in.alybadawy.com"
+        key: "{{HOMEPAGE_VAR_ARGOCD_TOKEN}}"
+    - Vault: null
+      href: "https://secrets.in.alybadawy.com"
+      description: Secrets management
+      icon: vault.svg
+    - Longhorn: null
+      href: "https://longhorn.in.alybadawy.com"
+      description: Distributed storage
+      icon: longhorn.svg
+      widget:
+        type: longhorn
+        expanded: true
+        total: true
+        labels: true
+        nodes: true
+        providers:
+          longhorn: null
+          url: "https://longhorn-ui.longhorn-system.svc.cluster.local"
+    - Authentik: null
+      href: "https://auth.in.alybadawy.com"
+      description: Identity provider
+      icon: authentik.svg
 - Monitoring:
     - Grafana:
-        href: https://grafana.in.alybadawy.com
+        href: "https://grafana.in.alybadawy.com"
         description: Metrics dashboards
         icon: grafana.svg
         widget:
           type: grafana
-          url: https://grafana.in.alybadawy.com
+          url: "https://grafana.in.alybadawy.com"
           username: admin
           password: "{{HOMEPAGE_VAR_GRAFANA_PASSWORD}}"
     - Prometheus:
-        href: https://prometheus.in.alybadawy.com
+        href: "https://prometheus.in.alybadawy.com"
         description: Metrics collection
         icon: prometheus.svg
         widget:
           type: prometheus
-          url: http://prometheus-operated.monitor.svc.cluster.local:9090
+          url: "http://prometheus-operated.monitor.svc.cluster.local:9090"
     - Alertmanager:
-        href: https://alerts.in.alybadawy.com
+        href: "https://alerts.in.alybadawy.com"
         description: Alert routing
         icon: alertmanager.svg
-
 - Network:
     - My IP:
-        href: https://ip.in.alybadawy.com
+        href: "https://ip.in.alybadawy.com"
         description: Click to see your real IP
         icon: mdi-vpn
     - External IP:
@@ -68,7 +73,7 @@
         icon: mdi-wan
         widget:
           type: customapi
-          url: https://api.ipify.org?format=json
+          url: "https://api.ipify.org?format=json"
           mappings:
             - field: ip
               label: WAN IP
