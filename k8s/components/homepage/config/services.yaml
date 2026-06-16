@@ -64,7 +64,7 @@
         icon: mdi-ip-network
         widget:
           type: customapi
-          url: http://ip.websites.svc.cluster.local
+          url: http://ip.in.alybadawy.com
           mappings:
             - field: ip
               label: LAN IP
