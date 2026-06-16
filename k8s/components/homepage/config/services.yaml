@@ -36,7 +36,7 @@
         icon: prometheus.svg
         widget:
           type: prometheus
-          url: https://prometheus.in.alybadawy.com
+          url: http://prometheus-operated.monitor.svc.cluster.local:9090
     - Alertmanager:
         href: https://alerts.in.alybadawy.com
         description: Alert routing
