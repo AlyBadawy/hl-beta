@@ -41,6 +41,12 @@ spec:
                   name: homepage-secrets
                   key: grafana-password
           volumeMounts:
+            - name: nas-backups
+              mountPath: /mnt/nas/backups
+              readOnly: true
+            - name: ssd-1tb
+              mountPath: /mnt/ssd-1tb
+              readOnly: true
             - name: config
               mountPath: /app/config/settings.yaml
               subPath: settings.yaml
@@ -73,6 +79,12 @@ spec:
               cpu: 100m
               memory: 128Mi
       volumes:
+        - name: nas-backups
+          hostPath:
+            path: /mnt/nas/backups
+        - name: ssd-1tb
+          hostPath:
+            path: /mnt/ssd-1tb
         - name: config
           configMap:
             name: homepage-config
