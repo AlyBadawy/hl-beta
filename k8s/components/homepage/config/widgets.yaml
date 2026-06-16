@@ -11,9 +11,3 @@
       - /mnt/ssd-1tb
     uptime: true
     refresh: 3000
-- datetime:
-    text_size: l
-    format:
-      timeStyle: short
-      dateStyle: long
-      hourCycle: h23

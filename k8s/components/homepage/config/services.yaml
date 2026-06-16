@@ -59,6 +59,15 @@
         icon: alertmanager.svg
 
 - Network:
+    - Internal IP:
+        description: Current LAN IP
+        icon: mdi-ip-network
+        widget:
+          type: customapi
+          url: http://ip.websites.svc.cluster.local
+          mappings:
+            - field: ip
+              label: LAN IP
     - External IP:
         description: Current WAN IP
         icon: mdi-ip-network
@@ -68,7 +77,3 @@
           mappings:
             - field: ip
               label: WAN IP
-    - My VPN IP:
-        href: https://whoami.in.alybadawy.com
-        description: Click to see your VPN IP (X-Real-Ip)
-        icon: mdi-vpn
