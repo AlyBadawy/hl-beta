@@ -61,7 +61,7 @@
 - Network:
     - Internal IP:
         description: Current LAN IP
-        icon: mdi-ip-network
+        icon: mdi-vpn
         widget:
           type: customapi
           url: http://ip.in.alybadawy.com
@@ -70,7 +70,7 @@
               label: LAN IP
     - External IP:
         description: Current WAN IP
-        icon: mdi-ip-network
+        icon: mdi-wan
         widget:
           type: customapi
           url: https://api.ipify.org?format=json
