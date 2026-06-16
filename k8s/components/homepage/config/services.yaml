@@ -2,9 +2,13 @@
     - ArgoCD:
         href: https://argo.in.alybadawy.com
         description: GitOps deployments
-        icon: argocd.svg
+        icon: argocd.png
+        widget:
+          type: argocd
+          url: https://argo.in.alybadawy.com
+          key: "{{HOMEPAGE_VAR_ARGOCD_TOKEN}}"
     - Vault:
-        href: https://vault.in.alybadawy.com
+        href: https://secrets.in.alybadawy.com
         description: Secrets management
         icon: vault.svg
     - Longhorn:
@@ -21,10 +25,18 @@
         href: https://grafana.in.alybadawy.com
         description: Metrics dashboards
         icon: grafana.svg
+        widget:
+          type: grafana
+          url: https://grafana.in.alybadawy.com
+          username: admin
+          password: "{{HOMEPAGE_VAR_GRAFANA_PASSWORD}}"
     - Prometheus:
         href: https://prometheus.in.alybadawy.com
         description: Metrics collection
         icon: prometheus.svg
+        widget:
+          type: prometheus
+          url: https://prometheus.in.alybadawy.com
     - Alertmanager:
         href: https://alerts.in.alybadawy.com
         description: Alert routing
