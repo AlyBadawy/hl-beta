@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: ip
+  namespace: websites
+  labels:
+    app.kubernetes.io/name: ip
+    homelab/stack: ip
+spec:
+  selector:
+    app: ip
+  ports:
+    - port: 3000
+      targetPort: 3000
