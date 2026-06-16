@@ -2,7 +2,7 @@
     - ArgoCD:
         href: https://argo.in.alybadawy.com
         description: GitOps deployments
-        icon: argocd.png
+        icon: argo-cd.svg
         widget:
           type: argocd
           url: https://argo.in.alybadawy.com
