@@ -1,18 +1,19 @@
-- greeting:
-    text_size: xl
-    text: Welcome home, Aly
+- search:
+    provider: google
+    target: _blank
+    text_size: l
+- resources:
+    cpu: true
+    memory: true
+    disk:
+      - /
+      - /mnt/nas/backups/
+      - /mnt/ssd-1tb/
+    uptime: true
+    refresh: 3000
 - datetime:
     text_size: l
     format:
       timeStyle: short
       dateStyle: long
       hourCycle: h23
-- resources:
-    cpu: true
-    memory: true
-    disk: /
-    uptime: true
-    refresh: 3000
-- search:
-    provider: google
-    target: _blank
