@@ -4,12 +4,18 @@ color: slate
 headerStyle: clean
 allowedHosts: in.alybadawy.com
 layout:
+  Applications:
+    style: row
+    columns: 4
+  Database:
+    style: row
+    columns: 2
   Infrastructure:
     style: row
     columns: 4
   Monitoring:
     style: row
     columns: 3
-  Applications:
+  Network:
     style: row
-    columns: 4
+    columns: 2
