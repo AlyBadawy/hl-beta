@@ -41,7 +41,7 @@ spec:
               mountPath: /config
           readinessProbe:
             httpGet:
-              path: /
+              path: /api/healthcheck
               port: 80
             initialDelaySeconds: 15
             periodSeconds: 10
