@@ -7,6 +7,18 @@ defaultSettings:
   defaultReplicaCount: 1 # single-node cluster — no benefit from extra replicas
   backupstorePollInterval: 300
   defaultDataPath: /mnt/ssd-1tb/longhorn
+  # Promotes instance-manager (engine) pods to system-cluster-critical priority.
+  # Kubelet graceful shutdown splits on priority >= 2000000000: regular pods stop
+  # first (30s), then critical pods (30s). Engines survive into the critical window
+  # so they can flush writes and disconnect iSCSI cleanly after all app pods have
+  # released their volumes — eliminating the EXT4 superblock errors on shutdown.
+  priorityClass: system-cluster-critical
+
+longhornManager:
+  priorityClass: system-cluster-critical
+
+longhornDriver:
+  priorityClass: system-cluster-critical
 
 persistence:
   defaultClassReplicaCount: 1 # single-node cluster — keeps StorageClass in sync with the setting above

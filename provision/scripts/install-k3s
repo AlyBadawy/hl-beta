@@ -14,8 +14,66 @@ K3S_INSTALL_EXEC="--disable=traefik"
 
 log_output "${BLUE}=== K3s Installation ===${NC}\n"
 
-# Step 1: Check if k3s is already installed
-log_output "${YELLOW}Step 1: Checking K3s Installation Status${NC}"
+# Step 1: Write k3s config and graceful shutdown configuration.
+# In k3s v1.36+ (K8s 1.35+), shutdown-grace-period is no longer a CLI flag —
+# it must live in a KubeletConfiguration drop-in. The kubelet config-dir is
+# /var/lib/rancher/k3s/agent/etc/kubelet.conf.d/; we drop 99-shutdown-grace.conf
+# there. The logind drop-in (zz-kubelet-shutdown.conf) must sort AFTER
+# unattended-upgrades-logind-maxdelay.conf alphabetically so it wins the merge.
+log_output "${YELLOW}Step 1: Writing K3s Config and Graceful Shutdown Settings${NC}"
+
+ssh \
+  -o ConnectTimeout=$SSH_TIMEOUT \
+  -o StrictHostKeyChecking=no \
+  -o UserKnownHostsFile=/dev/null \
+  -o LogLevel=QUIET \
+  "$SSH_USER@$SERVER_IP" \
+  "sudo mkdir -p /etc/rancher/k3s && sudo tee /etc/rancher/k3s/config.yaml > /dev/null <<'K3SCFG'
+disable:
+  - traefik
+K3SCFG" \
+  >> "$LOG_FILE" 2>&1 \
+  && log_output "${GREEN}✓ /etc/rancher/k3s/config.yaml written${NC}" \
+  || { log_output "${RED}✗ Failed to write k3s config${NC}"; exit 1; }
+
+ssh \
+  -o ConnectTimeout=$SSH_TIMEOUT \
+  -o StrictHostKeyChecking=no \
+  -o UserKnownHostsFile=/dev/null \
+  -o LogLevel=QUIET \
+  "$SSH_USER@$SERVER_IP" \
+  "sudo mkdir -p /var/lib/rancher/k3s/agent/etc/kubelet.conf.d && sudo tee /var/lib/rancher/k3s/agent/etc/kubelet.conf.d/99-shutdown-grace.conf > /dev/null <<'KUBECFG'
+apiVersion: kubelet.config.k8s.io/v1beta1
+kind: KubeletConfiguration
+shutdownGracePeriod: 60s
+shutdownGracePeriodCriticalPods: 30s
+KUBECFG" \
+  >> "$LOG_FILE" 2>&1 \
+  && log_output "${GREEN}✓ kubelet drop-in written (shutdown grace periods)${NC}" \
+  || { log_output "${RED}✗ Failed to write kubelet shutdown drop-in${NC}"; exit 1; }
+
+# logind's InhibitDelayMaxSec must be >= shutdownGracePeriod so kubelet can
+# register the systemd inhibitor lock. unattended-upgrades sets it to 30s in
+# /usr/lib/systemd/logind.conf.d/ — logind merges ALL conf.d files across all
+# search paths in combined alphabetical order, last wins. Naming our file
+# zz-* ensures it sorts after unattended-upgrades-* and wins the merge.
+ssh \
+  -o ConnectTimeout=$SSH_TIMEOUT \
+  -o StrictHostKeyChecking=no \
+  -o UserKnownHostsFile=/dev/null \
+  -o LogLevel=QUIET \
+  "$SSH_USER@$SERVER_IP" \
+  "sudo mkdir -p /etc/systemd/logind.conf.d && sudo tee /etc/systemd/logind.conf.d/zz-kubelet-shutdown.conf > /dev/null <<'LOGIND'
+[Login]
+InhibitDelayMaxSec=65
+LOGIND
+sudo systemctl daemon-reload && sudo systemctl restart systemd-logind" \
+  >> "$LOG_FILE" 2>&1 \
+  && log_output "${GREEN}✓ logind InhibitDelayMaxSec=65 written and reloaded${NC}\n" \
+  || { log_output "${RED}✗ Failed to write logind config${NC}"; exit 1; }
+
+# Step 2: Check if k3s is already installed
+log_output "${YELLOW}Step 2: Checking K3s Installation Status${NC}"
 
 k3s_installed=$(ssh \
   -o ConnectTimeout=$SSH_TIMEOUT \
@@ -34,11 +92,23 @@ if [[ "$k3s_installed" == "installed" ]]; then
     "$SSH_USER@$SERVER_IP" \
     "k3s --version" 2>&1)
   log_output "${GREEN}✓ K3s already installed: $current_version${NC}"
-  log_output "${YELLOW}Skipping installation, verifying existing cluster...${NC}\n"
+  log_output "${YELLOW}Restarting k3s to apply updated config...${NC}"
+
+  ssh \
+    -o ConnectTimeout=$SSH_TIMEOUT \
+    -o StrictHostKeyChecking=no \
+    -o UserKnownHostsFile=/dev/null \
+    -o LogLevel=QUIET \
+    "$SSH_USER@$SERVER_IP" \
+    "sudo systemctl restart k3s && sleep 5" \
+    >> "$LOG_FILE" 2>&1 \
+    && log_output "${GREEN}✓ K3s restarted${NC}\n" \
+    || { log_output "${RED}✗ Failed to restart k3s${NC}"; exit 1; }
+
 else
   log_output "${YELLOW}K3s not found, installing...${NC}\n"
 
-  log_output "${YELLOW}Step 2: Installing K3s ${K3S_VERSION}${NC}"
+  log_output "${YELLOW}Step 3: Installing K3s ${K3S_VERSION}${NC}"
   log_output "  This may take 2-5 minutes...\n"
 
   run_remote_command \
@@ -47,7 +117,7 @@ else
 
   log_output ""
 
-  log_output "${YELLOW}Step 3: Waiting for K3s to Initialize${NC}"
+  log_output "${YELLOW}Step 4: Waiting for K3s to Initialize${NC}"
   for i in {1..30}; do
     service_status=$(ssh \
       -o ConnectTimeout=$SSH_TIMEOUT \
@@ -72,8 +142,8 @@ else
   done
 fi
 
-# Step 4: Verify cluster readiness
-log_output "${YELLOW}Step 4: Verifying K3s Cluster Readiness${NC}\n"
+# Step 5: Verify cluster readiness
+log_output "${YELLOW}Step 5: Verifying K3s Cluster Readiness${NC}\n"
 
 kubectl_check=$(ssh \
   -o ConnectTimeout=$SSH_TIMEOUT \
@@ -108,8 +178,8 @@ else
   log_output "${YELLOW}⚠ Node not Ready yet (may still be initializing)${NC}\n"
 fi
 
-# Step 5: Copy kubeconfig locally
-log_output "${YELLOW}Step 5: Setting Up Local Kubeconfig${NC}\n"
+# Step 6: Copy kubeconfig locally
+log_output "${YELLOW}Step 6: Setting Up Local Kubeconfig${NC}\n"
 
 KUBE_DIR="$HOME/.kube"
 KUBE_CONFIG="$KUBE_DIR/config"
@@ -147,8 +217,8 @@ else
   log_output "  ssh $SSH_USER@$SERVER_IP \"sudo cat /etc/rancher/k3s/k3s.yaml\" > $KUBE_CONFIG"
 fi
 
-# Step 6: Copy kubeconfig to remote user
-log_output "${YELLOW}Step 6: Setting Up Remote Kubeconfig${NC}\n"
+# Step 7: Copy kubeconfig to remote user
+log_output "${YELLOW}Step 7: Setting Up Remote Kubeconfig${NC}\n"
 
 ssh -o ConnectTimeout=$SSH_TIMEOUT \
     -o StrictHostKeyChecking=no \
@@ -160,8 +230,8 @@ ssh -o ConnectTimeout=$SSH_TIMEOUT \
   && log_output "${GREEN}✓ Kubeconfig copied to remote user ~/.kube/config${NC}\n" \
   || log_output "${YELLOW}⚠ Failed to copy kubeconfig to remote user (continuing)${NC}\n"
 
-# Step 7: Install Helm on remote server
-log_output "${YELLOW}Step 7: Installing Helm on Remote Server${NC}\n"
+# Step 8: Install Helm on remote server
+log_output "${YELLOW}Step 8: Installing Helm on Remote Server${NC}\n"
 
 helm_installed=$(ssh \
   -o ConnectTimeout=$SSH_TIMEOUT \
