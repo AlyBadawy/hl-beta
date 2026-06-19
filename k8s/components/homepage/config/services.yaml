@@ -3,6 +3,8 @@
         href: "https://cloud.in.alybadawy.com"
         description: File sharing and collaboration
         icon: nextcloud.svg
+        namespace: cloud
+        pod-selector: app.kubernetes.io/name=nextcloud
         widget:
           type: nextcloud
           url: https://cloud.in.alybadawy.com
@@ -12,6 +14,8 @@
         href: "https://photos.in.alybadawy.com"
         description: Photo management
         icon: immich.svg
+        namespace: immich
+        pod-selector: app.kubernetes.io/name=immich-server
         widget:
           type: immich
           url: http://immich-server.immich.svc.cluster.local:2283
@@ -23,12 +27,16 @@
         href: "https://pgadmin.in.alybadawy.com"
         description: Database management
         icon: pgadmin.svg
+        namespace: db
+        pod-selector: app.kubernetes.io/name=pgadmin
 
 - Infrastructure:
     - ArgoCD:
         href: "https://argo.in.alybadawy.com"
         description: GitOps deployments
         icon: argo-cd.svg
+        namespace: argocd
+        pod-selector: app.kubernetes.io/name=argocd-server
         widget:
           type: argocd
           url: "https://argo.in.alybadawy.com"
@@ -37,6 +45,8 @@
         href: "https://auth.in.alybadawy.com"
         description: Identity provider
         icon: authentik.svg
+        namespace: auth
+        pod-selector: "app.kubernetes.io/name=authentik,app.kubernetes.io/component=server"
         widget:
           type: authentik
           url: "https://auth.in.alybadawy.com"
@@ -46,16 +56,22 @@
         href: "https://secrets.in.alybadawy.com"
         description: Secrets management
         icon: vault.svg
+        namespace: security
+        pod-selector: "app.kubernetes.io/name=vault,component=server"
     - Longhorn:
         href: "https://longhorn.in.alybadawy.com"
         description: Distributed storage
         icon: longhorn.svg
+        namespace: longhorn-system
+        pod-selector: app=longhorn-ui
 
 - Monitoring:
     - Grafana:
         href: "https://grafana.in.alybadawy.com"
         description: Metrics dashboards
         icon: grafana.svg
+        namespace: monitor
+        pod-selector: app.kubernetes.io/name=grafana
         widget:
           type: grafana
           url: "https://grafana.in.alybadawy.com"
@@ -65,6 +81,8 @@
         href: "https://prometheus.in.alybadawy.com"
         description: Metrics collection
         icon: prometheus.svg
+        namespace: monitor
+        pod-selector: app.kubernetes.io/name=prometheus
         widget:
           type: prometheus
           url: "http://prometheus-operated.monitor.svc.cluster.local:9090"
@@ -72,12 +90,16 @@
         href: "https://alerts.in.alybadawy.com"
         description: Alert routing
         icon: alertmanager.svg
+        namespace: monitor
+        pod-selector: app.kubernetes.io/name=alertmanager
 
 - Network:
     - My IP:
         href: "https://ip.in.alybadawy.com"
         description: Click to see your real IP
         icon: mdi-vpn
+        namespace: websites
+        pod-selector: app=ip
     - External IP:
         description: Current WAN IP
         icon: mdi-wan
