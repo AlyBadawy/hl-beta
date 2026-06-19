@@ -47,7 +47,7 @@
         icon: authentik.svg
         widget:
           type: authentik
-          url: http://authentik.auth.svc.cluster.local:9000
+          url: http://authentik-server.auth.svc.cluster.local:9000
           key: { { HOMEPAGE_VAR_AUTHENTIK_TOKEN } }
           version: 2 # optional, default is 1
 
