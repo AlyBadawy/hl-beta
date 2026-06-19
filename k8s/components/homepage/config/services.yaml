@@ -6,7 +6,7 @@
         widget:
           type: nextcloud
           url: http://nextcloud.cloud.svc.cluster.local
-          user: "{{HOMEPAGE_VAR_NEXTCLOUD_USER}}"
+          username: "{{HOMEPAGE_VAR_NEXTCLOUD_USER}}"
           password: "{{HOMEPAGE_VAR_NEXTCLOUD_PASSWORD}}"
     - Immich:
         href: "https://photos.in.alybadawy.com"
