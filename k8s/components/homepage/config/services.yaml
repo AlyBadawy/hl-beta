@@ -33,14 +33,6 @@
           type: argocd
           url: "https://argo.in.alybadawy.com"
           key: "{{HOMEPAGE_VAR_ARGOCD_TOKEN}}"
-    - Vault:
-        href: "https://secrets.in.alybadawy.com"
-        description: Secrets management
-        icon: vault.svg
-    - Longhorn:
-        href: "https://longhorn.in.alybadawy.com"
-        description: Distributed storage
-        icon: longhorn.svg
     - Authentik:
         href: "https://auth.in.alybadawy.com"
         description: Identity provider
@@ -50,6 +42,14 @@
           url: "http://authentik-server.auth.svc.cluster.local:9000"
           key: "{{HOMEPAGE_VAR_AUTHENTIK_TOKEN}}"
           version: 2 # optional, default is 1
+    - Vault:
+        href: "https://secrets.in.alybadawy.com"
+        description: Secrets management
+        icon: vault.svg
+    - Longhorn:
+        href: "https://longhorn.in.alybadawy.com"
+        description: Distributed storage
+        icon: longhorn.svg
 
 - Monitoring:
     - Grafana:

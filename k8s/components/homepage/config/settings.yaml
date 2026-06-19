@@ -40,7 +40,7 @@ layout:
     columns: 2
   Infrastructure:
     style: row
-    columns: 4
+    columns: 2
   Monitoring:
     style: row
     columns: 3

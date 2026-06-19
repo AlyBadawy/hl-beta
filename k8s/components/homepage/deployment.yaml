@@ -22,6 +22,8 @@ spec:
       labels:
         app: homepage
     spec:
+      serviceAccountName: homepage
+      automountServiceAccountToken: true
       containers:
         - name: homepage
           image: ghcr.io/gethomepage/homepage:latest
