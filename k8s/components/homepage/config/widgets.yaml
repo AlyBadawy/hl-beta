@@ -7,7 +7,7 @@
     memory: true
     disk:
       - /
-      - /mnt/nas/backups
       - /mnt/ssd-1tb
+      - /mnt/nas/backups
     uptime: true
     refresh: 3000
