@@ -1,15 +1,20 @@
-- Applications:
+- Services:
     - Nextcloud:
         href: "https://cloud.in.alybadawy.com"
         description: File sharing and collaboration
         icon: nextcloud.svg
+        widget:
+          type: nextcloud
+          url: https://nextcloud.cloud.svc.cluster.local
+          user: "{{HOMEPAGE_VAR_NEXTCLOUD_USER}}"
+          password: "{{HOMEPAGE_VAR_NEXTCLOUD_PASSWORD}}"
     - Immich:
         href: "https://photos.in.alybadawy.com"
         description: Photo management
         icon: immich.svg
         widget:
           type: immich
-          url: http://immich-server.photos.svc.cluster.local
+          url: http://immich-server.immich.svc.cluster.local:2283
           key: "{{HOMEPAGE_VAR_IMMICH_TOKEN}}"
           version: 2 # optional, default is 1
 

@@ -40,6 +40,16 @@ spec:
                 secretKeyRef:
                   name: homepage-secrets
                   key: immich-token
+            - name: HOMEPAGE_VAR_NEXTCLOUD_USER
+              valueFrom:
+                secretKeyRef:
+                  name: homepage-secrets
+                  key: nextcloud-user
+            - name: HOMEPAGE_VAR_NEXTCLOUD_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: homepage-secrets
+                  key: nextcloud-password
             - name: HOMEPAGE_VAR_GRAFANA_PASSWORD
               valueFrom:
                 secretKeyRef:
