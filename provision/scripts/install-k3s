@@ -89,7 +89,9 @@ ssh \
   "sudo tee /etc/systemd/system/longhorn-shutdown-flag.service > /dev/null <<'SVC'
 [Unit]
 Description=Set Longhorn node-shutdown flag for graceful iSCSI cleanup
-After=k3s.service
+DefaultDependencies=no
+Before=shutdown.target reboot.target halt.target poweroff.target
+After=multi-user.target
 
 [Service]
 Type=oneshot
