@@ -1,0 +1,78 @@
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: longhorn-shutdown-agent
+value: 500000
+globalDefault: false
+description: "Runs after regular apps (0) but before Longhorn engines (system-cluster-critical). Gives the preStop hook a clean window to force-unmount iSCSI volumes."
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: longhorn-shutdown-agent
+  namespace: longhorn-system
+  labels:
+    app: longhorn-shutdown-agent
+spec:
+  selector:
+    matchLabels:
+      app: longhorn-shutdown-agent
+  template:
+    metadata:
+      labels:
+        app: longhorn-shutdown-agent
+    spec:
+      priorityClassName: longhorn-shutdown-agent
+      tolerations:
+        - operator: Exists
+      terminationGracePeriodSeconds: 12
+      volumes:
+        - name: hostroot
+          hostPath:
+            path: /
+      containers:
+        - name: agent
+          image: alpine:3.20
+          command: ["/bin/sh", "-c", "while true; do sleep 3600; done"]
+          lifecycle:
+            preStop:
+              exec:
+                command:
+                  - /bin/sh
+                  - -xc
+                  - |
+                    # Guard: only act during an actual node shutdown, not a normal rollout.
+                    # The flag is set by longhorn-shutdown-flag.service (systemd) just before
+                    # k3s.service begins its graceful shutdown period.
+                    [ -f /host/run/longhorn-node-shutdown ] || exit 0
+
+                    # Force-lazy-unmount all Longhorn iSCSI volumes.
+                    # At this point: apps are gone (priority-0 window elapsed), iSCSI
+                    # targets are still alive (engine hasn't received SIGTERM yet).
+                    # umount -f -l detaches the ext4 filesystem from the mount namespace
+                    # immediately; the kernel writes a clean superblock while the device
+                    # is still reachable. Then when the engine dies, there is nothing
+                    # mounted to panic about.
+                    chroot /host iscsiadm -m session -P 3 2>/dev/null \
+                      | awk '/Attached scsi disk/ { print "/dev/" $4 }' \
+                      | while read dev; do
+                          chroot /host findmnt --source "$dev" -n -o TARGET 2>/dev/null \
+                            | sort -r \
+                            | while read mp; do
+                                chroot /host umount -f -l "$mp" 2>/dev/null || true
+                              done
+                        done
+
+                    sleep 2
+          securityContext:
+            privileged: true
+          volumeMounts:
+            - mountPath: /host
+              name: hostroot
+              mountPropagation: HostToContainer
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              memory: 32Mi

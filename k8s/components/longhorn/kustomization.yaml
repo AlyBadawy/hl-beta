@@ -15,6 +15,7 @@ resources:
   - recurring-jobs.yaml
   - prometheus-rule.yaml
   - storageclass-local.yaml
+  - shutdown-agent.yaml
 
 helmCharts:
   - name: longhorn
