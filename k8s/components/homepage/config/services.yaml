@@ -5,6 +5,7 @@
         icon: nextcloud.svg
         namespace: cloud
         pod-selector: app.kubernetes.io/name=nextcloud
+        ping: cloud.in.alybadawy.com
         widget:
           type: nextcloud
           url: https://cloud.in.alybadawy.com
@@ -16,6 +17,7 @@
         icon: immich.svg
         namespace: immich
         pod-selector: app.kubernetes.io/name=immich-server
+        ping: photos.in.alybadawy.com
         widget:
           type: immich
           url: http://immich-server.immich.svc.cluster.local:2283
@@ -29,6 +31,7 @@
         icon: pgadmin.svg
         namespace: db
         pod-selector: app.kubernetes.io/name=pgadmin
+        ping: pgadmin.in.alybadawy.com
 
 - Infrastructure:
     - ArgoCD:
@@ -37,6 +40,7 @@
         icon: argo-cd.svg
         namespace: argocd
         pod-selector: app.kubernetes.io/name=argocd-server
+        ping: argo.in.alybadawy.com
         widget:
           type: argocd
           url: "https://argo.in.alybadawy.com"
@@ -47,6 +51,7 @@
         icon: authentik.svg
         namespace: auth
         pod-selector: "app.kubernetes.io/name=authentik,app.kubernetes.io/component=server"
+        ping: auth.in.alybadawy.com
         widget:
           type: authentik
           url: "https://auth.in.alybadawy.com"
@@ -58,12 +63,14 @@
         icon: vault.svg
         namespace: security
         pod-selector: "app.kubernetes.io/name=vault,component=server"
+        ping: secrets.in.alybadawy.com
     - Longhorn:
         href: "https://longhorn.in.alybadawy.com"
         description: Distributed storage
         icon: longhorn.svg
         namespace: longhorn-system
         pod-selector: app=longhorn-ui
+        ping: longhorn.in.alybadawy.com
 
 - Monitoring:
     - Grafana:
@@ -72,6 +79,7 @@
         icon: grafana.svg
         namespace: monitor
         pod-selector: app.kubernetes.io/name=grafana
+        ping: grafana.in.alybadawy.com
         widget:
           type: grafana
           url: "https://grafana.in.alybadawy.com"
@@ -83,6 +91,7 @@
         icon: prometheus.svg
         namespace: monitor
         pod-selector: app.kubernetes.io/name=prometheus
+        ping: prometheus.in.alybadawy.com
         widget:
           type: prometheus
           url: "http://prometheus-operated.monitor.svc.cluster.local:9090"
@@ -92,6 +101,7 @@
         icon: alertmanager.svg
         namespace: monitor
         pod-selector: app.kubernetes.io/name=alertmanager
+        ping: alerts.in.alybadawy.com
 
 - Network:
     - My IP:
@@ -100,9 +110,11 @@
         icon: mdi-vpn
         namespace: websites
         pod-selector: app=ip
+        ping: ip.in.alybadawy.com
     - External IP:
         description: Current WAN IP
         icon: mdi-wan
+        ping: api.ipify.org
         widget:
           type: customapi
           url: "https://api.ipify.org?format=json"
