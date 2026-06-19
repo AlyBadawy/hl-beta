@@ -5,7 +5,7 @@
         icon: nextcloud.svg
         widget:
           type: nextcloud
-          url: https://nextcloud.cloud.svc.cluster.local
+          url: https://cloud.in.alybadawy.com
           username: "{{HOMEPAGE_VAR_NEXTCLOUD_USER}}"
           password: "{{HOMEPAGE_VAR_NEXTCLOUD_PASSWORD}}"
     - Immich:
