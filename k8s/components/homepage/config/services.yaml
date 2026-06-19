@@ -5,7 +5,7 @@
         icon: nextcloud.svg
         widget:
           type: nextcloud
-          url: https://nextcloud.cloud.svc.cluster.local
+          url: http://nextcloud.cloud.svc.cluster.local
           user: "{{HOMEPAGE_VAR_NEXTCLOUD_USER}}"
           password: "{{HOMEPAGE_VAR_NEXTCLOUD_PASSWORD}}"
     - Immich:
@@ -82,11 +82,3 @@
           mappings:
             - field: ip
               label: WAN IP
-    - Speedtest Tracker:
-        href: "https://speedtest.in.alybadawy.com"
-        description: Internet speed monitoring
-        icon: speedtest-tracker.svg
-        widget:
-          type: speedtest
-          url: "http://speedtest-tracker.speedtest.svc.cluster.local"
-          bitrate: true
