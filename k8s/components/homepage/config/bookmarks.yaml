@@ -1,68 +1,68 @@
----
-- Social:
-    - Twitter/X:
-        - abbr: TX
-          href: https://x.com
-    - Reddit:
-        - abbr: RD
-          href: https://reddit.com
-    - LinkedIn:
-        - abbr: LI
-          href: https://linkedin.com
-    - YouTube:
-        - abbr: YT
-          href: https://youtube.com
-    - Mastodon:
-        - abbr: MD
-          href: https://mastodon.social
+- External Links:
+    - Social:
+        - Twitter/X:
+            abbr: TX
+            href: https://x.com
+        - Reddit:
+            abbr: RD
+            href: https://reddit.com
+        - LinkedIn:
+            abbr: LI
+            href: https://linkedin.com
+        - YouTube:
+            abbr: YT
+            href: https://youtube.com
+        - Mastodon:
+            abbr: MD
+            href: https://mastodon.social
 
-- Developer:
-    - GitHub:
-        - abbr: GH
-          href: https://github.com
-    - Stack Overflow:
-        - abbr: SO
-          href: https://stackoverflow.com
-    - DevDocs:
-        - abbr: DD
-          href: https://devdocs.io
-    - MDN Web Docs:
-        - abbr: MN
-          href: https://developer.mozilla.org
-    - Regex101:
-        - abbr: RX
-          href: https://regex101.com
+    - Developer:
+        - GitHub:
+            abbr: GH
+            href: https://github.com
+        - Stack Overflow:
+            abbr: SO
+            href: https://stackoverflow.com
+        - DevDocs:
+            abbr: DD
+            href: https://devdocs.io
+        - MDN Web Docs:
+            abbr: MN
+            href: https://developer.mozilla.org
+        - Regex101:
+            abbr: RX
+            href: https://regex101.com
 
-- Tools:
-    - Excalidraw:
-        - abbr: EX
-          href: https://excalidraw.com
-    - JSON Formatter:
-        - abbr: JF
-          href: https://jsonformatter.curiousconcept.com
-    - CyberChef:
-        - abbr: CC
-          href: https://gchq.github.io/CyberChef
-    - TempMail:
-        - abbr: TM
-          href: https://temp-mail.org
-    - Epoch Converter:
-        - abbr: EP
-          href: https://epochconverter.com
+    - Tools:
+        - Excalidraw:
+            abbr: EX
+            href: https://excalidraw.com
+        - JSON Formatter:
+            abbr: JF
+            href: https://jsonformatter.curiousconcept.com
+        - CyberChef:
+            abbr: CC
+            href: https://gchq.github.io/CyberChef
+        - TempMail:
+            abbr: TM
+            href: https://temp-mail.org
+        - Epoch Converter:
+            abbr: EP
+            href: https://epochconverter.com
 
-- Resources:
-    - Hacker News:
-        - abbr: HN
-          href: https://news.ycombinator.com
-    - Lobsters:
-        - abbr: LB
-          href: https://lobste.rs
-    - TLDR Newsletter:
-        - abbr: TL
-          href: https://tldr.tech
-    - Dev.to:
-        - abbr: DV
-          href: https://dev.to
-    - Roadmap.sh:
-        - abbr: RM
-          href: https://roadmap.sh
+    - Resources:
+        - Hacker News:
+            abbr: HN
+            href: https://news.ycombinator.com
+        - Lobsters:
+            abbr: LB
+            href: https://lobste.rs
+        - TLDR Newsletter:
+            abbr: TL
+            href: https://tldr.tech
+        - Dev.to:
+            abbr: DV
+            href: https://dev.to
+        - Roadmap.sh:
+            abbr: RM
+            href: https://roadmap.sh

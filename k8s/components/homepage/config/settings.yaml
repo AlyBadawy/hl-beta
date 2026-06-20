@@ -38,14 +38,15 @@ layout:
   Database:
     style: row
     columns: 2
-  Social:
-    style: column
-  Developer:
-    style: column
-  Tools:
-    style: column
-  Resources:
-    style: column
+  External Links:
+    Social:
+      style: column
+    Developer:
+      style: column
+    Tools:
+      style: column
+    Resources:
+      style: column
   Infrastructure:
     style: row
     columns: 2
