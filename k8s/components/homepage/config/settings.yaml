@@ -35,17 +35,26 @@ layout:
   Services:
     style: row
     columns: 2
+    icon: app-service.svg
   Database:
     style: row
     columns: 2
+    icon: libreoffice-colibre-database.svg
   Social:
-    style: column
+    style: row
+    columns: 3
+    icon: gotosocial.svg
   Developer:
-    style: column
+    style: row
+    columns: 3
+    icon: si-devbox
   Tools:
-    style: column
+    style: row
+    columns: 3
+    icon: si-setuptools
   Resources:
-    style: column
+    style: row
+    columns: 3
   Infrastructure:
     style: row
     columns: 2
