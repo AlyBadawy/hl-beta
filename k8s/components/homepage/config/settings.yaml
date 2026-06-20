@@ -42,7 +42,7 @@ layout:
     icon: libreoffice-colibre-database.svg
   Social:
     style: row
-    columns: 3
+    columns: 6
     icon: gotosocial.svg
   Developer:
     style: row
