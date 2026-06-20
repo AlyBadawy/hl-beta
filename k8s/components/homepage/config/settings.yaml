@@ -54,7 +54,6 @@ layout:
     icon: si-setuptools
   Resources:
     style: row
-    columns: 3
   Infrastructure:
     style: row
     columns: 2
