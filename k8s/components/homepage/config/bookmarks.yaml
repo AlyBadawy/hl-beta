@@ -1,38 +1,79 @@
 - Social:
+    - Facebook:
+        - abbr: FB
+          icon: facebook.svg
+          href: https://facebook.com
+    - Instagram:
+        - abbr: IG
+          icon: instagram.svg
+          href: https://instagram.com
     - Twitter/X:
         - abbr: TX
+          icon: si-x
           href: https://x.com
-    - Reddit:
-        - abbr: RD
-          href: https://reddit.com
-    - LinkedIn:
-        - abbr: LI
-          href: https://linkedin.com
-    - YouTube:
-        - abbr: YT
-          href: https://youtube.com
-    - Mastodon:
-        - abbr: MD
-          href: https://mastodon.social
+    # - Reddit:
+    #     - abbr: RD
+    #       icon: reddit.svg
+    #       href: https://reddit.com
+    # - LinkedIn:
+    #     - abbr: LI
+    #       icon: linkedin.svg
+    #       href: https://linkedin.com
+    # - YouTube:
+    #     - abbr: YT
+    #       icon: youtube.svg
+    #       href: https://youtube.com
 
 - Developer:
     - GitHub:
         - abbr: GH
+          icon: github.svg
           href: https://github.com
     - Stack Overflow:
         - abbr: SO
+          icon: stackoverflow.svg
           href: https://stackoverflow.com
     - DevDocs:
         - abbr: DD
           href: https://devdocs.io
     - MDN Web Docs:
         - abbr: MN
+          icon: si-mdnwebdocs
           href: https://developer.mozilla.org
     - Regex101:
         - abbr: RX
           href: https://regex101.com
+    - Vercel:
+        - abbr: VC
+          icon: vercel.svg
+          href: https://vercel.com
+    - Resend:
+        - abbr: RS
+          icon: resend.svg
+          href: https://resend.com
+    - Cloudflare:
+        - abbr: CF
+          icon: cloudflare.svg
+          href: https://cloudflare.com
+    - CodePen:
+        - abbr: CP
+          icon: codepen.svg
+          href: https://codepen.io
 
 - Tools:
+    - Chatgpt:
+        - abbr: CG
+          icon: chatgpt.svg
+          href: https://chat.openai.com
+    - Google Translate:
+        - abbr: GT
+          href: https://translate.google.com
+    - URL Shortener:
+        - abbr: US
+          href: https://tinyurl.com
+    - QR Code Generator:
+        - abbr: QR
+          href: https://qr-code-generator.com
     - Excalidraw:
         - abbr: EX
           href: https://excalidraw.com
