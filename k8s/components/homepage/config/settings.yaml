@@ -16,8 +16,8 @@ background:
   image: https://images.unsplash.com/photo-1502790671504-542ad42d5189?auto=format&fit=crop&w=2560&q=80
   blur: sm # sm, "", md, xl... see https://tailwindcss.com/docs/backdrop-blur
   saturate: 50 # 0, 50, 100... see https://tailwindcss.com/docs/backdrop-saturate
-  brightness: 50 # 0, 50, 75... see https://tailwindcss.com/docs/backdrop-brightness
-  opacity: 50 # 0-100
+  brightness: 25 # 0, 50, 75... see https://tailwindcss.com/docs/backdrop-brightness
+  opacity: 75 # 0-100
 
 blockHighlights:
   levels:
@@ -38,6 +38,15 @@ layout:
   Database:
     style: row
     columns: 2
+  Bookmarks:
+    Social:
+      style: column
+    Developer:
+      style: column
+    Tools:
+      style: column
+    Resources:
+      style: column
   Infrastructure:
     style: row
     columns: 2
