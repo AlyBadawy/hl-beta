@@ -89,17 +89,19 @@ spec:
               subPath: docker.yaml
           readinessProbe:
             httpGet:
-              path: /
+              path: /api/healthcheck
               port: 3000
-            initialDelaySeconds: 5
-            periodSeconds: 3
+            initialDelaySeconds: 10
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 3
           resources:
             requests:
               cpu: 10m
-              memory: 64Mi
-            limits:
-              cpu: 100m
               memory: 128Mi
+            limits:
+              cpu: 200m
+              memory: 256Mi
       volumes:
         - name: nas-backups
           hostPath:
