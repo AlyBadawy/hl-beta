@@ -1,23 +1,44 @@
 # Cluster Rebuild Guide
 
-Step-by-step instructions for rebuilding the entire cluster on a new node and restoring all data from backups. Follow these steps in order — skipping or reordering them will cause dependency failures.
+Step-by-step instructions for rebuilding the entire cluster on a new node. Follow these steps in order — skipping or reordering them will cause dependency failures.
 
-**Last Updated:** 2026-06-06  
+**Last Updated:** 2026-07-15  
 **Applies to:** k3s v1.36.1, ArgoCD on main branch, single-node cluster
 
 ---
 
 ## Before You Start
 
-### What is automatically restored
+### What's already persistent (no restore needed)
 
-| Data                                                | Backup mechanism                                            | Restored in step                       |
-| --------------------------------------------------- | ----------------------------------------------------------- | -------------------------------------- |
-| Vault KV secrets (all app credentials)              | Longhorn PVC backup (`vault-data`) → NAS                    | Step 6                                 |
-| PostgreSQL databases (authentik, immich, nextcloud) | Daily `pg_dump` → NAS (`/mnt/nas/backups/postgres`)         | Step 8 (manual)                        |
-| Longhorn volumes (all `-lh` PVCs)                   | Longhorn backup every 6h → NAS                              | Step 6                                 |
-| Grafana dashboards                                  | `local-path` PVC — NOT backed up by Longhorn                | Must be re-imported manually           |
-| Prometheus metrics history                          | `local-path` PVC — NOT backed up                            | Lost on rebuild (expected)             |
+All stateful app data (Vault KV secrets, PostgreSQL databases, Nextcloud files, Immich
+library, Authentik media) lives on the NAS as native Kubernetes `PersistentVolume`s —
+`nfs:` source pointing directly at `172.20.20.2:/var/nfs/shared/storage/<name>`. This
+data isn't tied to the cluster's own disks, so on a rebuild it's already there: the
+committed PV/PVC manifests in `k8s/components/*/` just re-declare the same NAS paths,
+and GitOps binds to them automatically. No manual restore step, no UI, no volume
+mapping table.
+
+| Data                                                          | Where it lives                                   |
+| -------------------------------------------------------------- | ------------------------------------------------- |
+| Vault KV secrets (all app credentials)                          | NFS PV → `.../storage/vault-data`                 |
+| PostgreSQL databases (authentik, immich, nextcloud, twoofus)     | NFS PV → `.../storage/postgres-data`              |
+| Nextcloud config + files                                        | NFS PVs → `.../storage/nextcloud-{config,data}`   |
+| Immich library                                                  | NFS PV → `.../storage/immich-data`                |
+| Authentik media + templates                                     | NFS PVs → `.../storage/authentik-{media,templates}` |
+
+### What's NOT automatically persistent
+
+| Data                          | Why                                          | What to do                          |
+| ------------------------------ | --------------------------------------------- | ------------------------------------ |
+| Grafana dashboards              | `local-path` PVC — tied to local node disk    | Must be re-imported manually         |
+| Prometheus metrics history      | `local-path` PVC — tied to local node disk    | Lost on rebuild (expected)           |
+| Immich ML model cache            | `local-path` PVC — tied to local node disk    | Re-downloaded automatically on first use |
+| pgAdmin saved connections        | `local-path` PVC — tied to local node disk    | Lost on rebuild; reconfigure manually |
+
+A daily `pg_dump` logical backup of all PostgreSQL databases still runs to
+`/mnt/nas/backups/postgres/` as an independent disaster-recovery fallback (in case the
+NFS-backed `postgres-data` volume itself is ever corrupted) — see Step 7 below.
 
 ### What requires manual intervention
 
@@ -102,13 +123,13 @@ When prompted:
 - **Vault unseal key:** from your offline backup / password manager
 - **Cloudflare API token:** Zone:DNS:Edit for `alybadawy.com`
 
-`rebuild.sh` runs all steps unattended from this point. It covers Steps 1–8 (server
-provisioning, secret seeding, ArgoCD bootstrap, Longhorn install + volume restore).
+`rebuild.sh` runs all steps unattended from this point. It covers Steps 1–7 (server
+provisioning, secret seeding, ArgoCD bootstrap).
 
 | Step | Script                 | What it does                                                                   |
 | ---- | ---------------------- | ------------------------------------------------------------------------------ |
 | 1    | `check-ssh-connection` | Validates SSH + NOPASSWD sudo                                                  |
-| 2    | `update-dependencies`  | `apt upgrade`, installs packages incl. `open-iscsi`, disables swap             |
+| 2    | `update-dependencies`  | `apt upgrade`, installs packages incl. `nfs-common`, disables swap             |
 | 3    | `mount-nas`            | Creates `/mnt/nas/{homelab,backups}`, adds NFS fstab entries                   |
 | 4    | `install-k3s`          | Installs k3s v1.36.1 (Traefik disabled), copies kubeconfig to `~/.kube/config` |
 | 5    | `configure-cluster`    | Creates `cluster-config` namespace and ConfigMap, applies kernel tuning        |
@@ -129,7 +150,7 @@ kubectl get configmap cluster-config -n cluster-config
 
 The Vault unseal key must exist before ArgoCD runs. When GitOps activates, Vault starts first (sync-wave `-1`) and the `vault-auto-unseal` CronJob uses this secret to unseal it within 60 seconds. Without it, Vault stays sealed, ESO cannot sync, and all apps fail to start.
 
-On a rebuild, Vault's data volume (`vault-data`) is restored from the Longhorn backup — so all KV secrets are already inside Vault. You only need to provide the unseal key to let the CronJob open it.
+On a rebuild, Vault's data volume (`vault-data`) is an already-persistent NFS PV on the NAS — so all KV secrets are already inside Vault. You only need to provide the unseal key to let the CronJob open it.
 
 **`rebuild.sh` handles this automatically** (Step 6) — it prompts for the unseal key at the start and seeds it after the k3s cluster is up. For reference, the commands it runs are:
 
@@ -149,14 +170,14 @@ kubectl create secret generic vault-unseal-key \
 
 ## Step 4: Required Secrets Reference
 
-Only **two secrets** require manual intervention on a rebuild. Everything else is either seeded automatically or lives inside Vault (which is restored from the Longhorn backup in Step 6).
+Only **two secrets** require manual intervention on a rebuild. Everything else is either seeded automatically or lives inside Vault (which is already persistent on the NAS).
 
 | Secret                 | Namespace    | How it's created                        | Why it's needed                                                 |
 | ---------------------- | ------------ | --------------------------------------- | --------------------------------------------------------------- |
 | `vault-unseal-key`     | `security`   | `rebuild.sh` Step 6 (prompted at start) | CronJob unseals Vault within 60s of each pod restart            |
 | `cloudflare-api-token` | `networking` | `rebuild.sh` Step 7 (prompted at start) | DNS-01 TLS challenges for `*.in.alybadawy.com` via cert-manager |
 
-**All other app secrets** (postgres credentials, authentik secret key, immich credentials, nextcloud credentials, SMTP, grafana admin, etc.) are stored in Vault's KV store at `secret/`. ESO reads them from Vault and distributes copies into each app namespace automatically. Because Vault's data PVC is part of the Longhorn backup, no manual seeding of these secrets is required.
+**All other app secrets** (postgres credentials, authentik secret key, immich credentials, nextcloud credentials, SMTP, grafana admin, etc.) are stored in Vault's KV store at `secret/`. ESO reads them from Vault and distributes copies into each app namespace automatically. Because Vault's data PVC is an already-persistent NAS-backed NFS volume, no manual seeding of these secrets is required.
 
 ### 4.1 vault-unseal-key
 
@@ -218,61 +239,7 @@ kubectl port-forward -n argocd svc/argocd-server 8080:80
 
 ---
 
-## Step 6: Install Longhorn and Restore Volumes (handled by rebuild.sh)
-
-`rebuild.sh` runs `provision/scripts/restore-volumes` automatically as Step 8.
-The script will ask:
-
-> **Is this a fresh cluster with no backups to restore? [y/N]**
-
-- Answer **`n`** (default) to restore from NAS backups — this is what you want for a rebuild.
-- Answer **`y`** only on a first-ever install with no existing data.
-
-### What the script does
-
-1. Installs Longhorn from `k8s/components/longhorn`
-2. Waits for Longhorn to be ready
-3. Applies the BackupTarget (pointing at `nfs://172.20.20.2:/var/nfs/shared/backups/pvcs`) and RecurringJob resources
-4. Opens the Longhorn UI via port-forward on `http://localhost:9000`
-5. **Waits for you to restore volumes manually through the UI**
-6. Exits once you confirm the restore is complete
-
-### Manual restore steps (in the Longhorn UI)
-
-With `http://localhost:9000` open in your browser:
-
-1. Click **Backup** in the left sidebar
-2. If no backup volumes appear, click the sync icon to refresh from the NAS
-3. For each backup volume, select the latest backup entry and click **Restore**
-4. When prompted for a volume name, use the **PVC name** from the table below
-5. After restoring all volumes, go to **Volume** and confirm each shows state **Detached**
-6. For each restored volume, click **Create PV/PVC** — set the correct **namespace** and **PVC name** from the table
-
-### Volume → namespace/PVC mapping
-
-| Backup volume (shown in UI)              | Namespace  | PVC name              |
-| ---------------------------------------- | ---------- | --------------------- |
-| `pvc-cc69b622-...` (vault)               | `security` | `vault-data`          |
-| `pvc-156223fb-...` (postgres)            | `db`       | `postgres-data`       |
-| `pvc-6b246721-...` (nextcloud)           | `cloud`    | `nextcloud-config`    |
-| `pvc-fa03ae85-...` (authentik media)     | `security` | `authentik-media`     |
-| `pvc-5081ced2-...` (authentik templates) | `security` | `authentik-templates` |
-
-> The backup volume names in the UI are the internal Longhorn IDs (long UUIDs). The `lastBackupName` field and the Longhorn UI label can help you identify which is which by size. If unsure, check the `volumeName` shown in each backup volume's detail page.
-
-Once all PVCs are created, press **Enter** in the terminal to let the script confirm and exit.
-
-After the script exits, verify the PVCs exist:
-
-```bash
-kubectl get pvc -A | grep -E "lh$"
-```
-
-All PVCs should show `Bound` status.
-
----
-
-## Step 7: Activate GitOps
+## Step 6: Activate GitOps
 
 ```bash
 ./provision/activate-gitops.sh
@@ -297,9 +264,9 @@ kubectl port-forward -n argocd svc/argocd-server 8080:80
 2. `external-secrets` — ESO operator deploys; `ClusterSecretStore/k8s-secrets` connects to Vault and becomes Ready
 3. `cert-manager` — cert-manager deploys; ClusterIssuers created; TLS certs begin issuing via DNS-01
 4. `ingress-nginx` — nginx controller gets an external IP; ingress routes become active
-5. `db` — PostgreSQL deploys with restored `postgres-data` PVC; ESO syncs credentials from Vault
-6. `auth` — Authentik deploys with restored media PVCs; ESO syncs SMTP and secret key from Vault
-7. `cloud` — Nextcloud deploys with restored `nextcloud-config` PVC
+5. `db` — PostgreSQL deploys with its already-persistent `postgres-data` NFS PVC; ESO syncs credentials from Vault
+6. `auth` — Authentik deploys with its already-persistent media/templates NFS PVCs; ESO syncs SMTP and secret key from Vault
+7. `cloud` — Nextcloud deploys with its already-persistent `nextcloud-config`/`nextcloud-data` NFS PVCs
 8. `immich` — Immich deploys
 9. `monitor` — Prometheus + Grafana deploy; ESO syncs Grafana admin password from Vault
 10. `aly`, `whoami` — static sites deploy
@@ -308,11 +275,13 @@ Allow 10–15 minutes for all apps to reach `Synced / Healthy`.
 
 ---
 
-## Step 8: Restore PostgreSQL Databases
+## Step 7: Verify PostgreSQL Databases (optional sanity check)
 
-Longhorn restores the PostgreSQL _data volume_, which should contain all databases intact. However, if the Longhorn backup was taken when PostgreSQL was mid-write (unlikely with the daily pg_dump schedule, but possible), you may need to fall back to the pg_dump backups.
+`postgres-data` is an already-persistent NFS PVC, so its databases should already be
+intact with no action needed. This step is just a spot-check, plus a disaster-recovery
+fallback in the rare case the NFS-backed volume itself is corrupted or lost.
 
-### 8.1 Verify databases are intact
+### 7.1 Verify databases are intact
 
 ```bash
 kubectl exec -n db deploy/postgres -- \
@@ -326,14 +295,14 @@ Spot-check row counts:
 ```bash
 # Immich — confirm photos are tracked
 kubectl exec -n db deploy/postgres -- \
-  psql -U postgres -d immich -c 'SELECT COUNT(*) FROM assets;'
+  psql -U postgres -d immich -c 'SELECT COUNT(*) FROM asset;'
 
 # Authentik — confirm users exist
 kubectl exec -n db deploy/postgres -- \
   psql -U postgres -d authentik -c 'SELECT COUNT(*) FROM authentik_core_user;'
 ```
 
-### 8.2 Restore from pg_dump (if Longhorn restore was incomplete)
+### 7.2 Restore from pg_dump (disaster recovery only)
 
 pg_dump backups are on the NAS at `/mnt/nas/backups/postgres/` and are already mounted at that path on the new node.
 
@@ -352,9 +321,9 @@ kubectl exec -i -n db deploy/postgres -- \
 
 ---
 
-## Step 9: Post-Rebuild Verification
+## Step 8: Post-Rebuild Verification
 
-### 9.1 Certificates
+### 8.1 Certificates
 
 TLS certificates are issued automatically by cert-manager once ingress-nginx is running and DNS is resolving. Allow up to 5 minutes after ingress-nginx syncs.
 
@@ -371,7 +340,7 @@ kubectl describe certificaterequest -n <namespace>
 # Look for DNS-01 challenge errors — usually a Cloudflare token issue
 ```
 
-### 9.2 DNS
+### 8.2 DNS
 
 Confirm the cluster's external IP and update DNS if the new node has a different IP:
 
@@ -382,7 +351,7 @@ kubectl get svc -n ingress-nginx ingress-nginx-controller
 
 If the IP changed, update the wildcard A record for `*.in.alybadawy.com` in Cloudflare to point at the new IP.
 
-### 9.3 Service health checks
+### 8.3 Service health checks
 
 ```bash
 # Check all pods are Running
@@ -396,21 +365,21 @@ kubectl get externalsecrets -A
 # All should show READY=True and STATUS=SecretSynced
 ```
 
-### 9.4 Application smoke tests
+### 8.4 Application smoke tests
 
-| Service   | URL                                 | What to check                                |
-| --------- | ----------------------------------- | -------------------------------------------- |
-| ArgoCD    | `https://argo.in.alybadawy.com`     | Login with admin; all apps green             |
-| Vault     | `https://vault.in.alybadawy.com`    | UI loads; status shows unsealed              |
-| Authentik | `https://auth.in.alybadawy.com`     | Login; users and flows intact                |
-| Immich    | `https://immich.in.alybadawy.com`   | Login; photos visible                        |
-| Nextcloud | `https://cloud.in.alybadawy.com`    | Login; files accessible                      |
-| Longhorn  | `https://longhorn.in.alybadawy.com` | All volumes healthy; backup target connected |
-| Grafana   | `https://grafana.in.alybadawy.com`  | Login; dashboards load                       |
+| Service   | URL                                | What to check                     |
+| --------- | ----------------------------------- | -------------------------------- |
+| ArgoCD    | `https://argo.in.alybadawy.com`     | Login with admin; all apps green |
+| Vault     | `https://vault.in.alybadawy.com`    | UI loads; status shows unsealed  |
+| Authentik | `https://auth.in.alybadawy.com`     | Login; users and flows intact    |
+| Immich    | `https://immich.in.alybadawy.com`   | Login; photos visible            |
+| Nextcloud | `https://cloud.in.alybadawy.com`    | Login; files accessible          |
+| Grafana   | `https://grafana.in.alybadawy.com`  | Login; dashboards load           |
 
-### 9.5 Restore Grafana dashboards
+### 8.5 Restore Grafana dashboards
 
-Grafana uses a `local-path` PVC which is **not** backed up by Longhorn. Dashboards must be re-imported.
+Grafana uses a `local-path` PVC, which is tied to the node's local disk and isn't
+backed up. Dashboards must be re-imported.
 
 ```bash
 # Port-forward if ingress isn't up yet
@@ -425,28 +394,10 @@ Recommended dashboards to re-import from grafana.com:
 | Dashboard                   | ID    |
 | --------------------------- | ----- |
 | Kubernetes cluster overview | 7249  |
-| Longhorn                    | 16888 |
 | Node Exporter Full          | 1860  |
 | Nginx Ingress Controller    | 9614  |
 
-### 9.6 Re-enroll Longhorn PVCs in recurring backup jobs
-
-After ArgoCD syncs the `longhorn` app, the `RecurringJob` resources are created. New PVCs created by GitOps (not restored from backup) need the annotation applied:
-
-```bash
-# List all Longhorn-backed PVCs
-kubectl get pvc -A | grep longhorn
-
-# For each PVC that should be backed up (all PVCs), confirm the annotation:
-kubectl get pvc <name> -n <namespace> -o jsonpath='{.metadata.annotations}'
-# Look for: recurring-job-group.longhorn.io/default: enabled
-
-# If missing, add it:
-kubectl annotate pvc <name> -n <namespace> \
-  "recurring-job-group.longhorn.io/default=enabled"
-```
-
-### 9.7 Rotate the ArgoCD admin password
+### 8.6 Rotate the ArgoCD admin password
 
 ```bash
 # Login via CLI first
@@ -503,20 +454,9 @@ kubectl get secret cloudflare-api-token -n networking \
 kubectl logs -n networking deploy/cert-manager | tail -50
 ```
 
-### Longhorn volume restore took too long or timed out
+### PostgreSQL pod in CrashLoopBackOff
 
-```bash
-# Check volume restore status in the Longhorn UI
-kubectl port-forward -n longhorn-system svc/longhorn-frontend 9000:80
-# open http://localhost:9000 → Volumes
-
-# Or via API
-curl -s http://localhost:9000/v1/volumes/<volume-name> | jq '.state,.restoreStatus'
-```
-
-### PostgreSQL pod in CrashLoopBackOff after restore
-
-Usually a permissions issue on the data directory from the Longhorn restore.
+Usually a permissions issue on the data directory.
 
 ```bash
 kubectl describe pod -n db -l app.kubernetes.io/name=postgres
@@ -535,7 +475,7 @@ For a clean rebuild, run these commands in order (filling in the values at each 
 ```bash
 # 1. On the new server — create homelab user, configure sudo, install SSH key
 
-# 2. From your local machine (repo root) — Steps 1–8:
+# 2. From your local machine (repo root) — Steps 1–7:
 #    Prompted upfront: server IP, Vault unseal key, Cloudflare API token
 ./provision/rebuild.sh
 
@@ -545,7 +485,7 @@ For a clean rebuild, run these commands in order (filling in the values at each 
 # 4. Watch and wait
 kubectl get applications -n argocd -w
 
-# 5. Verify (Steps 8–9 above)
+# 5. Verify (Steps 7–8 above)
 ```
 
 ---

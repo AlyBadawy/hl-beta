@@ -1,9 +1,0 @@
-apiVersion: longhorn.io/v1beta2
-kind: BackupTarget
-metadata:
-  name: default
-  namespace: longhorn-system
-spec:
-  backupTargetURL: "nfs://172.20.20.2:/var/nfs/shared/backups/pvcs?nfsOptions=nfsvers%3D3%2Cnolock"
-  credentialSecret: ""
-  pollInterval: 5m0s

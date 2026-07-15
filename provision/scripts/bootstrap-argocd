@@ -3,8 +3,8 @@
 # Step 7: Bootstrap ArgoCD onto a fresh k3s cluster.
 #
 # After this runs, ArgoCD is operational but no applications are deployed yet.
-# That gate is intentional — it allows restore-volumes to pre-populate
-# Longhorn PVCs before any stateful services start.
+# That gate is intentional — it gives the operator a final manual checkpoint
+# (verify secrets and ArgoCD health) before handing cluster control to GitOps.
 #
 # Flow:
 #   1. Install ArgoCD imperatively from k8s/components/argocd (Kustomize + Helm).

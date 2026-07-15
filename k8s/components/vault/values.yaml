@@ -17,12 +17,11 @@ server:
         path = "/vault/data"
       }
 
-  # PVC is managed separately in pvc.yaml (vault-data) so we can apply
-  # Longhorn labels and recurring-backup annotations consistently.
+  # PVC is managed separately in pvc.yaml (vault-data), backed by a NAS NFS PV.
   dataStorage:
     enabled: false
 
-  # Mount the Longhorn-backed PVC at the storage path expected by the config above.
+  # Mount the NFS-backed PVC at the storage path expected by the config above.
   volumes:
     - name: data
       persistentVolumeClaim:

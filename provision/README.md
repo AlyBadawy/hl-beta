@@ -5,7 +5,7 @@ Automated provisioning scripts for k3s cluster setup.
 ## Quick Start
 
 ```bash
-# Full rebuild: provisions server, seeds secrets, bootstraps ArgoCD, installs Longhorn
+# Full rebuild: provisions server, seeds secrets, bootstraps ArgoCD
 ./provision/rebuild.sh
 
 # Activate GitOps once you've verified everything from rebuild.sh looks good
@@ -13,9 +13,9 @@ Automated provisioning scripts for k3s cluster setup.
 ```
 
 **Why is activate-gitops.sh separate?**
-`rebuild.sh` deliberately stops after Longhorn + volume restore so you can inspect
-PVCs, verify both secrets are present, and confirm ArgoCD is healthy before handing
-full cluster control to ArgoCD.
+`rebuild.sh` deliberately stops after bootstrapping ArgoCD so you can do a final
+sanity check — verify both secrets are present and confirm ArgoCD is healthy —
+before handing full cluster control to ArgoCD.
 
 ## Configuration
 
@@ -46,9 +46,8 @@ Validates SSH connectivity and NOPASSWD sudo access to the target server.
 
 ### Step 2: `update-dependencies`
 
-Updates packages and installs essentials (curl, wget, git, jq, nfs-common, open-iscsi,
+Updates packages and installs essentials (curl, wget, git, jq, nfs-common,
 apparmor, socat, etc.), disables SWAP, and installs Helm.
-`open-iscsi` is required by Longhorn for block storage PVCs (Step 8).
 
 ### Step 3: `mount-nas`
 
@@ -75,28 +74,22 @@ before GitOps activates so the `vault-auto-unseal` CronJob can unseal Vault on b
 
 Installs ArgoCD via Kustomize + Helm (`k8s/components/argocd`), waits for it to be
 ready, and creates the cert-manager Cloudflare API token secret. **No applications
-are deployed yet** — that gate is held open for Step 8.
-
-### Step 8: `restore-volumes`
-
-Installs Longhorn via Kustomize + Helm (`k8s/components/longhorn`) with the NAS NFS
-share configured as the backup target.
-
-- **Fresh cluster:** exits immediately after install; volumes are created on first use.
-- **Cluster rebuild:** uses the Longhorn UI (via port-forward) to restore each
-  backup volume from NAS, then pre-creates matching PVs and PVCs so stateful apps bind
-  to restored data when they start after `activate-gitops.sh`.
+are deployed yet** — that gate is held open for the final manual sanity check
+before `activate-gitops.sh`.
 
 ### Final step: `activate-gitops.sh`
 
 Applies the root app-of-apps (`k8s/apps/root.yaml`). ArgoCD discovers all child apps
-and adopts the imperatively-installed ArgoCD and Longhorn with no diff, then deploys
-the rest of the stack. Git (main branch) becomes the sole source of truth.
+and adopts the imperatively-installed ArgoCD with no diff, then deploys the rest of
+the stack — stateful apps bind to NFS PersistentVolumes pointing at already-persistent
+data on the NAS, no restore step needed. Git (main branch) becomes the sole source of
+truth.
 
 ## Helper Library
 
 ### `lib/defaults.sh`
 
 Defines all hardcoded homelab values and the `require_server_ip` helper. All
-sub-scripts source this file. The Longhorn backup target in
-`k8s/components/longhorn/values.yaml` must match `NAS_IP` and `NAS_BASE_SHARE` here.
+sub-scripts source this file. Every NFS-backed `PersistentVolume` under
+`k8s/components/*/` (e.g. `*-pv.yaml`) references `NAS_IP` and the NAS export
+path directly, so they must stay consistent with `NAS_BASE_SHARE` here.

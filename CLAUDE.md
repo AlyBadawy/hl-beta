@@ -6,7 +6,7 @@
 
 ## Provisioning workflow
 
-For the full step-by-step provisioning process (Steps 1–8, activate-gitops, access URLs, and the configuration reference table), see the `provision` skill.
+For the full step-by-step provisioning process (Steps 1–7, activate-gitops, access URLs, and the configuration reference table), see the `provision` skill.
 
 ## Key Design Decisions
 
@@ -20,31 +20,36 @@ See Architecture Decision Records in `docs/ADR-*.md` for detailed rationale.
 
 ### GitOps Bootstrap Design
 
-4. **Staged bootstrap with a restore gate** — Steps 7–8 are deliberately separated from
-   `activate-gitops.sh` so there is a safe window to restore Longhorn PVC backups before
-   stateful apps start. Without this, GitOps would create new empty volumes on first sync.
+4. **Manual checkpoint before GitOps takes over** — Step 7 is deliberately separated from
+   `activate-gitops.sh` so there is a window to verify secrets and ArgoCD health before
+   stateful apps start.
 
-5. **Imperative bootstrap, GitOps adoption** — ArgoCD and Longhorn are installed
-   imperatively (Kustomize + Helm) then adopted by `k8s/apps/argocd.yaml` and
-   `k8s/apps/longhorn.yaml` respectively. The `k8s/components/*/` directories serve as
-   both the bootstrap source and the GitOps source — ensuring zero diff on adoption.
+5. **Imperative bootstrap, GitOps adoption** — ArgoCD is installed imperatively
+   (Kustomize + Helm) then adopted by `k8s/apps/argocd.yaml`. The `k8s/components/*/`
+   directories serve as both the bootstrap source and the GitOps source — ensuring zero
+   diff on adoption.
 
-6. **Pre-bound PVCs** — On a rebuild, PVCs are created with `spec.volumeName` pointing
-   to a specific restored Longhorn volume. When apps deploy, they bind to existing PVCs
-   instead of triggering dynamic provisioning. Namespace must exist before PVC creation.
+6. **Statically-bound NFS PVs** — All stateful app data lives on the NAS as native
+   Kubernetes `PersistentVolume`s (`nfs:` source, `server`/`path` pointing at the NAS
+   export). PVCs bind to a specific PV via `spec.volumeName` and `storageClassName: ""`,
+   so no dynamic provisioning or restore step is needed on a rebuild — the data is
+   already there, git just re-declares the same PV/PVC pair.
 
 ### Secrets Design
 
 7. **HashiCorp Vault as the ESO secrets backend** — All application secrets are stored in
    Vault KV v2 under `secret/`. ESO reads from Vault via the `ClusterSecretStore/k8s-secrets`
    (Vault provider, Kubernetes auth). No secrets are stored in git or in a `secrets` namespace.
-   Vault runs in the `security` namespace as a StatefulSet backed by a Longhorn PVC.
+   Vault runs in the `security` namespace as a StatefulSet backed by an NFS-backed PVC
+   (`file` storage backend — chosen because it doesn't rely on the mmap/byte-range
+   locking that Vault's `raft` backend needs, which NFS handles poorly).
 
 8. **Auto-unseal CronJob** — `vault-auto-unseal` runs every minute in the `security` namespace.
-   It checks Vault's TCP port with `nc`, then runs `timeout 5 vault status` (plain `vault status`
-   hangs at the HTTP layer while Longhorn reattaches storage — the timeout kills it and retries
-   next minute). Exit code 2 = sealed → unseal; 0 = already unsealed; anything else = not ready,
-   retry. The unseal key is stored in the `vault-unseal-key` Secret in the `security` namespace.
+   It checks Vault's TCP port with `nc`, then runs `timeout 5 vault status` (the timeout
+   guards against Vault being briefly unreachable right after a restart — kills the check
+   and retries next minute). Exit code 2 = sealed → unseal; 0 = already unsealed; anything
+   else = not ready, retry. The unseal key is stored in the `vault-unseal-key` Secret in
+   the `security` namespace.
 
 9. **ESO recovery CronJob** — `eso-recovery` runs every minute alongside the unseal CronJob.
    It checks if `vault-0` is ready (Vault's readiness probe fails when sealed, so `ready=true`
@@ -55,15 +60,19 @@ See Architecture Decision Records in `docs/ADR-*.md` for detailed rationale.
 
 10. **Full post-reboot recovery is automatic** — After a reboot the sequence is:
     1. Vault pod starts sealed; ESO enters backoff (store degraded)
-    2. `vault-auto-unseal` retries every minute; Longhorn reattaches the PVC (~4–5 min)
+    2. `vault-auto-unseal` retries every minute until Vault's NFS-backed PVC mounts and
+       the pod is reachable
     3. Vault unseals; `vault-0` becomes Ready
     4. `eso-recovery` detects Vault ready + store degraded → restarts ESO
     5. ESO reconnects to Vault; all ExternalSecrets sync; apps recover
-    Total time from boot to fully healthy: ~6 minutes. No manual intervention required.
+    No manual intervention required. (Total time not yet re-measured since moving off
+    Longhorn — the old ~6 minute figure was dominated by iSCSI PVC reattachment, which
+    no longer applies with NFS.)
 
-11. **Rebuild requires only one manual secret** — After restoring Longhorn backups (which
-    include Vault's data PVC), only `vault-unseal-key` needs to be seeded before GitOps runs.
-    Everything else flows automatically: Vault unseals → ESO syncs → apps start.
+11. **Rebuild requires only one manual secret** — Since all stateful data lives on
+    already-persistent NAS-backed NFS PVs, only `vault-unseal-key` needs to be seeded
+    before GitOps runs. Everything else flows automatically: Vault unseals → ESO syncs →
+    apps start.
 
 ## Documentation
 

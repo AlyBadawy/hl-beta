@@ -5,12 +5,11 @@
 #
 # After this runs:
 #   • ArgoCD self-manages (adopts the bootstrapped install with no diff)
-#   • Longhorn self-manages (adopts the bootstrapped install with no diff)
 #   • All other apps in k8s/apps/ are deployed and kept in sync from Git
-#   • Stateful apps bind to PVCs pre-created by provision/scripts/restore-volumes
+#   • Stateful apps bind to NFS PVs pointing at already-persistent NAS data
 #
 # Prerequisites:
-#   provision/rebuild.sh  — must have completed through Step 8 (Longhorn + PVCs restored)
+#   provision/rebuild.sh  — must have completed through Step 7 (ArgoCD bootstrapped)
 set -euo pipefail
 
 ARGOCD_NAMESPACE="argocd"
@@ -28,8 +27,6 @@ kubectl cluster-info >/dev/null 2>&1 || fail "Cannot reach a Kubernetes cluster 
 
 kubectl -n "$ARGOCD_NAMESPACE" get deploy/argocd-server >/dev/null 2>&1 \
   || fail "ArgoCD not found in namespace '$ARGOCD_NAMESPACE'. Run provision/rebuild.sh first."
-kubectl -n longhorn-system get daemonset/longhorn-manager >/dev/null 2>&1 \
-  || fail "Longhorn not found in namespace 'longhorn-system'. Run provision/rebuild.sh first."
 
 # --- Apply root app-of-apps -----------------------------------------------
 log "Revision : $REPO_REVISION"
@@ -44,8 +41,9 @@ cat <<EOF
 $(log "GitOps activated.")
 
 ArgoCD will now discover and sync all applications in k8s/apps/.
-Infrastructure apps (argocd, longhorn, ingress-nginx, cert-manager) will be
-adopted with no diff. Stateful apps will bind to pre-existing PVCs.
+Infrastructure apps (argocd, ingress-nginx, cert-manager) will be adopted
+with no diff. Stateful apps will bind to NFS PersistentVolumes pointing at
+already-persistent data on the NAS.
 
 Watch the rollout:
   kubectl get applications -n $ARGOCD_NAMESPACE -w

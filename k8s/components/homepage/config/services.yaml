@@ -64,13 +64,6 @@
         namespace: security
         pod-selector: "app.kubernetes.io/name=vault,component=server"
         ping: secrets.in.alybadawy.com
-    - Longhorn:
-        href: "https://longhorn.in.alybadawy.com"
-        description: Distributed storage
-        icon: longhorn.svg
-        namespace: longhorn-system
-        pod-selector: app=longhorn-ui
-        ping: longhorn.in.alybadawy.com
 
 - Monitoring:
     - Grafana:

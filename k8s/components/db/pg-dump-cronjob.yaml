@@ -4,7 +4,7 @@ metadata:
   name: postgres-logical-backup
   namespace: db
 spec:
-  schedule: "0 2 * * *" # 2 AM daily, before Longhorn backup at 6 AM
+  schedule: "0 2 * * *" # 2 AM daily
   concurrencyPolicy: Forbid
   jobTemplate:
     spec:

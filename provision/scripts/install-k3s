@@ -76,38 +76,6 @@ sudo systemctl daemon-reload && sudo systemctl restart systemd-logind" \
   && log_output "${GREEN}✓ logind InhibitDelayMaxSec=30 written and reloaded${NC}" \
   || { log_output "${RED}✗ Failed to write logind config${NC}"; exit 1; }
 
-# systemd flag service: sets /run/longhorn-node-shutdown BEFORE k3s begins its
-# graceful shutdown window. The Longhorn shutdown-agent DaemonSet (priority 500000)
-# checks for this flag in its preStop hook so it only force-unmounts iSCSI volumes
-# during real node shutdowns, not during normal pod rollouts.
-ssh \
-  -o ConnectTimeout=$SSH_TIMEOUT \
-  -o StrictHostKeyChecking=no \
-  -o UserKnownHostsFile=/dev/null \
-  -o LogLevel=QUIET \
-  "$SSH_USER@$SERVER_IP" \
-  "sudo tee /etc/systemd/system/longhorn-shutdown-flag.service > /dev/null <<'SVC'
-[Unit]
-Description=Set Longhorn node-shutdown flag for graceful iSCSI cleanup
-DefaultDependencies=no
-Before=shutdown.target reboot.target halt.target poweroff.target
-After=multi-user.target
-
-[Service]
-Type=oneshot
-RemainAfterExit=yes
-ExecStart=/bin/rm -f /run/longhorn-node-shutdown
-ExecStop=/bin/touch /run/longhorn-node-shutdown
-TimeoutStopSec=5
-
-[Install]
-WantedBy=multi-user.target
-SVC
-sudo systemctl daemon-reload && sudo systemctl enable longhorn-shutdown-flag.service && sudo systemctl start longhorn-shutdown-flag.service" \
-  >> "$LOG_FILE" 2>&1 \
-  && log_output "${GREEN}✓ longhorn-shutdown-flag.service installed and started${NC}\n" \
-  || { log_output "${RED}✗ Failed to install longhorn-shutdown-flag.service${NC}"; exit 1; }
-
 # Step 2: Check if k3s is already installed
 log_output "${YELLOW}Step 2: Checking K3s Installation Status${NC}"
 

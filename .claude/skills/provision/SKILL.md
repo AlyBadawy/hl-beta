@@ -1,6 +1,6 @@
 ---
 name: provision
-description: Step-by-step k3s cluster provisioning/rebuild workflow for this homelab (Steps 1-8, activate-gitops, service access URLs, and the configuration reference table). Use when running, debugging, or explaining ./provision/rebuild.sh or ./provision/activate-gitops.sh.
+description: Step-by-step k3s cluster provisioning/rebuild workflow for this homelab (Steps 1-7, activate-gitops, service access URLs, and the configuration reference table). Use when running, debugging, or explaining ./provision/rebuild.sh or ./provision/activate-gitops.sh.
 ---
 
 ## Provisioning Steps
@@ -26,7 +26,7 @@ Validates SSH connectivity and NOPASSWD sudo access to target Ubuntu server:
 Prepares the Ubuntu server with essential packages and configuration:
 
 - System package updates (`apt update` and `apt upgrade`)
-- Installs essential packages (curl, wget, git, jq, vim, nfs-common, open-iscsi, apparmor, socat, etc.) — `open-iscsi` is required by Longhorn
+- Installs essential packages (curl, wget, git, jq, vim, nfs-common, apparmor, socat, etc.)
 - Disables SWAP (required for k3s)
 - Displays system information (OS, kernel, CPU, memory, disk)
 
@@ -85,8 +85,9 @@ ESO cannot sync, and all apps fail to start.
 **Script:** `provision/scripts/bootstrap-argocd`
 
 Installs ArgoCD onto the cluster and prepares the cert-manager secret. **Deliberately
-stops before deploying any applications** — this gate allows Step 8 to restore PVC
-backups before stateful services start.
+stops before deploying any applications** — this gate gives the operator a final manual
+checkpoint (verify secrets and ArgoCD health) before `activate-gitops.sh` hands control
+to GitOps.
 
 1. Installs ArgoCD via Kustomize + Helm from `k8s/components/argocd`
 2. Waits for ArgoCD to be ready
@@ -99,27 +100,6 @@ kubectl port-forward -n argocd svc/argocd-server 8080:80
 kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d
 ```
 
-### Step 8: Longhorn + Volume Restore ✓ Complete
-
-**Script:** `provision/scripts/restore-volumes`
-
-Installs Longhorn distributed storage and optionally restores PVC backups from NAS.
-
-**Fresh cluster mode** (no backups to restore):
-- Installs Longhorn via Kustomize + Helm from `k8s/components/longhorn`
-- Configures NAS NFS share as the backup target
-- Exits; volumes are created automatically on first use
-
-**Cluster rebuild mode** (restoring from backup):
-- Installs Longhorn, then opens the Longhorn UI via port-forward on `localhost:9000`
-- Operator manually restores each volume from the UI (Backup → Restore) and creates PV/PVCs
-- Script waits for operator confirmation, then exits
-- When `activate-gitops.sh` deploys stateful apps, they bind to the restored PVCs
-
-**Access Longhorn UI (once ingress-nginx and cert-manager are live):**
-- https://longhorn.in.alybadawy.com
-- Before ingress is live: `kubectl port-forward -n longhorn-system svc/longhorn-frontend 9000:80` → http://localhost:9000
-
 ### Final Step: Activate GitOps ✓ Complete
 
 **Script:** `provision/activate-gitops.sh`
@@ -128,12 +108,13 @@ Applies the root app-of-apps (`k8s/apps/root.yaml`) and hands full cluster owner
 to ArgoCD. After this, Git (main branch) is the sole source of truth.
 
 - ArgoCD discovers all child apps in `k8s/apps/`
-- Adopts the imperatively-installed ArgoCD and Longhorn with no diff (self-managing)
+- Adopts the imperatively-installed ArgoCD with no diff (self-managing)
 - Deploys ingress-nginx, cert-manager, external-secrets, vault, and all application stacks
-- Vault (sync-wave `-1`) starts first; the auto-unseal CronJob unseals it (typically 5–6 min after boot — Longhorn PVC reattachment is the bottleneck)
+- Vault (sync-wave `-1`) starts first; the auto-unseal CronJob unseals it once its NFS-backed
+  PVC mounts and the pod is reachable
 - Once Vault is unsealed, the eso-recovery CronJob detects the degraded ClusterSecretStore and restarts ESO; ESO reconnects and syncs all ExternalSecrets
 - Apps start with their secrets populated — full post-boot recovery is automatic with no manual steps
-- Stateful apps bind to PVCs pre-created in Step 8
+- Stateful apps bind to NFS PersistentVolumes pointing at already-persistent data on the NAS — no restore step needed
 
 **Access ArgoCD UI (once ingress-nginx syncs):**
 - https://argo.in.alybadawy.com
@@ -148,7 +129,7 @@ to ArgoCD. After this, Git (main branch) is the sole source of truth.
 ### Initial Setup
 
 ```bash
-# Steps 1–8: provision server, seed secrets, bootstrap ArgoCD, install Longhorn
+# Steps 1–7: provision server, seed secrets, bootstrap ArgoCD
 ./provision/rebuild.sh
 
 # Final step: apply app-of-apps, GitOps takes over
@@ -156,7 +137,7 @@ to ArgoCD. After this, Git (main branch) is the sole source of truth.
                                   # → ESO syncs all secrets from Vault → apps start
 ```
 
-`rebuild.sh` prompts for server IP, Vault unseal key, and Cloudflare token upfront then runs unattended through Step 7. Step 8 requires manual Longhorn UI interaction for volume restore. Everything else is hardcoded in `provision/lib/defaults.sh`.
+`rebuild.sh` prompts for server IP, Vault unseal key, and Cloudflare token upfront then runs unattended through Step 7. Everything else is hardcoded in `provision/lib/defaults.sh`.
 
 ## Configuration Reference
 

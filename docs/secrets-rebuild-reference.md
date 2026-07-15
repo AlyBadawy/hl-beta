@@ -107,11 +107,11 @@ These values must be saved somewhere safe and **offline** (e.g., a local passwor
 Create secrets in this order to avoid dependency failures:
 
 ```
-1. ./provision/rebuild.sh          # Steps 1–8: provisions server, seeds secrets, bootstraps ArgoCD, installs Longhorn
+1. ./provision/rebuild.sh          # Steps 1–7: provisions server, seeds secrets, bootstraps ArgoCD
 2. ./provision/activate-gitops.sh  # Vault (wave -1) starts → CronJob unseals → ESO syncs all secrets → apps start
 ```
 
-On a rebuild, Vault's data volume is restored from its Longhorn backup — Vault is already initialized. Only the unseal key secret needs to be manually seeded.
+On a rebuild, Vault's data volume is an already-persistent NFS PV on the NAS — Vault is already initialized. Only the unseal key secret needs to be manually seeded.
 
 ---
 

@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
 #
 # Rebuild orchestrator — provisions the server (Steps 1–5), seeds the two
-# manually-managed secrets (Vault unseal key, Cloudflare API token),
-# bootstraps ArgoCD (Step 7), and installs Longhorn with volume restore (Step 8).
+# manually-managed secrets (Vault unseal key, Cloudflare API token), and
+# bootstraps ArgoCD (Step 7).
 #
-# Intentionally stops before activate-gitops.sh so you can verify Longhorn
-# volumes and secrets are in place before handing cluster control to ArgoCD.
+# Intentionally stops before activate-gitops.sh so you can do a final sanity
+# check (secrets present, ArgoCD healthy) before handing cluster control to
+# ArgoCD.
 #
 # Next step (manual): ./provision/activate-gitops.sh
 #
@@ -28,9 +29,9 @@ fail() { echo -e "${RED}✗ ${*}${NC}" >&2; exit 1; }
 # ── Banner ───────────────────────────────────────────────────────────────────
 
 echo -e "${GREEN}=== K3s Cluster Rebuild ===${NC}\n"
-echo "Provisions the server, seeds secrets, bootstraps ArgoCD, and installs"
-echo "Longhorn. All interactive prompts are collected upfront — no further"
-echo "interruptions until the Longhorn volume restore step."
+echo "Provisions the server, seeds secrets, and bootstraps ArgoCD. All"
+echo "interactive prompts are collected upfront — no further interruptions"
+echo "until the rebuild completes."
 echo ""
 
 # ── Collect all inputs upfront ───────────────────────────────────────────────
@@ -103,12 +104,11 @@ kubectl create secret generic vault-unseal-key \
 
 ok "vault-unseal-key seeded in namespace 'security'."
 
-# ── Steps 7–8: ArgoCD + Longhorn ─────────────────────────────────────────────
+# ── Step 7: ArgoCD ───────────────────────────────────────────────────────────
 # CLOUDFLARE_API_TOKEN is already exported — bootstrap-argocd detects it
 # and skips its interactive prompt, then seeds cloudflare-api-token in 'networking'.
 
-run_step "Step 7: Bootstrap ArgoCD"                    bootstrap-argocd
-run_step "Step 8: Install Longhorn & Restore Volumes"  restore-volumes
+run_step "Step 7: Bootstrap ArgoCD" bootstrap-argocd
 
 # ── Done ──────────────────────────────────────────────────────────────────────
 
@@ -121,7 +121,6 @@ echo "  kubectl get nodes"
 echo "  kubectl get secret vault-unseal-key -n security"
 echo "  kubectl get secret cloudflare-api-token -n networking"
 echo "  kubectl get pods -n argocd"
-echo "  kubectl get pvc -A | grep -E 'lh$'"
 echo ""
 echo "When satisfied, hand cluster ownership to ArgoCD:"
 echo ""

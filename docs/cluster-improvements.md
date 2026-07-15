@@ -9,7 +9,7 @@
 | 2   | AlertManager notification receivers            | ⏳ Pending                  |
 | 3   | ingress-nginx TLS hardening + security headers | ✅ Done                     |
 | 4   | Certificate expiry PrometheusRule              | ✅ Done                     |
-| 5   | Longhorn backup/health PrometheusRule          | ✅ Done                     |
+| 5   | Longhorn backup/health PrometheusRule          | ⛔ Removed (2026-07-15, Longhorn decommissioned) |
 | 6   | PostgreSQL logical backup CronJob              | ✅ Done                     |
 
 ---
@@ -96,20 +96,19 @@ SMTP username/password should be injected via an `alertmanagerConfigSecret` Exte
 
 ---
 
-## 5. Longhorn Backup Monitoring PrometheusRule ✅ Done
+## 5. Longhorn Backup Monitoring PrometheusRule ⛔ Removed
 
-**Applied in:**
-
-- `k8s/components/longhorn/prometheus-rule.yaml` — alerts for `LonghornVolumeUnhealthy`, `LonghornBackupFailed`, and `LonghornDiskPressure` (> 85%)
-- `k8s/components/longhorn/kustomization.yaml` — added to resources
-
-**Verification:** Check Prometheus UI → Alerts tab → Longhorn rules are listed.
+Longhorn was fully decommissioned on 2026-07-15 — all stateful data was migrated to
+NAS-backed native NFS `PersistentVolume`s, making Longhorn's replicated block storage
+unnecessary. This PrometheusRule (`LonghornVolumeUnhealthy`, `LonghornBackupFailed`,
+`LonghornDiskPressure`) was removed along with the rest of `k8s/components/longhorn/`.
 
 ---
 
 ## 6. PostgreSQL Logical Backup CronJob ✅ Done
 
-**Problem:** Longhorn snapshots are crash-consistent at the filesystem level, not safe point-in-time backups for a running PostgreSQL instance.
+**Problem:** A raw filesystem snapshot/copy of a live volume is crash-consistent at
+best, not a safe point-in-time backup for a running PostgreSQL instance.
 
 **Applied in:**
 
