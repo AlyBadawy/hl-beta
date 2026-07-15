@@ -6,11 +6,10 @@ metadata:
   labels:
     app.kubernetes.io/name: authentik
     homelab/stack: auth
-  annotations:
-    recurring-job-group.longhorn.io/default: enabled
 spec:
   accessModes: [ReadWriteOnce]
-  storageClassName: longhorn
+  storageClassName: ""
+  volumeName: authentik-media-nas
   resources:
     requests:
       storage: 1Gi
@@ -23,11 +22,10 @@ metadata:
   labels:
     app.kubernetes.io/name: authentik
     homelab/stack: auth
-  annotations:
-    recurring-job-group.longhorn.io/default: enabled
 spec:
   accessModes: [ReadWriteOnce]
-  storageClassName: longhorn
+  storageClassName: ""
+  volumeName: authentik-templates-nas
   resources:
     requests:
       storage: 1Gi
