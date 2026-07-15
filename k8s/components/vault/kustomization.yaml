@@ -12,6 +12,7 @@ helmCharts:
     valuesFile: values.yaml
 
 resources:
+  - pv.yaml
   - pvc.yaml
   - ingress.yaml
   - auto-unseal-cronjob.yaml
