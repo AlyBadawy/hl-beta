@@ -6,11 +6,10 @@ metadata:
   labels:
     app.kubernetes.io/name: postgres
     homelab/stack: db
-  annotations:
-    recurring-job-group.longhorn.io/default: enabled
 spec:
   accessModes: [ReadWriteOnce]
-  storageClassName: longhorn
+  storageClassName: ""
+  volumeName: postgres-data-nas
   resources:
     requests:
       storage: 7Gi
