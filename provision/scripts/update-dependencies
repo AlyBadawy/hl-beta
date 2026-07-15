@@ -54,7 +54,7 @@ if [ -z "$swap_status" ]; then
 else
   log_output "  Current SWAP: $swap_status"
   if run_remote_command "sudo swapoff -a" "  Disabling SWAP..."; then
-    run_remote_command "sudo sed -i '/ swap / s/^/#/' /etc/fstab" "  Removing swap from fstab..." || true
+    run_remote_command "sudo sed -i '/swap/ s/^\([^#]\)/#\1/' /etc/fstab" "  Removing swap from fstab..." || true
     log_output "${GREEN}✓ SWAP disabled${NC}\n"
   else
     log_output "${YELLOW}⚠ Failed to disable SWAP (continuing)${NC}\n"
