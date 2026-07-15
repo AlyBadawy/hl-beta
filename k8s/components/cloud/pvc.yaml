@@ -6,13 +6,10 @@ metadata:
   labels:
     app.kubernetes.io/name: nextcloud
     homelab/stack: cloud
-    longhorn.io/pvc-name: nextcloud-config
-    longhorn.io/pvc-namespace: cloud
-  annotations:
-    recurring-job-group.longhorn.io/default: enabled
 spec:
   accessModes: [ReadWriteOnce]
-  storageClassName: longhorn
+  storageClassName: ""
+  volumeName: nextcloud-config-nas
   resources:
     requests:
       storage: 3Gi
@@ -25,11 +22,10 @@ metadata:
   labels:
     app.kubernetes.io/name: nextcloud
     homelab/stack: cloud
-  annotations:
-    recurring-job-group.longhorn.io/default: enabled
 spec:
   accessModes: [ReadWriteOnce]
-  storageClassName: longhorn
+  storageClassName: ""
+  volumeName: nextcloud-data-nas
   resources:
     requests:
-      storage: 150Gi # adjust based on du -sh output
+      storage: 150Gi
