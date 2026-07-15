@@ -27,6 +27,7 @@ spec:
       containers:
         - name: immich-ml
           image: ghcr.io/immich-app/immich-machine-learning:release-openvino
+          imagePullPolicy: Always
           ports:
             - containerPort: 3003
           env:
