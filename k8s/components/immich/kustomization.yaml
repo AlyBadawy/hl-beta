@@ -8,4 +8,5 @@ resources:
   - ingress.yaml
   - server-service.yaml
   - ml-service.yaml
+  - pv.yaml
   - pvc.yaml

@@ -21,11 +21,10 @@ metadata:
   labels:
     app.kubernetes.io/name: immich
     homelab/stack: immich
-  annotations:
-    recurring-job-group.longhorn.io/default: enabled
 spec:
   accessModes: [ReadWriteOnce]
-  storageClassName: longhorn
+  storageClassName: ""
+  volumeName: immich-data-nas
   resources:
     requests:
       storage: 750Gi
