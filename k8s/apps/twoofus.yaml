@@ -1,29 +1,29 @@
-# Copy this file to your hl-beta repo at:  k8s/apps/twoofus.yaml
-# ArgoCD will then pick it up automatically via the root app-of-apps pattern.
+# # Copy this file to your hl-beta repo at:  k8s/apps/twoofus.yaml
+# # ArgoCD will then pick it up automatically via the root app-of-apps pattern.
 
-apiVersion: argoproj.io/v1alpha1
-kind: Application
-metadata:
-  name: twoofus
-  namespace: argocd
-  finalizers:
-    - resources-finalizer.argocd.argoproj.io
-  labels:
-    homelab/stack: twoofus
-spec:
-  project: default
-  source:
-    # TODO: update to your actual GitHub repo URL
-    repoURL: https://github.com/AlyBadawy/twoOfUs
-    targetRevision: main
-    path: k8s
-  destination:
-    server: https://kubernetes.default.svc
-    namespace: websites
-  syncPolicy:
-    automated:
-      prune: true
-      selfHeal: true
-    syncOptions:
-      - CreateNamespace=true
-      - ServerSideApply=true
+# apiVersion: argoproj.io/v1alpha1
+# kind: Application
+# metadata:
+#   name: twoofus
+#   namespace: argocd
+#   finalizers:
+#     - resources-finalizer.argocd.argoproj.io
+#   labels:
+#     homelab/stack: twoofus
+# spec:
+#   project: default
+#   source:
+#     # TODO: update to your actual GitHub repo URL
+#     repoURL: https://github.com/AlyBadawy/twoOfUs
+#     targetRevision: main
+#     path: k8s
+#   destination:
+#     server: https://kubernetes.default.svc
+#     namespace: websites
+#   syncPolicy:
+#     automated:
+#       prune: true
+#       selfHeal: true
+#     syncOptions:
+#       - CreateNamespace=true
+#       - ServerSideApply=true
