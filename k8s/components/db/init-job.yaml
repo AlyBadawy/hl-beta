@@ -36,6 +36,11 @@ spec:
               psql -c "CREATE DATABASE nextcloud OWNER \"$NEXTCLOUD_DB_USER\";" \
                 || echo "  database nextcloud already exists, skipping"
 
+              psql -c "CREATE USER \"$NJ2PC_OEM_DB_USER\" WITH PASSWORD '$NJ2PC_OEM_DB_PASSWORD';" \
+                || echo "  user $NJ2PC_OEM_DB_USER already exists, skipping"
+              psql -c "CREATE DATABASE nj2pc_oem OWNER \"$NJ2PC_OEM_DB_USER\";" \
+                || echo "  database nj2pc_oem already exists, skipping"
+
               echo "Done."
           env:
             - name: PGHOST
@@ -64,3 +69,5 @@ spec:
                 name: immich-db
             - secretRef:
                 name: nextcloud-db
+            - secretRef:
+                name: nj2pc-oem-db
