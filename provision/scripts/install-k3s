@@ -10,7 +10,7 @@ source "$(dirname "$SCRIPT_DIR")/lib/defaults.sh"
 require_server_ip
 
 K3S_VERSION="v1.36.1+k3s1"
-K3S_INSTALL_EXEC="--disable=traefik"
+K3S_INSTALL_EXEC="--disable=traefik --node-ip=$SERVER_IP"
 
 log_output "${BLUE}=== K3s Installation ===${NC}\n"
 
@@ -28,9 +28,10 @@ ssh \
   -o UserKnownHostsFile=/dev/null \
   -o LogLevel=QUIET \
   "$SSH_USER@$SERVER_IP" \
-  "sudo mkdir -p /etc/rancher/k3s && sudo tee /etc/rancher/k3s/config.yaml > /dev/null <<'K3SCFG'
+  "sudo mkdir -p /etc/rancher/k3s && sudo tee /etc/rancher/k3s/config.yaml > /dev/null <<K3SCFG
 disable:
   - traefik
+node-ip: $SERVER_IP
 K3SCFG" \
   >> "$LOG_FILE" 2>&1 \
   && log_output "${GREEN}✓ /etc/rancher/k3s/config.yaml written${NC}" \

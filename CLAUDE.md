@@ -74,6 +74,21 @@ See Architecture Decision Records in `docs/ADR-*.md` for detailed rationale.
     before GitOps runs. Everything else flows automatically: Vault unseals → ESO syncs →
     apps start.
 
+### Networking Design
+
+12. **k3s is pinned to the primary NIC** — `--node-ip=$SERVER_IP` is set on install and
+    `node-ip: $SERVER_IP` is written to `/etc/rancher/k3s/config.yaml`, so cluster
+    networking always binds to the primary (172.20.20.x) NIC regardless of what else is
+    attached to the node — see `docs/ADR-0001-aredn-mesh-exposure.md`.
+
+13. **AREDN mesh-facing apps use plain HTTP, no TLS** — `.local.mesh` hostnames on the
+    AREDN network can't get a browser-trusted cert (no public CA can validate a private,
+    non-internet-routable TLD), and a private CA's manual-trust overhead wasn't judged
+    worth it since the mesh itself is the isolation boundary. ingress-nginx reaches the
+    second NIC automatically via klipper-lb's `hostNetwork`; per-app Ingresses for mesh
+    hosts just add `nginx.ingress.kubernetes.io/ssl-redirect: "false"` and no `tls:`
+    block — see `docs/ADR-0001-aredn-mesh-exposure.md`.
+
 ## Documentation
 
 - **`provision/README.md`** — How to use the provisioning scripts
