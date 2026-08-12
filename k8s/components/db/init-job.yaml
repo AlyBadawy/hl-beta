@@ -6,6 +6,12 @@ metadata:
   labels:
     app.kubernetes.io/name: postgres-init
     homelab/stack: db
+  annotations:
+    # Job's spec.template is immutable, so ArgoCD's default patch strategy
+    # fails whenever this Job's pod spec changes (e.g. adding a new app's
+    # envFrom secretRef). Replace=true tells ArgoCD to delete+recreate
+    # instead of patching in place.
+    argocd.argoproj.io/sync-options: Replace=true
 spec:
   backoffLimit: 10
   template:
